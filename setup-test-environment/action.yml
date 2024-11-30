@@ -1,0 +1,32 @@
+name: 'Setup test environment'
+description: 'Setup the basic test environment for a CI run'
+inputs:
+  primary_repository:
+    description: "The repository to checkout, in the form shakenfist/shakenfist"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Set environment variables
+      run: |
+        echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+        echo "SF_PRIMARY_REPO=$( echo ${{ github.repository }} | cut -f 2 -d '/' )" >> $GITHUB_ENV
+        echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+    - name: Checkout the actions repository
+      uses: actions/checkout@v4
+      with:
+        repository: shakenfist/actions
+        path: actions
+        fetch-depth: 0
+
+    - name: Checkout primary repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.primary_repository }}
+        path: ${{ inputs.primary_repository }}
+        fetch-depth: 0
+
+    - name: Determine if there is any dependency between the repositories
+      run: |
+        python3 ${GITHUB_WORKSPACE}/actions/tools/clone_with_depends.py
