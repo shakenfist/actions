@@ -8,6 +8,7 @@ runs:
   using: "composite"
   steps:
     - name: Set environment variables
+      shell: bash
       run: |
         echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
         echo "SF_PRIMARY_REPO=$( echo ${{ github.repository }} | cut -f 2 -d '/' )" >> $GITHUB_ENV
@@ -28,5 +29,6 @@ runs:
         fetch-depth: 0
 
     - name: Determine if there is any dependency between the repositories
+      shell: bash
       run: |
         python3 ${GITHUB_WORKSPACE}/actions/tools/clone_with_depends.py
