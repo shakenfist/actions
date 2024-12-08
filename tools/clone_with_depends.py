@@ -44,6 +44,7 @@ def main():
     #     Depends on https://github.com/shakenfist/$project/
     primary_repo_path = os.path.join(
         os.environ['GITHUB_WORKSPACE'], os.environ['SF_PRIMARY_REPO'])
+    print('Primary repo path: %s' % primary_repo_path)
     primary_repo = git.Repo(primary_repo_path)
 
     if len(sys.argv) > 1:
