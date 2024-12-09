@@ -21,14 +21,27 @@ runs:
         path: actions
         fetch-depth: 0
 
-    - name: Checkout primary repository
+    # NOTE(mikal): clone_with_depends doesn't work with merge queues because
+    # when we hit the queue we no longer have the branch that is our PR to use
+    # to map to the other repos. So instead we're just going to have to land
+    # things in the right order and get on with our lives.
+    - name: Checkout shakenfist
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.primary_repository }}
-        path: ${{ inputs.primary_repository }}
+        repository: shakenfist/shakenfist
+        path: shakenfist
         fetch-depth: 0
 
-    - name: Determine if there is any dependency between the repositories
-      shell: bash
-      run: |
-        python3 ${GITHUB_WORKSPACE}/actions/tools/clone_with_depends.py
+    - name: Checkout client-python
+      uses: actions/checkout@v4
+      with:
+        repository: shakenfist/client-python
+        path: client-python
+        fetch-depth: 0
+
+    - name: Checkout agent-python
+      uses: actions/checkout@v4
+      with:
+        repository: shakenfist/agent-python
+        path: agent-python
+        fetch-depth: 0
