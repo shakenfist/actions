@@ -58,6 +58,7 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("segfault")
     FORBIDDEN+=("StatusCode.UNAVAILABLE")
     FORBIDDEN+=("*** Check failure stack trace: ***")
+    FORBIDDEN+=("Unhandled gRPC call failure")
 fi
 
 if [ $(echo "${2}" | grep -c "upgrade" || true) -lt 1 ]; then
