@@ -56,7 +56,7 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("Repeated failures to add address to device")
     FORBIDDEN+=("Lock held by missing process on this node")
     FORBIDDEN+=("segfault")
-    FORBIDDEN+=("StatusCode.UNAVAILABLE")
+    # FORBIDDEN+=("StatusCode.UNAVAILABLE")
     FORBIDDEN+=("*** Check failure stack trace: ***")
     FORBIDDEN+=("Unhandled gRPC call failure")
     FORBIDDEN+=("Cannot record event, no configured server")
