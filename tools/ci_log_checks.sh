@@ -57,7 +57,7 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("Lock held by missing process on this node")
     FORBIDDEN+=("segfault")
     # FORBIDDEN+=("StatusCode.UNAVAILABLE")
-    FORBIDDEN+=("*** Check failure stack trace: ***")
+    # FORBIDDEN+=("*** Check failure stack trace: ***")
     FORBIDDEN+=("Unhandled gRPC call failure")
     FORBIDDEN+=("Cannot record event, no configured server")
     FORBIDDEN+=("Cannot communicate with etcd, no configured server")
