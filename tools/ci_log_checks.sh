@@ -19,7 +19,7 @@ echo
 sigterms_a=$(grep -c "Sent SIGTERM to " /var/log/syslog || true)
 sigterms_b=$(grep -c "Sent SIGTERM to " /var/log/syslog.1 || true)
 echo "sigterms: ${sigterms_a} from syslog, ${sigterms_b} from syslog.1"
-sigtems=$(( ${sigterms_a} + ${sigterms_b} ))
+sigterms=$(( ${sigterms_a} + ${sigterms_b} ))
 echo "This CI run sent ${sigterms} SIGTERM signals while shutting down."
 if [ ${sigterms} -gt 50 ]; then
     echo "FAILURE: Too many SIGTERMs sent!"
