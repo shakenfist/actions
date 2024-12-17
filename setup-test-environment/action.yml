@@ -1,9 +1,5 @@
 name: 'Setup test environment'
 description: 'Setup the basic test environment for a CI run'
-inputs:
-  primary_repository:
-    description: "The repository to checkout, in the form shakenfist/shakenfist"
-    required: true
 runs:
   using: "composite"
   steps:
