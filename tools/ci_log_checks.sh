@@ -38,7 +38,6 @@ FORBIDDEN=("Traceback (most recent call last):"
            "not using configured address"
            "Dumping thread traces"
            "because it is leased to"
-           "not committing online upgrade"
            "Received a GOAWAY with error code ENHANCE_YOUR_CALM"
            "ConnectionFailedError"
            "invalid JWT in Authorization header"
@@ -86,7 +85,9 @@ done
 # Forbidden once stable, which we currently define as after the first 1,000
 # lines of the syslog file.
 FORBIDDEN_ONCE_STABLE=("Failed to send event with gRPC"
-                       "Unknown server error while sending multi event with gRPC")
+                       "Unknown server error while sending multi event with gRPC"
+                       "not committing online upgrade"
+                       "Cluster not yet stable")
 IFS=""
 for forbid in ${FORBIDDEN_ONCE_STABLE[*]}
 do
@@ -109,7 +110,8 @@ fi
 # Just a warning for now, likely to get promoted to a failure later...
 failures=0
 WARNING=("Waiting to acquire lock"
-         "Transaction failure")
+         "Transaction failure"
+         "Lock refreshers should not be used under gunicorn")
 
 IFS=""
 for forbid in ${WARNING[*]}
