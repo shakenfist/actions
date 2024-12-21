@@ -33,6 +33,7 @@
           - network_uuid={{identifier}},address=10.0.0.10
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
         await: true
@@ -64,6 +65,7 @@
           - network_uuid={{identifier}},address=10.0.0.20
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
       register: sf1
@@ -93,6 +95,7 @@
           - network_uuid={{identifier}},address=10.0.0.21
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
       register: sf2
@@ -122,6 +125,7 @@
           - network_uuid={{identifier}},address=10.0.0.22
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
       register: sf3
@@ -151,6 +155,7 @@
           - network_uuid={{identifier}},address=10.0.0.23
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
       register: sf4
@@ -180,6 +185,7 @@
           - network_uuid={{identifier}},address=10.0.0.24
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
       register: sf5
