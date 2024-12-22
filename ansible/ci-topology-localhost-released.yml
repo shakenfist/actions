@@ -19,7 +19,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.10
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
-        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
+        user_data: "{{ lookup('file', 'ansible/files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
         await: true
