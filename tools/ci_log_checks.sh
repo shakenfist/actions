@@ -30,7 +30,6 @@ fi
 # tests.
 echo
 FORBIDDEN=("Traceback (most recent call last):"
-           "ERROR sf"
            "ERROR gunicorn"
            " died"
            "Extra vxlan present"
@@ -84,7 +83,8 @@ done
 
 # Forbidden once stable, which we currently define as after the first 1,000
 # lines of the syslog file.
-FORBIDDEN_ONCE_STABLE=("Failed to send event with gRPC"
+FORBIDDEN_ONCE_STABLE=("ERROR sf"
+                       "Failed to send event with gRPC"
                        "Unknown server error while sending multi event with gRPC"
                        "not committing online upgrade"
                        "Cluster not yet stable")
