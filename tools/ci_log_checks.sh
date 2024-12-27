@@ -53,12 +53,19 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("WORKER TIMEOUT")
     FORBIDDEN+=("Repeated failures to add address to device")
     FORBIDDEN+=("Lock held by missing process on this node")
-    FORBIDDEN+=("segfault")
-    # FORBIDDEN+=("StatusCode.UNAVAILABLE")
-    # FORBIDDEN+=("*** Check failure stack trace: ***")
-    FORBIDDEN+=("Unhandled gRPC call failure")
     FORBIDDEN+=("Cannot record event, no configured server")
     FORBIDDEN+=("Cannot communicate with etcd, no configured server")
+
+    # grpc specific
+    FORBIDDEN+=("segfault")
+    FORBIDDEN+=("StatusCode.UNAVAILABLE")
+    FORBIDDEN+=("*** Check failure stack trace: ***")
+    FORBIDDEN+=("Unhandled gRPC call failure")
+
+    # systemd errors
+    FORBIDDEN+=("State 'stop-sigterm' timed out. Killing.")
+    FORBIDDEN+=("Main process exited, code=exited")
+    FORBIDDEN+=("Failed with result 'exit-code'.")
 fi
 
 if [ $(echo "${2}" | grep -c "upgrade" || true) -lt 1 ]; then
