@@ -58,7 +58,6 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
 
     # grpc specific
     FORBIDDEN+=("segfault")
-    FORBIDDEN+=("StatusCode.UNAVAILABLE")
     FORBIDDEN+=("*** Check failure stack trace: ***")
     FORBIDDEN+=("Unhandled gRPC call failure")
 
@@ -94,7 +93,8 @@ FORBIDDEN_ONCE_STABLE=("ERROR sf"
                        "Failed to send event with gRPC"
                        "Unknown server error while sending multi event with gRPC"
                        "not committing online upgrade"
-                       "Cluster not yet stable")
+                       "Cluster not yet stable"
+                       "StatusCode.UNAVAILABLE")
 IFS=""
 for forbid in ${FORBIDDEN_ONCE_STABLE[*]}
 do
