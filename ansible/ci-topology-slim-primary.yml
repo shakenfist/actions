@@ -262,6 +262,21 @@
         state: directory
         mode: u+rw,g+rw,o-rwx
 
+- hosts: primary
+  gather_facts: yes
+  become: true
+  vars:
+
+  tasks:
+    - name: Setup /etc/exports
+      copy:
+        content: |
+          /srv/shakenfist/volumes  *(rw,no_root_squash,no_subtree_check,insecure)
+        dest: /etc/exports
+        owner: root
+        group: root
+        mode: u=r,g=r,o=r
+
     # As recommended on the ansible apt module documentation...
     - name: Install packages only when the apt process is not locked
       apt:
@@ -276,22 +291,11 @@
         name: nfs-kernel-server
         state: present
 
-    - name: Export the volumes directory
-      lineinfile:
-        path: /etc/exports
-        state: present
-        line: "{{ item }}"
-      with_items:
-        - '/srv/shakenfist/volumes  *(rw,no_root_squash,no_subtree_check,insecure)'
-
     - name: Restart nfs-kernel-server.service
       ansible.builtin.systemd:
         daemon_reload: yes
         state: started
         name: nfs-kernel-server.service
-
-    - name: Re-export the share
-      command: exportfs -rav
 
 - hosts: hypervisors
   gather_facts: yes
