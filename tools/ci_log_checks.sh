@@ -55,6 +55,7 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("Lock held by missing process on this node")
     FORBIDDEN+=("Cannot record event, no configured server")
     FORBIDDEN+=("Cannot communicate with etcd, no configured server")
+    FORBIDDEN+=("Recreating not okay network on hypervisor")
 
     # grpc specific
     FORBIDDEN+=("segfault")
@@ -64,7 +65,6 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     # systemd errors
     FORBIDDEN+=("State 'stop-sigterm' timed out. Killing.")
     FORBIDDEN+=("Main process exited, code=exited")
-    FORBIDDEN+=("Failed with result 'exit-code'.")
 fi
 
 if [ $(echo "${2}" | grep -c "upgrade" || true) -lt 1 ]; then
@@ -94,7 +94,8 @@ FORBIDDEN_ONCE_STABLE=("ERROR sf"
                        "Unknown server error while sending multi event with gRPC"
                        "not committing online upgrade"
                        "Cluster not yet stable"
-                       "StatusCode.UNAVAILABLE")
+                       "StatusCode.UNAVAILABLE"
+                       "Failed with result 'exit-code'.")
 IFS=""
 for forbid in ${FORBIDDEN_ONCE_STABLE[*]}
 do
