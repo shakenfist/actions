@@ -109,6 +109,8 @@
         # NOTE(mikal): I don't love this, as it increases the risk that we will
         # miss a package in getsf, but its so slow to install these without
         # pre-caching that doing this saves an hour off the CI job duration.
+        #
+        # NOTE(mikal): dnsmasq is deliberately not included in this list.
         - name: Install packages which CI uses, to make CI runs faster
           apt:
             name:
@@ -118,7 +120,6 @@
               - bridge-utils
               - build-essential
               - cpu-checker
-              - dnsmasq
               - dnsutils
               - git
               - jq
@@ -170,6 +171,8 @@
         # NOTE(mikal): I don't love this, as it increases the risk that we will
         # miss a package in getsf, but its so slow to install these without
         # pre-caching that doing this saves an hour off the CI job duration.
+        #
+        # NOTE(mikal): dnsmasq is deliberately not included in this list.
         - name: Install packages which CI uses, to make CI runs faster
           dnf:
             name:
@@ -177,7 +180,6 @@
               - ansible
               - iputils
               - bridge-utils
-              - dnsmasq
               - dnsutils
               - git
               - jq
