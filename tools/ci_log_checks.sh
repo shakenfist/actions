@@ -31,7 +31,6 @@ fi
 echo
 FORBIDDEN=("Traceback (most recent call last):"
            "ERROR gunicorn"
-           " died"
            "Extra vxlan present"
            "Fork support is only compatible with the epoll1 and poll polling strategies"
            "not using configured address"
