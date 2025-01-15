@@ -55,6 +55,7 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("Cannot record event, no configured server")
     FORBIDDEN+=("Cannot communicate with etcd, no configured server")
     FORBIDDEN+=("Recreating not okay network on hypervisor")
+    FORBIDDEN+=("Failed to change thread name")
 
     # grpc specific
     FORBIDDEN+=("segfault")
