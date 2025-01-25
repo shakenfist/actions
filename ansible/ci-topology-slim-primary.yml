@@ -286,10 +286,25 @@
       retries: 100
       until: apt_action is success or ('Failed to lock apt for exclusive operation' not in apt_action.msg and '/var/lib/dpkg/lock' not in apt_action.msg)
 
-    - name: Install NFS server
-      apt:
-        name: nfs-kernel-server
-        state: present
+    - name: Install NFS server, with retry because of unreliable package mirrors
+      block:
+        - name: Attempt to install the NFS server
+          apt:
+            name: nfs-kernel-server
+            state: present
+      rescue:
+        - name: Sleep for a minute
+          pause:
+            minutes: 1
+
+        - name: Update apt cache
+          apt:
+            update_cache: yes
+
+        - name: Try again
+          apt:
+            name: nfs-kernel-server
+            state: present
 
     - name: Restart nfs-kernel-server.service
       ansible.builtin.systemd:
@@ -312,10 +327,25 @@
       retries: 100
       until: apt_action is success or ('Failed to lock apt for exclusive operation' not in apt_action.msg and '/var/lib/dpkg/lock' not in apt_action.msg)
 
-    - name: Install NFS client
-      apt:
-        name: nfs-common
-        state: present
+    - name: Install NFS server, with retry because of unreliable package mirrors
+      block:
+        - name: Attempt to install the NFS server
+          apt:
+            name: nfs-common
+            state: present
+      rescue:
+        - name: Sleep for a minute
+          pause:
+            minutes: 1
+
+        - name: Update apt cache
+          apt:
+            update_cache: yes
+
+        - name: Try again
+          apt:
+            name: nfs-common
+            state: present
 
     - name: Mount /srv/ci
       mount:
