@@ -1,0 +1,108 @@
+name: 'Setup kerbside single node environment'
+description: 'Setup the basic test environment for a CI run'
+inputs:
+  base:
+    description: 'Base cloud image'
+    required: true
+    default: 'debian:12'
+  base_user:
+    description: 'User to log into instance as'
+    required: true
+    default: 'debian'
+  openstack_release:
+    description: 'The OpenStack release to target'
+    required: true
+    default: 'master'
+runs:
+  using: "composite"
+  steps:
+    - name: Set environment variables
+      shell: bash
+      run: |
+        echo "SF_HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+        echo "SHAKENFIST_NAMESPACE=$(hostname)" >> $GITHUB_ENV
+
+    - name: Checkout the actions repository
+      uses: actions/checkout@v4
+      with:
+        repository: shakenfist/actions
+        path: actions
+        fetch-depth: 0
+
+    - name: Checkout kerbside-patches
+      uses: actions/checkout@v4
+      with:
+        path: kerbside-patches
+        fetch-depth: 0
+
+    - name: Set some more environment variables post git checkout
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+        short_sha=$(git rev-parse --short HEAD)
+        echo "SF_SHORT_HEAD_SHA=${short_sha}" >> $GITHUB_ENV
+
+    - name: Install required packages
+      shell: bash
+      run: |
+        sudo pip3 install yq
+
+    - name: Attempt to apply patches
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        cd ${GITHUB_WORKSPACE}/kerbside-patches/tools
+        ./assemble-source ${{ inputs.openstack_release }}
+
+    - name: Build infrastructure
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        cd ${GITHUB_WORKSPACE}/kerbside-patches
+        ansible-playbook -i /home/debian/ansible-hosts \
+            --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }}" \
+            --tags all ${GITHUB_WORKSPACE}/actions/ansible/kerbside-single-node.yml
+
+    - name: Copy git repo
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        rm -rf kerbside-patches/src
+
+        script="sudo mkdir /srv/shakenfist"
+        script="$script; sudo chown -R ${{ inputs.base_user }}:${{ inputs.base_user }} /srv/shakenfist"
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
+                "${script}"
+
+        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${GITHUB_WORKSPACE}/kerbside-patches \
+            ${{ inputs.base_user }}@10.0.2.2:/srv/shakenfist
+
+    - name: Upgrade python for releases newer than 2024.2
+      shell: bash
+      run: |
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        cd ${GITHUB_WORKSPACE}
+
+        release_year=$(echo "${{ inputs.openstack_release }}" | cut -f 1 -d ".")
+
+        if [ "${release_year}" != "2024" ]; then
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
+                "cd /srv/shakenfist/kerbside-patches/tools; sudo ./upgrade-python"
+        else
+          echo "2024 releases do not require a newer python, skipping"
+        fi
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches/tools; ./install-build-dependencies'
