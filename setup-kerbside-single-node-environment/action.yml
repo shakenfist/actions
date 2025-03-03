@@ -106,3 +106,12 @@ runs:
             -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_user }}@10.0.2.2 \
             'cd /srv/shakenfist/kerbside-patches/tools; ./install-build-dependencies'
+
+    - name: Setup the insecure CI registry
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches/tools; ./add-insecure-ci-registry'
