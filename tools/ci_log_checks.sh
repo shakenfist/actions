@@ -95,7 +95,9 @@ FORBIDDEN_ONCE_STABLE=("ERROR sf"
                        "not committing online upgrade"
                        "Cluster not yet stable"
                        "StatusCode.UNAVAILABLE"
-                       "Failed with result 'exit-code'.")
+                       "Failed with result 'exit-code'."
+                       "API query for node told node not ready"
+                       "Not processing queues as dependencies are unhealthy")
 IFS=""
 for forbid in ${FORBIDDEN_ONCE_STABLE[*]}
 do
