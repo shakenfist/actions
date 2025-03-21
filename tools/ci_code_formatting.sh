@@ -2,6 +2,27 @@
 
 # $1 is the minimum python version, as a small string. For example "36".
 
+export skip_grpc="false"
+export positional_args=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --skip-grpc)
+      export skip_grpc="true"
+      echo "Will skip grpc generation."
+      shift
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      positional_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
 pyupgrade --help > /dev/null
 reorder-python-imports --help > /dev/null
 
@@ -15,17 +36,19 @@ git rebase develop
 changed=0
 
 # Regenerate gPRC code and see if its changed
-cd shakenfist
-../protos/_make_stubs.sh
-delta=$( git diff | grep -c "diff" || true )
-echo "${delta} gRPC generated files were modified"
-changed=$(( ${changed} + ${delta} ))
+if [ ${skip_grpc} == "false" ]; then
+    cd shakenfist
+    ../protos/_make_stubs.sh
+    delta=$( git diff | grep -c "diff" || true )
+    echo "${delta} gRPC generated files were modified"
+    changed=$(( ${changed} + ${delta} ))
+fi
 
 if [ ${changed} -lt 5 ]; then
     # Run our code formatting tools
     for file in $( find . -type f -name "*.py" | egrep -v "(_pb2.py|pb2_grpc.py|.github)"); do
         # pyupgrade
-        out=$( pyupgrade --py${1}-plus \
+        out=$( pyupgrade --py${positional_args[1]}-plus \
             --exit-zero-even-if-changed ${file} 2>&1 || true )
         rewrites=$( echo ${out} | grep -c "Rewriting" || true )
         if [ ${rewrites} -gt 0 ]; then
@@ -38,7 +61,7 @@ if [ ${changed} -lt 5 ]; then
         fi
 
         # reorder imports
-        out=$( reorder-python-imports --py${1}-plus \
+        out=$( reorder-python-imports --py${positional_args[1]}-plus \
             --application-directories=.:shakenfist \
             --exit-zero-even-if-changed ${file} 2>&1 || true )
         rewrites=$( echo ${out} | grep -c "Reordering" || true )
