@@ -53,7 +53,7 @@ runs:
       shell: bash
       run: |
         . $GITHUB_ENV
-        cd ${GITHUB_WORKSPACE}/kerbside-patches/tools
+        cd ${GITHUB_WORKSPACE}/kerbside-patches
         ./_build/assemble-source.sh ${{ inputs.openstack_release }}
 
     - name: Build infrastructure
