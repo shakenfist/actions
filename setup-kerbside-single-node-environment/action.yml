@@ -105,7 +105,7 @@ runs:
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_user }}@10.0.2.2 \
-            'cd /srv/shakenfist/kerbside-patches/tools; ./install-build-dependencies'
+            'cd /srv/shakenfist/kerbside-patches; ./_build/install-build-dependencies.sh'
 
     - name: Setup the insecure CI registry
       shell: bash
