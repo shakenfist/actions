@@ -114,4 +114,4 @@ runs:
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_user }}@10.0.2.2 \
-            'cd /srv/shakenfist/kerbside-patches/tools; ./add-insecure-ci-registry'
+            'cd /srv/shakenfist/kerbside-patches; ./_build/add-insecure-ci-registry.sh'
