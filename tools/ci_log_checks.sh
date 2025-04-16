@@ -61,6 +61,7 @@ if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     FORBIDDEN+=("segfault")
     FORBIDDEN+=("*** Check failure stack trace: ***")
     FORBIDDEN+=("Unhandled gRPC call failure")
+    FORBIDDEN+=("Protobuf decode error")
 
     # systemd errors
     FORBIDDEN+=("State 'stop-sigterm' timed out. Killing.")
