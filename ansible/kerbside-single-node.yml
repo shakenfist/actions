@@ -5,31 +5,32 @@
     base: rocky:9
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
+    environment_name: kolla
 
   tasks:
-    - name: Create a kolla network
+    - name: Create a network
       sf_network:
         netblock: "10.0.2.0/24"
-        name: "kolla"
+        name: "{{environment_name}}"
         namespace: "{{identifier}}"
         state: present
         dns: true
-      register: kolla_network
+      register: environment_network
 
     - debug:
         msg:
-          - "Kolla network: {{ kolla_network['meta']['uuid'] }}"
+          - "Kolla network: {{ environment_network['meta']['uuid'] }}"
 
-    - name: Create a kolla instance
+    - name: Create an instance
       sf_instance:
-        name: "kolla"
+        name: "{{environment_name}}"
         cpu: 12
         ram: 16384
         disks:
           - "400@{{base}}"
         networkspecs:
-          - network_uuid=kolla,address=10.0.2.2,float=true
-          - network_uuid=kolla,address=none
+          - network_uuid={{environment_name}},address=10.0.2.2,float=true
+          - network_uuid={{environment_name}},address=none
         ssh_key: "{{ lookup('file', sshkey) }}"
         namespace: "{{identifier}}"
         side_channels:
@@ -37,25 +38,25 @@
         state: present
         await: true
         await_timeout: 600
-      register: kolla
+      register: environment_instance
 
     - name: Additional tasks for CI
       tags: ci
       block:
-      - name: Add kolla node to ansible
+      - name: Add node to ansible
         add_host:
-          hostname: kolla
-          egress_ip: "{{kolla['meta']['interfaces'][0]['ipv4']}}"
-          ansible_ssh_host: "{{kolla['meta']['interfaces'][0]['ipv4']}}"
+          hostname: {{environment_name}}
+          egress_ip: "{{environment_instance['meta']['interfaces'][0]['ipv4']}}"
+          ansible_ssh_host: "{{environment_instance['meta']['interfaces'][0]['ipv4']}}"
           ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
           ansible_ssh_user: "cloud-user"
           ansible_ssh_private_key_file: "/srv/github/id_ci"
-          sf_uuid: "{{kolla['meta']['uuid']}}"
+          sf_uuid: "{{environment_instance['meta']['uuid']}}"
           groups: sfall
 
-      - name: Add kolla network interface to primary instance
+      - name: Add environment network interface to primary instance
         shell: |
-          sf-client instance add-interface -n kolla "{{identifier}}"
+          sf-client instance add-interface -n "{{environment_name}}" "{{identifier}}"
           sleep 10
           ip a | egrep "^[0-9]+: ens" | cut -f 2 -d " " | sed 's/:.*//'
         register: primary_new_interface
@@ -75,8 +76,8 @@
       - name: Log instance details
         debug:
           msg:
-            - "Kolla: is {{kolla['meta']['uuid']}} at {{kolla['meta']['interfaces'][0]['ipv4']}}"
-            - "Primary kolla network address: {{ primary_new_address.stdout }}"
+            - "Environment: is {{environment_instance['meta']['uuid']}} at {{environment_instance['meta']['interfaces'][0]['ipv4']}}"
+            - "Primary environment network address: {{ primary_new_address.stdout }}"
 
       - name: Write details of instances to workspace
         copy:
@@ -88,7 +89,7 @@
 
             export identifier={{identifier}}
             export nodes="{{ groups.sfall | join(' ') | replace('-', '_') }}"
-            export KOLLA="{{ primary_new_address.stdout }}"
+            export ENVIRONMENT="{{ primary_new_address.stdout }}"
           dest: "{{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
           owner: debian
           group: debian
