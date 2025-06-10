@@ -3,7 +3,6 @@
   connection: ssh
   vars:
     identifier: unknown
-    source_path: "/srv/github/src/shakenfist/"
     base_image: "https://sfcbr.shakenfist.com/static/ubuntu2004-ci-template.qcow2"
     base_image_user: "ubuntu"
 
@@ -218,8 +217,6 @@
 - hosts: sfall
   gather_facts: yes
   become: true
-  vars:
-    source_path: "/srv/github/src/shakenfist/"
 
   tasks:
     - name: Disable unattended upgrades
@@ -261,8 +258,6 @@
 - hosts: sfall
   gather_facts: yes
   become: true
-  vars:
-    source_path: "/srv/github/src/shakenfist/"
 
   tasks:
     - name: Disable logrotate
@@ -279,7 +274,7 @@
 
     - name: Copy getsf
       copy:
-        src: "{{source_path}}/shakenfist/deploy/getsf"
+        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/deploy/getsf"
         dest: "/tmp/getsf"
         mode: ugo+rwx
 

@@ -358,8 +358,6 @@
 - hosts: sfall
   gather_facts: yes
   become: true
-  vars:
-    source_path: "/srv/github/src/shakenfist/"
 
   tasks:
     - name: Disable logrotate
@@ -376,23 +374,23 @@
 
     - name: Copy getsf
       copy:
-        src: "{{source_path}}/shakenfist/deploy/getsf"
+        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/deploy/getsf"
         dest: "/tmp/getsf"
         mode: ugo+rwx
 
     - name: Copy server wheel file
       copy:
-        src: "{{source_path}}/shakenfist/dist/{{hostvars['localhost']['server_wheel_file']}}"
+        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/dist/{{hostvars['localhost']['server_wheel_file']}}"
         dest: "/root/{{hostvars['localhost']['server_wheel_file']}}"
 
     - name: Copy client wheel file
       copy:
-        src: "{{source_path}}/client-python/dist/{{hostvars['localhost']['client_wheel_file']}}"
+        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/client-python/dist/{{hostvars['localhost']['client_wheel_file']}}"
         dest: "/root/{{hostvars['localhost']['client_wheel_file']}}"
 
     - name: Copy agent wheel file
       copy:
-        src: "{{source_path}}/agent-python/dist/{{hostvars['localhost']['agent_wheel_file']}}"
+        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/agent-python/dist/{{hostvars['localhost']['agent_wheel_file']}}"
         dest: "/root/{{hostvars['localhost']['agent_wheel_file']}}"
 
     # We cannot do this in the shaken fist network configuration because

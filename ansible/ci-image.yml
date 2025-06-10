@@ -3,7 +3,6 @@
   connection: ssh
   vars:
     identifier: unknown
-    source_path: "/home/jenkins/src/shakenfist/"
     base_image: "ubuntu:22.04"
     base_image_user: "ubuntu"
 
@@ -81,7 +80,6 @@
   gather_facts: yes
   become: true
   vars:
-    source_path: "/home/jenkins/src/shakenfist/"
 
   tasks:
     # Debian derived distributions
@@ -302,7 +300,7 @@
 
     - name: Log instance
       debug:
-        msg: "{{hostvars['imagetest']}}"
+        msg: "{{imagetest_instance}}"
 
     - name: Wait for instance to present an "OpenSSH" prompt
       wait_for:

@@ -8,7 +8,6 @@
 
       export baseuser={{base_image_user}}
       export identifier={{identifier}}
-      export source_path={{source_path}}
       export nodes="{{ groups.sfall | join(' ') | replace('-', '_') }}"
     dest: "{{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
     owner: debian
@@ -29,12 +28,12 @@
 
 - name: Remove old deploy tarball
   file:
-    path: "{{source_path}}/shakenfist/deploy.tgz"
+    path: "${GITHUB_WORKSPACE}/shakenfist/deploy.tgz"
     state: absent
 
 - name: Remove old docs tarball
   file:
-    path: "{{source_path}}/shakenfist/docs.tgz"
+    path: "${GITHUB_WORKSPACE}/shakenfist/docs.tgz"
     state: absent
 
 - name: Build Shaken Fist wheel
@@ -44,12 +43,12 @@
     rm dist/*
     python3 setup.py sdist bdist_wheel
   args:
-    chdir: "{{source_path}}/shakenfist"
+    chdir: "${GITHUB_WORKSPACE}/shakenfist"
 
 - name: Determine wheel filename
   shell: ls dist | egrep "shakenfist.*\.whl"
   args:
-    chdir: "{{source_path}}/shakenfist"
+    chdir: "${GITHUB_WORKSPACE}/shakenfist"
   register: server_wheel_file_complex
 
 - name: Extract the wheel filename
@@ -64,12 +63,12 @@
     rm dist/*
     python3 setup.py sdist bdist_wheel
   args:
-    chdir: "{{source_path}}/client-python"
+    chdir: "${GITHUB_WORKSPACE}/client-python"
 
 - name: Determine wheel filename
   shell: ls dist | egrep "shakenfist_client.*\.whl"
   args:
-    chdir: "{{source_path}}/client-python"
+    chdir: "${GITHUB_WORKSPACE}/client-python"
   register: client_wheel_file_complex
 
 - name: Extract the wheel filename
@@ -84,12 +83,12 @@
     rm dist/*
     python3 setup.py sdist bdist_wheel
   args:
-    chdir: "{{source_path}}/agent-python"
+    chdir: "${GITHUB_WORKSPACE}/agent-python"
 
 - name: Determine wheel filename
   shell: ls dist | egrep "shakenfist_agent.*\.whl"
   args:
-    chdir: "{{source_path}}/agent-python"
+    chdir: "${GITHUB_WORKSPACE}/agent-python"
   register: agent_wheel_file_complex
 
 - name: Extract the wheel filename

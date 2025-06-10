@@ -73,7 +73,7 @@
 
     - name: Make a directory for cached images
       file:
-        path: /srv/ci
+        path: /srv/ci/cached
         state: directory
         mode: "0755"
 
@@ -82,7 +82,7 @@
 
     - name: Mount the dependencies disk
       mount:
-        path: /srv/ci
+        path: /srv/ci/cached
         src: /dev/vdc
         fstype: ext4
         state: mounted
@@ -90,7 +90,7 @@
     - name: Cache all minimal images we currently build to reduce network traffic
       get_url:
         url: "{{item.url}}"
-        dest: "/srv/ci/{{item.name}}"
+        dest: "/srv/ci/cached/{{item.name}}"
         mode: u+r
       loop:
         - {
@@ -146,12 +146,12 @@
             name: "backup-0.6.15-20230319",
           }
 
-    - name: List contents of /srv/ci
-      shell: ls -lrth /srv/ci
+    - name: List contents of /srv/ci/cached
+      shell: ls -lrth /srv/ci/cached
 
     - name: Unmount the dependencies disk
       mount:
-        path: /srv/ci
+        path: /srv/ci/cached
         state: unmounted
 
 - hosts: localhost
