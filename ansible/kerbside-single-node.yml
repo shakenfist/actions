@@ -17,9 +17,10 @@
         dns: true
       register: environment_network
 
-    - debug:
+    - name: Log environment network
+      debug:
         msg:
-          - "Kolla network: {{ environment_network['meta']['uuid'] }}"
+          - "New network: {{ environment_network }}"
 
     - name: Create an instance
       sf_instance:
@@ -40,6 +41,11 @@
         await_timeout: 600
       register: environment_instance
 
+    - name: Log environment instance
+      debug:
+        msg:
+          - "New instance: {{ environment_instance }}"
+
     - name: Additional tasks for CI
       tags: ci
       block:
@@ -57,7 +63,10 @@
       - name: Add environment network interface to primary instance
         shell: |
           sf-client instance add-interface -n "{{environment_name}}" "{{identifier}}"
-          sleep 10
+          sleep 30
+
+      - name: Determine the interface name for the new interface
+        shell: |
           ip a | egrep "^[0-9]+: ens" | cut -f 2 -d " " | sed 's/:.*//'
         register: primary_new_interface
 
