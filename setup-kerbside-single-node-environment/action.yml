@@ -85,7 +85,7 @@ runs:
     - name: Upgrade python for releases newer than 2024.2
       shell: bash
       run: |
-        . /srv/ci/ci-environment.sh
+        . $GITHUB_ENV
 
         release_year=$(echo "${{ inputs.openstack_release }}" | cut -f 1 -d ".")
 
