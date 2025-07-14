@@ -24,10 +24,38 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        - name: "kolla"
+        - name: "deploy"
         - address: "10.0.2.2"
-        - vcpus: 12
-        - memory: 16384
+        - vcpus: 2
+        - memory: 2048
+
+    - include_tasks: kerbside-create-instance.yml
+      vars:
+        - name: "control-1"
+        - address: "10.0.2.10"
+        - vcpus: 4
+        - memory: 4096
+
+    - include_tasks: kerbside-create-instance.yml
+      vars:
+        - name: "control-2"
+        - address: "10.0.2.11"
+        - vcpus: 4
+        - memory: 4096
+
+    - include_tasks: kerbside-create-instance.yml
+      vars:
+        - name: "compute-1"
+        - address: "10.0.2.20"
+        - vcpus: 6
+        - memory: 8192
+
+    - include_tasks: kerbside-create-instance.yml
+      vars:
+        - name: "compute-2"
+        - address: "10.0.2.21"
+        - vcpus: 6
+        - memory: 8192
 
     - name: Additional tasks for CI
       tags: ci

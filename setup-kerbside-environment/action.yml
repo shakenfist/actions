@@ -1,4 +1,4 @@
-name: 'Setup kerbside single node environment'
+name: 'Setup kerbside environment'
 description: 'Setup the basic test environment for a CI run'
 inputs:
   base:
@@ -13,6 +13,10 @@ inputs:
     description: 'The OpenStack release to target'
     required: true
     default: 'master'
+  topology:
+    description: 'The topology to use (all-in-one or multinode)'
+    required: true
+    default: 'all-in-one'
 runs:
   using: "composite"
   steps:
@@ -61,9 +65,17 @@ runs:
       run: |
         . $GITHUB_ENV
         cd ${GITHUB_WORKSPACE}/kerbside-patches
+
+        if [ "${{ inputs.topology }}" == "all-in-one" ]; then
+            playbook="kerbside-single-node.yml"
+        else
+            playbook="kerbside-multi-node.yml"
+        fi
+        echo "Using playbook ${playbook}"
+
         ansible-playbook -i /home/debian/ansible-hosts \
             --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }}" \
-            --tags all ${GITHUB_WORKSPACE}/actions/ansible/kerbside-single-node.yml
+            --tags all ${GITHUB_WORKSPACE}/actions/ansible/${playbook}
 
     - name: Copy git repo
       shell: bash

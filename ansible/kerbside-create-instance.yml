@@ -1,0 +1,35 @@
+---
+- name: Create a deploy instance
+  sf_instance:
+    name: "{{ name }}"
+    cpu: "{{ vcpus }}"
+    ram: "{{ memory }}"
+    disks:
+      - "400@{{base}}"
+    networkspecs:
+      - network_uuid={{ environment_name }},address={{ address }},float=true
+      - network_uuid={{ environment_name }},address=none
+    ssh_key: "{{ lookup('file', sshkey) }}"
+    namespace: "{{ identifier }}"
+    side_channels:
+      - sf-agent2
+    state: present
+    await: true
+    await_timeout: 600
+  register: new_instance
+
+- name: Log environment instance
+  debug:
+    msg:
+      - "New instance: {{ new_instance }}"
+
+- name: Add node to ansible
+  add_host:
+    hostname: "deploy"
+    egress_ip: "{{ new_instance['meta']['interfaces'][0]['ipv4'] }}"
+    ansible_ssh_host: "{{ new_instance['meta']['interfaces'][0]['ipv4'] }}"
+    ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_user: "cloud-user"
+    ansible_ssh_private_key_file: "/srv/github/id_ci"
+    sf_uuid: "{{ new_instance['meta']['uuid'] }}"
+    groups: sfall
