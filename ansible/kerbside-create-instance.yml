@@ -25,7 +25,7 @@
 
 - name: Add node to ansible
   add_host:
-    hostname: "deploy"
+    hostname: "{{ name }}"
     egress_ip: "{{ new_instance['meta']['interfaces'][0]['ipv4'] }}"
     ansible_ssh_host: "{{ new_instance['meta']['interfaces'][0]['ipv4'] }}"
     ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"

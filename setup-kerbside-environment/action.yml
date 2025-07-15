@@ -77,6 +77,39 @@ runs:
             --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }}" \
             --tags all ${GITHUB_WORKSPACE}/actions/ansible/${playbook}
 
+        echo
+        echo
+        echo "==================================="
+        echo "=        Dump environment         ="
+        echo "==================================="
+        cat ${GITHUB_WORKSPACE}/ci-environment.sh
+
+        echo
+        echo
+        echo "==================================="
+        echo "=         Dump interfaces         ="
+        echo "==================================="
+
+        if [ "${{ inputs.topology }}" == "all-in-one" ]; then
+            declare -a hosts=("10.0.2.2")
+        else
+            declare -a hosts=(
+                "10.0.2.2"               # deploy
+                "10.0.2.10" "10.0.2.11"  # control
+                "10.0.2.20" "10.0.2.21"  # network
+                "10.0.2.30" "10.0.2.31"  # kerbside
+                )
+        fi
+
+        for addr in "${hosts[@]}"; do
+            echo
+            echo "Host ${addr}"
+            echo
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@${addr} "ip a"
+        done
+        echo
+
     - name: Copy git repo
       shell: bash
       run: |
