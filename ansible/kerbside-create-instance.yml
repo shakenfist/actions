@@ -1,5 +1,5 @@
 ---
-- name: Create a deploy instance
+- name: Create an instance
   sf_instance:
     name: "{{ name }}"
     cpu: "{{ vcpus }}"
