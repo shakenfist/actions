@@ -28,6 +28,7 @@
         - address: "10.0.2.2"
         - vcpus: 12
         - memory: 16384
+        - base: "{{ base }}"
 
     - name: Additional tasks for CI
       tags: ci

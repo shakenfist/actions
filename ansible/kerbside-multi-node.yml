@@ -28,6 +28,7 @@
         - address: "10.0.2.2"
         - vcpus: 2
         - memory: 2048
+        - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -35,6 +36,7 @@
         - address: "10.0.2.10"
         - vcpus: 4
         - memory: 4096
+        - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -42,6 +44,7 @@
         - address: "10.0.2.11"
         - vcpus: 4
         - memory: 4096
+        - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -49,6 +52,7 @@
         - address: "10.0.2.20"
         - vcpus: 6
         - memory: 8192
+        - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -56,6 +60,7 @@
         - address: "10.0.2.21"
         - vcpus: 6
         - memory: 8192
+        - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -63,6 +68,7 @@
         - address: "10.0.2.30"
         - vcpus: 4
         - memory: 4096
+        - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -70,6 +76,7 @@
         - address: "10.0.2.31"
         - vcpus: 4
         - memory: 4096
+        - base: "{{ base }}"
 
     - name: Additional tasks for CI
       tags: ci
