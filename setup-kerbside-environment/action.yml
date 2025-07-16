@@ -77,6 +77,13 @@ runs:
             --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }}" \
             --tags all ${GITHUB_WORKSPACE}/actions/ansible/${playbook}
 
+        # Copy the environment ssh key to the deploy node
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
+                "sudo mkdir -p /srv/github; sudo chown -R ${{ inputs.base_user }}:${{ inputs.base_user }} /srv/github"
+        scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null /srv/github/id_ci ${{ inputs.base_user }}@10.0.2.2:/srv/github/
+
         echo
         echo
         echo "==================================="
