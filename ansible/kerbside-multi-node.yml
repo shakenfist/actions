@@ -29,6 +29,7 @@
         - vcpus: 2
         - memory: 2048
         - base: "{{ base }}"
+        - tag: "deploy"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -37,6 +38,7 @@
         - vcpus: 4
         - memory: 4096
         - base: "{{ base }}"
+        - tag: "controller"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -45,6 +47,7 @@
         - vcpus: 4
         - memory: 4096
         - base: "{{ base }}"
+        - tag: "controller"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -53,6 +56,7 @@
         - vcpus: 12
         - memory: 16384
         - base: "{{ base }}"
+        - tag: "hypervisor"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -61,6 +65,7 @@
         - vcpus: 12
         - memory: 16384
         - base: "{{ base }}"
+        - tag: "hypervisor"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -69,6 +74,7 @@
         - vcpus: 4
         - memory: 4096
         - base: "{{ base }}"
+        - tag: "vdiproxy"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -77,6 +83,7 @@
         - vcpus: 4
         - memory: 4096
         - base: "{{ base }}"
+        - tag: "vdiproxy"
 
     - name: Additional tasks for CI
       tags: ci

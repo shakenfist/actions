@@ -13,6 +13,10 @@
     namespace: "{{ identifier }}"
     side_channels:
       - sf-agent2
+    metadata:
+      affinity: "{ '{{ tag }}': -50 }"
+      tags:
+       - "{{ tag }}"
     state: present
     await: true
     await_timeout: 600
