@@ -35,8 +35,8 @@
       vars:
         - name: "control-1"
         - address: "10.0.2.10"
-        - vcpus: 4
-        - memory: 4096
+        - vcpus: 8
+        - memory: 8192
         - base: "{{ base }}"
         - tag: "controller"
 
@@ -44,8 +44,8 @@
       vars:
         - name: "control-2"
         - address: "10.0.2.11"
-        - vcpus: 4
-        - memory: 4096
+        - vcpus: 8
+        - memory: 8192
         - base: "{{ base }}"
         - tag: "controller"
 
@@ -53,17 +53,8 @@
       vars:
         - name: "compute-1"
         - address: "10.0.2.20"
-        - vcpus: 12
-        - memory: 16384
-        - base: "{{ base }}"
-        - tag: "hypervisor"
-
-    - include_tasks: kerbside-create-instance.yml
-      vars:
-        - name: "compute-2"
-        - address: "10.0.2.21"
-        - vcpus: 12
-        - memory: 16384
+        - vcpus: 4
+        - memory: 4096
         - base: "{{ base }}"
         - tag: "hypervisor"
 
