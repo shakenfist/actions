@@ -50,16 +50,16 @@
       vars:
         - name: "compute-1"
         - address: "10.0.2.20"
-        - vcpus: 6
-        - memory: 8192
+        - vcpus: 12
+        - memory: 16384
         - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
         - name: "compute-2"
         - address: "10.0.2.21"
-        - vcpus: 6
-        - memory: 8192
+        - vcpus: 12
+        - memory: 16384
         - base: "{{ base }}"
 
     - include_tasks: kerbside-create-instance.yml
