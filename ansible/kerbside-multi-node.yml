@@ -35,7 +35,7 @@
       vars:
         - name: "control-1"
         - address: "10.0.2.10"
-        - vcpus: 8
+        - vcpus: 6
         - memory: 8192
         - base: "{{ base }}"
         - tag: "controller"
@@ -44,7 +44,7 @@
       vars:
         - name: "control-2"
         - address: "10.0.2.11"
-        - vcpus: 8
+        - vcpus: 6
         - memory: 8192
         - base: "{{ base }}"
         - tag: "controller"
@@ -62,8 +62,8 @@
       vars:
         - name: "kerbside-1"
         - address: "10.0.2.30"
-        - vcpus: 4
-        - memory: 4096
+        - vcpus: 2
+        - memory: 2048
         - base: "{{ base }}"
         - tag: "vdiproxy"
 
@@ -71,8 +71,8 @@
       vars:
         - name: "kerbside-2"
         - address: "10.0.2.31"
-        - vcpus: 4
-        - memory: 4096
+        - vcpus: 2
+        - memory: 2048
         - base: "{{ base }}"
         - tag: "vdiproxy"
 
