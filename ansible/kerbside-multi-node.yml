@@ -29,6 +29,7 @@
         - vcpus: 2
         - memory: 2048
         - base: "{{ base }}"
+        - tag: "{{environment_name}}-mid"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
