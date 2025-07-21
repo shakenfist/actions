@@ -82,5 +82,5 @@
         host: "{{hostvars[item]['ansible_ssh_host']}}"
         search_regex: OpenSSH
         delay: 60
-        timeout: 600
+        timeout: 300
       with_items: "{{ groups['sfall'] }}"
