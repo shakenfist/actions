@@ -81,5 +81,6 @@
         port: 22
         host: "{{hostvars[item]['ansible_ssh_host']}}"
         search_regex: OpenSSH
-        delay: 10
+        delay: 60
+        timeout: 600
       with_items: "{{ groups['sfall'] }}"

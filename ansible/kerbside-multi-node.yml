@@ -29,7 +29,6 @@
         - vcpus: 2
         - memory: 2048
         - base: "{{ base }}"
-        - tag: "deploy"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -38,7 +37,7 @@
         - vcpus: 6
         - memory: 8192
         - base: "{{ base }}"
-        - tag: "controller"
+        - tag: "{{environment_name}}-high"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -47,7 +46,7 @@
         - vcpus: 6
         - memory: 8192
         - base: "{{ base }}"
-        - tag: "controller"
+        - tag: "{{environment_name}}-high"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -56,7 +55,7 @@
         - vcpus: 4
         - memory: 4096
         - base: "{{ base }}"
-        - tag: "hypervisor"
+        - tag: "{{environment_name}}-low"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -65,7 +64,7 @@
         - vcpus: 2
         - memory: 2048
         - base: "{{ base }}"
-        - tag: "vdiproxy"
+        - tag: "{{environment_name}}-high"
 
     - include_tasks: kerbside-create-instance.yml
       vars:
@@ -74,7 +73,7 @@
         - vcpus: 2
         - memory: 2048
         - base: "{{ base }}"
-        - tag: "vdiproxy"
+        - tag: "{{environment_name}}-high"
 
     - name: Additional tasks for CI
       tags: ci
@@ -126,5 +125,6 @@
         port: 22
         host: "{{hostvars[item]['ansible_ssh_host']}}"
         search_regex: OpenSSH
-        delay: 10
+        delay: 60
+        timeout: 600
       with_items: "{{ groups['sfall'] }}"
