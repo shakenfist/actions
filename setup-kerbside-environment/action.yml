@@ -48,18 +48,6 @@ runs:
         short_sha=$(git rev-parse --short HEAD)
         echo "SF_SHORT_HEAD_SHA=${short_sha}" >> $GITHUB_ENV
 
-    - name: Install required packages
-      shell: bash
-      run: |
-        sudo pip3 install yq
-
-    - name: Attempt to apply patches
-      shell: bash
-      run: |
-        . $GITHUB_ENV
-        cd ${GITHUB_WORKSPACE}/kerbside-patches
-        ./_build/assemble-source.sh ${{ inputs.openstack_release }}
-
     - name: Build infrastructure
       shell: bash
       run: |
