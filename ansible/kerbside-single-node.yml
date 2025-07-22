@@ -43,6 +43,9 @@
         shell: |
           ip a | egrep "^[0-9]+: ens" | cut -f 2 -d " " | sed 's/:.*//'
         register: primary_new_interface
+        retries: 6
+        delay: 30
+        until: primary_new_interface.stdout != ""
 
       - debug:
           msg:
