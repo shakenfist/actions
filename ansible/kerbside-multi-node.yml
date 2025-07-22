@@ -101,6 +101,10 @@
         shell: "ip -4 addr show {{ primary_new_interface.stdout }} | grep inet | sed -e 's/.*inet //' -e 's|/.*||'"
         register: primary_new_address
 
+      - debug:
+          msg:
+            - "New interface address: {{ primary_new_address.stdout }}"
+
       - name: Write details of instances to workspace
         copy:
           content: |
