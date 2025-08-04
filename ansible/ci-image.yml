@@ -175,7 +175,7 @@
           dnf:
             name:
               - ack
-              - ansible
+              - ansible-core
               - iputils
               - bridge-utils
               - dnsutils
@@ -189,8 +189,6 @@
               - lm_sensors
               - net-tools
               - edk2-ovmf
-              - node_exporter
-              - pwgen
               - python3
               - python3-cffi
               - python3-devel
