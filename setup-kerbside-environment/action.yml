@@ -51,7 +51,11 @@ runs:
     - name: Install required packages
       shell: bash
       run: |
-        sudo pip3 install yq
+        pip_extra=""
+        if [ $(python3 --version | cut -f 2 -d ".") -gt 10 ]; then
+            pip_extra="--break-system-packages"
+        fi
+        sudo pip3 install ${pip_extra} yq
 
     - name: Attempt to apply patches
       shell: bash
