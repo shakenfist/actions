@@ -6,6 +6,7 @@
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
     environment_name: kolla
+    hostname: kolla
 
   tasks:
     - name: Create a network
@@ -24,7 +25,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        - name: "kolla"
+        - name: "{{ hostname }}"
         - address: "10.0.2.2"
         - vcpus: 12
         - memory: 16384
