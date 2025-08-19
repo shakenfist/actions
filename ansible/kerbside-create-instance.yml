@@ -17,6 +17,7 @@
       affinity: "{ '{{ tag }}': -50 }"
       tags:
        - "{{ tag }}"
+    user_data: ""
     state: present
     await: true
     await_timeout: 600
