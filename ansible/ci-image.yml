@@ -175,7 +175,6 @@
           dnf:
             name:
               - ack
-              - ansible
               - iputils
               - bridge-utils
               - dnsutils
@@ -189,8 +188,6 @@
               - lm_sensors
               - net-tools
               - edk2-ovmf
-              - node_exporter
-              - pwgen
               - python3
               - python3-cffi
               - python3-devel
@@ -205,13 +202,30 @@
               - zip
             state: latest
 
+        - name: EL9 names
+          when: ansible_distribution_version | int < 10
+          dnf:
+            name:
+              - ansible
+            state: latest
+
+        - name: EL10+ names
+          when: ansible_distribution_version | int >= 10
+          dnf:
+            name:
+              - ansible-core
+            state: latest
+
     - name: Get a working UV on modern Debian derived distributions
       when:
         - ansible_pkg_mgr == "apt"
         - (
             ansible_distribution == "Debian" and
             ansible_distribution_version | int > 11
-          ) or ansible_distribution == "Ubuntu"
+          ) or (
+            ansible_distribution == "Ubuntu" and
+            ansible_distribution_version != '20.04'
+          )
       block:
         - name: Install extrepo on Debian derived OSes
           apt:
@@ -231,7 +245,6 @@
       dnf:
         name:
           - tox
-          - tox-uv
           - python3-filelock
         state: present
       when: ansible_pkg_mgr == "dnf"
