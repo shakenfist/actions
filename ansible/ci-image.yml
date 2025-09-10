@@ -205,24 +205,27 @@
               - zip
             state: latest
 
-    - name: Install tox and dependencies via apt on Debian derived OSes
-      apt:
-        name:
-          - extrepo
-          - tox
-          - python3-filelock
-      when: ansible_pkg_mgr == "apt"
+    - name: Get a working UV on modern Debian derived distributions
+      when:
+        - ansible_pkg_mgr == "apt"
+        - (
+            ansible_distribution == "Debian" and
+            ansible_distribution_version | int > 11
+          ) or ansible_distribution == "Ubuntu"
+      block:
+        - name: Install extrepo on Debian derived OSes
+          apt:
+            name:
+              - extrepo
 
-    - name: Enable the UV extrepo on Debian derived OSes
-      shell: extrepo enable uv
+        - name: Enable the UV extrepo on Debian derived OSes
+          shell: extrepo enable uv
 
-    - name: Install uv via apt on Debian derived OSes
-      apt:
-        name:
-          - uv
-          - tox-uv
-        update_cache: true
-      when: ansible_pkg_mgr == "apt"
+        - name: Install uv via apt on Debian derived OSes
+          apt:
+            name:
+              - uv
+            update_cache: true
 
     - name: Install tox and dependencies on RHEL derived OSes
       dnf:
