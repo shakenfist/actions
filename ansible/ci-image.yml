@@ -205,7 +205,7 @@
               - zip
             state: latest
 
-    - name: Install tox and dependencies via apt on Ubuntu
+    - name: Install tox and dependencies via apt on Debian derived OSes
       apt:
         name:
           - extrepo
@@ -213,7 +213,10 @@
           - python3-filelock
       when: ansible_pkg_mgr == "apt"
 
-    - name: Install uv via apt on Ubuntu
+    - name: Enable the UV extrepo on Debian derived OSes
+      shell: extrepo enable uv
+
+    - name: Install uv via apt on Debian derived OSes
       apt:
         name:
           - uv
