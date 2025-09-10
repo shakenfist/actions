@@ -208,14 +208,24 @@
     - name: Install tox and dependencies via apt on Ubuntu
       apt:
         name:
+          - extrepo
           - tox
           - python3-filelock
+      when: ansible_pkg_mgr == "apt"
+
+    - name: Install uv via apt on Ubuntu
+      apt:
+        name:
+          - uv
+          - tox-uv
+        update_cache: true
       when: ansible_pkg_mgr == "apt"
 
     - name: Install tox and dependencies on RHEL derived OSes
       dnf:
         name:
           - tox
+          - tox-uv
           - python3-filelock
         state: present
       when: ansible_pkg_mgr == "dnf"
