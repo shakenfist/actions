@@ -98,7 +98,7 @@
 
     - name: Copy getsf
       copy:
-        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/deploy/getsf"
+        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/shakenfist/deploy/getsf"
         dest: "/tmp/getsf"
         mode: ugo+rwx
 

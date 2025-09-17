@@ -26,22 +26,17 @@
     delay: 10
   with_items: "{{ groups['sfall'] }}"
 
-- name: Remove old deploy tarball
-  file:
-    path: "${GITHUB_WORKSPACE}/shakenfist/deploy.tgz"
-    state: absent
-
-- name: Remove old docs tarball
-  file:
-    path: "${GITHUB_WORKSPACE}/shakenfist/docs.tgz"
-    state: absent
+- name: Upgrade wheel build tools
+  shell: |
+    python3 -mvenv /tmp/venv-build
+    . /tmp/venv-build/bin/activate
+    pip3 install uv build
 
 - name: Build Shaken Fist wheel
   shell: |
-    tar czf deploy.tgz deploy
-    tar czf docs.tgz docs
-    rm dist/*
-    python3 setup.py sdist bdist_wheel
+    rm -f dist/*
+    . /tmp/venv-build/bin/activate
+    python3 -mbuild --wheel .
   args:
     chdir: "${GITHUB_WORKSPACE}/shakenfist"
 
@@ -60,8 +55,9 @@
 
 - name: Build Shaken Fist client wheel
   shell: |
-    rm dist/*
-    python3 setup.py sdist bdist_wheel
+    rm -f dist/*
+    . /tmp/venv-build/bin/activate
+    python3 -mbuild --wheel .
   args:
     chdir: "${GITHUB_WORKSPACE}/client-python"
 
@@ -80,8 +76,9 @@
 
 - name: Build Shaken Fist agent wheel
   shell: |
-    rm dist/*
-    python3 setup.py sdist bdist_wheel
+    rm -f dist/*
+    . /tmp/venv-build/bin/activate
+    python3 -mbuild --wheel .
   args:
     chdir: "${GITHUB_WORKSPACE}/agent-python"
 
