@@ -96,12 +96,6 @@
         enabled: no
         state: stopped
 
-    - name: Copy getsf
-      copy:
-        src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/shakenfist/deploy/getsf"
-        dest: "/tmp/getsf"
-        mode: ugo+rwx
-
     - name: Copy server wheel file
       copy:
         src: "{{ lookup('ansible.builtin.env', 'GITHUB_WORKSPACE') }}/shakenfist/dist/{{hostvars['localhost']['server_wheel_file']}}"
@@ -158,6 +152,12 @@
           EOF
           export GETSF_EXTRA_CONFIG
 
-          sudo --preserve-env --set-home /tmp/getsf $@
+          sudo apt-get install -y git python3-cffi python3-dev python3-grpcio \
+              python3-pip python3-venv python3-wheel
+          sudo mkdir -p /srv/shakenfist
+          sudo python3 -mvenv /srv/shakenfist/venv
+          sudo /srv/shakenfist/venv/bin/pip install ${GETSF_SERVER_PACKAGE}
+          GETSF_PATH=$(sudo find /srv/shakenfist/venv/ -type f -name getsf)
+          sudo --preserve-env --set-home bash ${GETSF_PATH} $@
         dest: "/tmp/getsf-wrapper"
         mode: ugo+rwx
