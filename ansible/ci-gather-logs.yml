@@ -41,6 +41,7 @@
 
     - name: Extract node zip file
       shell: |
+        ls -lrth /srv/github/{{ ansible_fqdn }}.zip
         unzip -q /srv/github/{{ ansible_fqdn }}.zip -d /srv/github/bundle/{{ ansible_fqdn }}/ || true
         chmod -R ugo+rw /srv/github/
       delegate_to: localhost
