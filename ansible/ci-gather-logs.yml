@@ -32,6 +32,12 @@
           --target shakenfist-ci-failure \
           --output /tmp/{{ ansible_fqdn }}.zip
 
+    - name: Fix permissions
+      file:
+        path: /tmp/{{ ansible_fqdn }}.zip
+        state: present
+        mode: ugo+r
+
 - hosts: all
   gather_facts: yes
   connection: ssh
