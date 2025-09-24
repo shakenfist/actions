@@ -32,6 +32,12 @@
           --target shakenfist-ci-failure \
           --output /tmp/{{ ansible_fqdn }}.zip
 
+- hosts: all
+  gather_facts: yes
+  connection: ssh
+  become: no
+
+  tasks:
     - name: Collect clingwrap zip files
       fetch:
         src: "/tmp/{{ ansible_fqdn }}.zip"
