@@ -26,8 +26,10 @@
 
     - name: Run clingwrap on node
       shell: |
+        git clone https://github.com/shakenfist/clingwrap /srv/shakenfist/clingwrap
+        /srv/shakenfist/venv/bin/pip3 install /srv/shakenfist/clingwrap
         /srv/shakenfist/venv/bin/clingwrap gather \
-          --target /srv/shakenfist/venv/share/clingwrap/shakenfist-ci-failure.cwd \
+          --target shakenfist-ci-failure \
           --output /tmp/{{ ansible_fqdn }}.zip
 
     - name: Collect clingwrap zip files
