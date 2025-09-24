@@ -1,6 +1,8 @@
 ---
 - hosts: localhost
-  gather_facts: no
+  gather_facts: yes
+  become: yes
+  connection: local
 
   tasks:
     - name: Create artifacts directory
