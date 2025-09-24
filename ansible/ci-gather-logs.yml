@@ -19,7 +19,7 @@
   tasks:
     - name: Create bundle directory for node
       file:
-        path: /srv/github/bundle/{{ansible_fqdn}}
+        path: /srv/github/bundle/{{ ansible_fqdn }}
         state: directory
         mode: u+rw,g+rw,o-rwx
       delegate_to: localhost
@@ -28,30 +28,17 @@
       shell: |
         /srv/shakenfist/venv/bin/clingwrap gather \
           --target /srv/shakenfist/venv/share/clingwrap/shakenfist-ci-failure.cwd \
-          --output /tmp/{{ansible_fqdn}}.zip
+          --output /tmp/{{ ansible_fqdn }}.zip
 
     - name: Collect clingwrap zip files
       fetch:
-        src: "/tmp/{{ansible_fqdn}}.zip"
-        dest: /srv/github/{{ansible_fqdn}}.zip
+        src: "/tmp/{{ ansible_fqdn }}.zip"
+        dest: /srv/github/{{ ansible_fqdn }}.zip
         flat: yes
         fail_on_missing: yes
 
     - name: Extract node zip file
       shell: |
-        unzip -q /srv/github/{{ansible_fqdn}}.zip -d /srv/github/bundle/{{ansible_fqdn}}/ || true
+        unzip -q /srv/github/{{ ansible_fqdn }}.zip -d /srv/github/bundle/{{ ansible_fqdn }}/ || true
         chmod -R ugo+rw /srv/github/
       delegate_to: localhost
-
-- hosts: localhost
-  gather_facts: no
-  become: yes
-
-  tasks:
-    - name: Zip it all up together
-      shell: |
-        cd /srv/github
-        zip -rq artifacts/bundle.zip bundle/*
-        chmod -R ugo+rw /srv/github/
-      delegate_to: localhost
-      run_once: true
