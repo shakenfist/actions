@@ -11,6 +11,13 @@
         state: directory
         mode: u+rwx,g+rwx,o+rwx
 
+    - name: Set permissions in /srv/github
+      file:
+        path: /srv/github
+        state: directory
+        recurse: yes
+        mode: ugo+rw
+
 - hosts: all
   gather_facts: yes
   connection: ssh
@@ -35,7 +42,7 @@
     - name: Fix permissions
       file:
         path: /tmp/{{ ansible_fqdn }}.zip
-        state: present
+        state: file
         mode: ugo+r
 
 - hosts: all
