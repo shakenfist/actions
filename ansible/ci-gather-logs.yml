@@ -11,12 +11,18 @@
         state: directory
         mode: u+rwx,g+rwx,o+rwx
 
-    - name: Set permissions in /srv/github
-      file:
-        path: /srv/github
-        state: directory
-        recurse: yes
-        mode: ugo+rw
+    - name: Run clingwrap on node (localhost fast path)
+      shell: |
+        python3 -mvenv /tmp/clingwrap
+        /tmp/clingwrap/bin/pip3 install clingwrap
+        /tmp/clingwrap/bin/clingwrap gather \
+          --target shakenfist-ci-failure \
+          --output /tmp/{{ inventory_hostname }}.zip
+
+    - name: Extract node zip file (localhost fast path)
+      shell: |
+        unzip -q /tmp/{{ inventory_hostname }}.zip -d /srv/github/bundle/{{ inventory_hostname }}/ || true
+        chmod -R ugo+rw /srv/github/
 
 - hosts: all
   gather_facts: yes
@@ -24,43 +30,77 @@
   become: yes
 
   tasks:
-    - name: Create bundle directory for node
-      file:
-        path: /srv/github/bundle/{{ ansible_fqdn }}
-        state: directory
-        mode: u+rw,g+rw,o-rwx
-      delegate_to: localhost
+    - block:
+      - name: Run clingwrap on node
+        shell: |
+          python3 -mvenv /tmp/clingwrap
+          /tmp/clingwrap/bin/pip3 install clingwrap
+          /tmp/clingwrap/bin/clingwrap gather \
+            --target shakenfist-ci-failure \
+            --output /tmp/{{ inventory_hostname }}.zip
+          
+      - name: Stat clingwrap file
+        stat:
+          path: /tmp/{{ inventory_hostname }}.zip
+        register: clingwrap_file_stat
 
-    - name: Run clingwrap on node
-      shell: |
-        git clone https://github.com/shakenfist/clingwrap /srv/shakenfist/clingwrap
-        /srv/shakenfist/venv/bin/pip3 install /srv/shakenfist/clingwrap
-        /srv/shakenfist/venv/bin/clingwrap gather \
-          --target shakenfist-ci-failure \
-          --output /tmp/{{ ansible_fqdn }}.zip
+      - name: Dump state of file
+        debug:
+          msg: "{{ clingwrap_file_stat }}"
 
-    - name: Fix permissions
-      file:
-        path: /tmp/{{ ansible_fqdn }}.zip
-        state: file
-        mode: ugo+r
+      - name: Collect clingwrap zip files
+        fetch:
+          src: "/tmp/{{ inventory_hostname }}.zip"
+          dest: "/tmp/fetched-{{ inventory_hostname }}.zip"
+          flat: yes
+          fail_on_missing: yes
 
-- hosts: all
-  gather_facts: yes
-  connection: ssh
-  become: no
+      - name: List fetched files
+        shell: ls -lrt /tmp | grep fetched
+        register: file_listing
+        delegate_to: localhost
 
-  tasks:
-    - name: Collect clingwrap zip files
-      fetch:
-        src: "/tmp/{{ ansible_fqdn }}.zip"
-        dest: /srv/github/{{ ansible_fqdn }}.zip
-        flat: yes
-        fail_on_missing: yes
+      - name: Dump fetched file listing
+        debug:
+          msg: "{{ file_listing.stdout }}"
+        delegate_to: localhost
 
-    - name: Extract node zip file
-      shell: |
-        ls -lrth /srv/github/{{ ansible_fqdn }}.zip
-        unzip -q /srv/github/{{ ansible_fqdn }}.zip -d /srv/github/bundle/{{ ansible_fqdn }}/ || true
-        chmod -R ugo+rw /srv/github/
-      delegate_to: localhost
+      - name: Ensure the fetched file exists
+        file:
+          path: /tmp/fetched-{{ inventory_hostname }}.zip
+          state: file
+        delegate_to: localhost
+          
+      - name: Stat fetched file
+        stat:
+          path: /tmp/fetched-{{ inventory_hostname }}.zip
+        register: fetched_file_stat
+        delegate_to: localhost
+
+      - name: Dump state of file
+        debug:
+          msg: "{{ fetched_file_stat }}"
+        delegate_to: localhost
+
+      - name: Ensure bundle directory exists
+        file:
+          path: "/srv/github/bundle/{{ inventory_hostname }}"
+          state: directory
+        delegate_to: localhost
+
+      - name: Extract node zip file
+        shell: |
+          unzip -q /tmp/fetched-{{ inventory_hostname }}.zip -d /srv/github/bundle/{{ inventory_hostname }}/ || true
+          chmod -R ugo+rw /srv/github/
+        delegate_to: localhost
+
+      - name: List bundle directory
+        shell: ls -lrt "/srv/github/bundle/{{ inventory_hostname }}"
+        register: file_listing
+        delegate_to: localhost
+
+      - name: Dump bundle file listing
+        debug:
+          msg: "{{ file_listing.stdout }}"
+        delegate_to: localhost
+      when: inventory_hostname != "localhost"
