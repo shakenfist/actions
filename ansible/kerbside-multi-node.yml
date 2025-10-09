@@ -36,7 +36,7 @@
         - name: "control-1"
         - address: "10.0.2.10"
         - vcpus: 6
-        - memory: 8192
+        - memory: 16384
         - base: "{{ base }}"
         - tag: "{{environment_name}}-high"
 
@@ -45,7 +45,7 @@
         - name: "control-2"
         - address: "10.0.2.11"
         - vcpus: 6
-        - memory: 8192
+        - memory: 16384
         - base: "{{ base }}"
         - tag: "{{environment_name}}-high"
 
