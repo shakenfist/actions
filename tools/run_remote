@@ -3,6 +3,10 @@
 # $1 is the target machine
 # $2+ is the command
 
+if [ "${1}" == "localhost" ]; then
+    exec ${@:2}
+fi
+
 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     ${baseuser}@$1 ${@:2}
