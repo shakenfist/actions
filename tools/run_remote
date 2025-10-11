@@ -7,6 +7,10 @@ if [ "${1}" == "localhost" ]; then
     exec ${@:2}
 fi
 
+if [ -z "${baseuser}" ]; then
+    baseuser="debian"
+fi
+
 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
     ${baseuser}@$1 ${@:2}
