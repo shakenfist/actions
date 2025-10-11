@@ -110,16 +110,10 @@ runs:
       shell: bash
       run: |
         . $GITHUB_ENV
-        script="sudo mkdir /srv/actions"
-        script="$script; sudo chown -R ${{ inputs.base_user }}:${{ inputs.base_user }} /srv/actions"
-        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
-                "${script}"
-
         scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${GITHUB_WORKSPACE}/actions \
-            ${{ inputs.base_user }}@10.0.2.2:/srv/actions
+            ${{ inputs.base_user }}@10.0.2.2:/srv/shakenfist
 
     - name: Install dependencies
       shell: bash
