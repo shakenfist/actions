@@ -101,7 +101,7 @@ runs:
                 -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
                 "${script}"
 
-        scp -rpv -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${GITHUB_WORKSPACE}/kerbside-patches \
             ${{ inputs.base_user }}@10.0.2.2:/srv/shakenfist
@@ -116,26 +116,10 @@ runs:
                 -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
                 "${script}"
 
-        scp -rpv -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${GITHUB_WORKSPACE}/actions \
             ${{ inputs.base_user }}@10.0.2.2:/srv/actions
-
-    - name: Upgrade python for releases newer than 2024.2
-      shell: bash
-      run: |
-        . $GITHUB_ENV
-
-        release_year=$(echo "${{ inputs.openstack_release }}" | cut -f 1 -d ".")
-
-        if [ "${release_year}" != "2024" ]; then
-          echo "Upgrading python"
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-                -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
-                "cd /srv/shakenfist/kerbside-patches/tools; sudo ./upgrade-python"
-        else
-          echo "2024 releases do not require a newer python, skipping"
-        fi
 
     - name: Install dependencies
       shell: bash
