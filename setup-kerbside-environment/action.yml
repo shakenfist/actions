@@ -101,7 +101,7 @@ runs:
                 -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
                 "${script}"
 
-        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+        scp -rpv -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${GITHUB_WORKSPACE}/kerbside-patches \
             ${{ inputs.base_user }}@10.0.2.2:/srv/shakenfist
@@ -116,7 +116,7 @@ runs:
                 -o UserKnownHostsFile=/dev/null ${{ inputs.base_user }}@10.0.2.2 \
                 "${script}"
 
-        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+        scp -rpv -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${GITHUB_WORKSPACE}/actions \
             ${{ inputs.base_user }}@10.0.2.2:/srv/actions
