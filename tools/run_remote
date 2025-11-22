@@ -11,6 +11,16 @@ if [ -z "${baseuser}" ]; then
     baseuser="debian"
 fi
 
+script=${2}
+if [ "%${copyscript}%" == "%true%" ]; then
+    script="/tmp/"$(basename ${2})
+    echo "Copying ${2} to ${script} on ${1}"
+    scp -p -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        ${2} ${baseuser}@$1:${script}
+fi
+
+echo "Executing ${script} ${@:3} on ${1}"
 ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
-    ${baseuser}@$1 ${@:2}
+    ${baseuser}@$1 ${script} ${@:3}
