@@ -7,6 +7,10 @@ if [ "${1}" == "localhost" ]; then
     exec ${@:2}
 fi
 
+if [ "${1}" == $(hostname) ]; then
+    exec ${@:2}
+fi
+
 if [ -z "${baseuser}" ]; then
     baseuser="debian"
 fi
