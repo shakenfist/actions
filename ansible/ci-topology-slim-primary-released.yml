@@ -358,6 +358,7 @@
           export GETSF_DEPLOY_NAME=bonkerslab
           export GETSF_RELEASE=release
           export GETSF_WARNING=yes
+          export GETSF_DATABASE_MICROSERVICE=yes
 
           export GETSF_NODES="sf-primary sf-1 sf-2 sf-3 sf-4 sf-5"
           export GETSF_SSH_USER="{{base_image_user}}"
