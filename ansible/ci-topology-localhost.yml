@@ -147,7 +147,7 @@
 
           export GETSF_SKIP_COMMON_IMAGES=1
 
-          read -r -d '' GETSF_EXTRA_CONFIG <<'EOF'
+          read -r -d '' GETSF_EXTRA_CONFIG <<'EOF' || true
           [
             {
               "name": "LOG_ETCD_CONNECTIONS", "value": "true"
