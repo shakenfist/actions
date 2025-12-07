@@ -111,13 +111,13 @@
       - name: Write details of instances to workspace
         copy:
           content: |
-            {% for svr in groups.sfall %}
+            {% for svr in groups.allsf %}
             export {{ svr | replace('-', '_') }}={{hostvars[svr]['ansible_ssh_host']}}
             export {{ svr | replace('-', '_') }}_uuid={{hostvars[svr]['sf_uuid']}}
             {% endfor %}
 
             export identifier={{identifier}}
-            export nodes="{{ groups.sfall | join(' ') | replace('-', '_') }}"
+            export nodes="{{ groups.allsf | join(' ') | replace('-', '_') }}"
             export ENVIRONMENT="{{ primary_new_address.stdout }}"
           dest: "{{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
           owner: debian
@@ -135,4 +135,4 @@
         search_regex: OpenSSH
         delay: 60
         timeout: 300
-      with_items: "{{ groups['sfall'] }}"
+      with_items: "{{ groups['allsf'] }}"

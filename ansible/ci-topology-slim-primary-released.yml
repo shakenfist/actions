@@ -50,7 +50,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "/srv/github/id_ci"
         sf_uuid: "{{primary['meta']['uuid']}}"
-        groups: sfall
+        groups: allsf
 
     - name: Create sf-1
       sf_instance:
@@ -80,7 +80,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "/srv/github/id_ci"
         sf_uuid: "{{sf1['meta']['uuid']}}"
-        groups: hypervisors, sfall
+        groups: hypervisors, allsf
 
     - name: Create sf-2
       sf_instance:
@@ -110,7 +110,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "/srv/github/id_ci"
         sf_uuid: "{{sf2['meta']['uuid']}}"
-        groups: hypervisors, sfall
+        groups: hypervisors, allsf
 
     - name: Create sf-3
       sf_instance:
@@ -140,7 +140,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "/srv/github/id_ci"
         sf_uuid: "{{sf3['meta']['uuid']}}"
-        groups: hypervisors, sfall
+        groups: hypervisors, allsf
 
     - name: Create sf-4
       sf_instance:
@@ -170,7 +170,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "/srv/github/id_ci"
         sf_uuid: "{{sf4['meta']['uuid']}}"
-        groups: hypervisors, sfall
+        groups: hypervisors, allsf
 
     - name: Create sf-5
       sf_instance:
@@ -200,7 +200,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "/srv/github/id_ci"
         sf_uuid: "{{sf5['meta']['uuid']}}"
-        groups: hypervisors, sfall
+        groups: hypervisors, allsf
 
     - name: Log instance details
       debug:
@@ -214,7 +214,7 @@
 
     - include_tasks: ci-include-common-localhost.yml
 
-- hosts: sfall
+- hosts: allsf
   gather_facts: yes
   become: true
 
@@ -255,7 +255,7 @@
     - name: Log the contents of /srv/ci
       shell: ls -lrth /srv/ci
 
-- hosts: sfall
+- hosts: allsf
   gather_facts: yes
   become: true
 

@@ -1,14 +1,14 @@
 - name: Write details of instances to workspace
   copy:
     content: |
-      {% for svr in groups.sfall %}
+      {% for svr in groups.allsf %}
       export {{ svr | replace('-', '_') }}={{hostvars[svr]['ansible_ssh_host']}}
       export {{ svr | replace('-', '_') }}_uuid={{hostvars[svr]['sf_uuid']}}
       {% endfor %}
 
       export baseuser={{base_image_user}}
       export identifier={{identifier}}
-      export nodes="{{ groups.sfall | join(' ') | replace('-', '_') }}"
+      export nodes="{{ groups.allsf | join(' ') | replace('-', '_') }}"
     dest: "{{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
     owner: debian
     group: debian
@@ -24,7 +24,7 @@
     host: "{{hostvars[item]['ansible_ssh_host']}}"
     search_regex: OpenSSH
     delay: 10
-  with_items: "{{ groups['sfall'] }}"
+  with_items: "{{ groups['allsf'] }}"
 
 - name: Upgrade wheel build tools
   shell: |
