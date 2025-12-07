@@ -541,6 +541,6 @@
           sudo python3 -mvenv /srv/shakenfist/venv
           sudo /srv/shakenfist/venv/bin/pip install ${GETSF_SERVER_PACKAGE}
           GETSF_PATH=$(sudo find /srv/shakenfist/venv/ -type f -name getsf)
-          sudo --preserve-env --set-home bash ${GETSF_PATH} $@
+          sudo --preserve-env --set-home bash -e ${GETSF_PATH} $@
         dest: "/tmp/getsf-wrapper"
         mode: ugo+rwx
