@@ -73,8 +73,13 @@ runs:
 
         if [ "${{ inputs.topology }}" == "all-in-one" ]; then
             playbook="kerbside-single-node.yml"
-        else
+        elif [ "${{ inputs.topology }}" == "multinode" ]; then
             playbook="kerbside-multi-node.yml"
+        elif [ "${{ inputs.topology }}" == "multinode-2" ]; then
+            playbook="kerbside-multi-node-2.yml"
+        else
+            echo "Unknown topology!"
+            exit 1
         fi
         echo "Using playbook ${playbook}"
 
