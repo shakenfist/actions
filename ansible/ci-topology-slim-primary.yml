@@ -475,7 +475,7 @@
           export GETSF_RELEASE=local
           export GETSF_LOCAL_SOURCE=static
           export GETSF_WARNING=yes
-          export GETSF_DATABASE_MICROSERVICE=yes
+          export GETSF_DATABASE_MICROSERVICE=no
 
           export GETSF_SERVER_PACKAGE="/root/{{hostvars['localhost']['server_wheel_file']}}"
           export GETSF_CLIENT_PACKAGE="/root/{{hostvars['localhost']['client_wheel_file']}}"

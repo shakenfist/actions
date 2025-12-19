@@ -136,7 +136,7 @@
           export GETSF_LOCAL_SOURCE=static
           export GETSF_NODES=localhost
           export GETSF_WARNING=yes
-          export GETSF_DATABASE_MICROSERVICE=yes
+          export GETSF_DATABASE_MICROSERVICE=no
 
           export GETSF_SSH_USER="{{base_image_user}}"
           export GETSF_SSH_KEY_FILENAME="/root/.ssh/id_rsa"
