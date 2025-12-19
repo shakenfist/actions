@@ -106,7 +106,7 @@
           export GETSF_RELEASE=release
           export GETSF_NODES=localhost
           export GETSF_WARNING=yes
-          export GETSF_DATABASE_MICROSERVICE=no
+          export GETSF_DATABASE_MICROSERVICE=yes
 
           export GETSF_SKIP_COMMON_IMAGES=1
 
