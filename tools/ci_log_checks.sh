@@ -5,8 +5,31 @@ failures=0
 echo
 echo "Running log checks for branch ${1} and job ${2}."
 echo
-etcd_conns_a=$(grep -c "Building new etcd connection" /var/log/syslog || true)
-etcd_conns_b=$(grep -c "Building new etcd connection" /var/log/syslog.1 || true)
+for target in /var/log/syslog /var/log/syslog.1; do
+    if [ ! -e ${target} ]; then
+        echo "MISSING: ${target} does not exist."
+    else
+        echo "LENGTH: ${target} is "$(cat ${target} | wc -l)" lines long."
+    fi
+done
+
+if [ -e /var/log/syslog ]; then
+    etcd_conns_a=$(grep -c "Building new etcd connection" /var/log/syslog || true)
+    sigterms_a=$(grep -c "Sent SIGTERM to " /var/log/syslog || true)
+else
+    etcd_conns_a=0
+    sigterms_a=0
+fi
+
+if [ -e /var/log/syslog.1 ]; then
+    etcd_conns_b=$(grep -c "Building new etcd connection" /var/log/syslog.1 || true)
+    sigterms_b=$(grep -c "Sent SIGTERM to " /var/log/syslog.1 || true)
+else
+    etcd_conns_b=0
+    sigterms_b=0
+fi
+
+echo
 echo "etcd connections: ${etcd_conns_a} from syslog, ${etcd_conn_b} from syslog.1"
 etcd_conns=$(( ${etcd_conns_a} + ${etcd_conns_b} ))
 echo "This CI run created ${etcd_conns} etcd connections."
@@ -16,8 +39,6 @@ if [ ${etcd_conns} -gt 5000 ]; then
 fi
 
 echo
-sigterms_a=$(grep -c "Sent SIGTERM to " /var/log/syslog || true)
-sigterms_b=$(grep -c "Sent SIGTERM to " /var/log/syslog.1 || true)
 echo "sigterms: ${sigterms_a} from syslog, ${sigterms_b} from syslog.1"
 sigterms=$(( ${sigterms_a} + ${sigterms_b} ))
 echo "This CI run sent ${sigterms} SIGTERM signals while shutting down."
@@ -71,16 +92,6 @@ if [ $(echo "${2}" | grep -c "upgrade" || true) -lt 1 ]; then
     echo "INFO: Including forbidden strings for non-upgrade jobs."
     FORBIDDEN+=("online upgrade")
 fi
-
-echo
-for target in /var/log/syslog /var/log/syslog.1; do
-    if [ ! -e ${target} ]; then
-        echo "MISSING: ${target} does not exist."
-    else
-        echo "LENGTH: ${target} is "$(cat ${target} | wc -l)" lines long."
-    fi
-done
-echo
 
 IFS=""
 for forbid in ${FORBIDDEN[*]}
