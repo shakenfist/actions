@@ -72,12 +72,25 @@ if [ $(echo "${2}" | grep -c "upgrade" || true) -lt 1 ]; then
     FORBIDDEN+=("online upgrade")
 fi
 
+echo
+for target in /var/log/syslog /var/log/syslog.1; do
+if [ ! -e ${target} ]; then
+    echo "MISSING: ${target} does not exist."
+else
+    echo "LENGTH: ${target} is "$(cat ${target} | wc -l)" lines long."
+fi
+echo
+
 IFS=""
 for forbid in ${FORBIDDEN[*]}
 do
     echo "    Check for >>${forbid}<< in logs."
 
     for target in /var/log/syslog /var/log/syslog.1; do
+        if [ ! -e ${target} ]; then
+            continue
+        fi
+
         count=$(grep -c -i "$forbid" "${target}" || true)
         if [ ${count} -gt 0 ]
         then
