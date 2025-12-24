@@ -74,11 +74,12 @@ fi
 
 echo
 for target in /var/log/syslog /var/log/syslog.1; do
-if [ ! -e ${target} ]; then
-    echo "MISSING: ${target} does not exist."
-else
-    echo "LENGTH: ${target} is "$(cat ${target} | wc -l)" lines long."
-fi
+    if [ ! -e ${target} ]; then
+        echo "MISSING: ${target} does not exist."
+    else
+        echo "LENGTH: ${target} is "$(cat ${target} | wc -l)" lines long."
+    fi
+done
 echo
 
 IFS=""
