@@ -64,7 +64,8 @@ FORBIDDEN=("Traceback (most recent call last):"
            "cluster wide cleanup daemon is deleting this IPAM as leaked"
            "Cleaning up leaked vxlan"
            "invalid salt"
-           "unable to execute QEMU command")
+           "unable to execute QEMU command"
+           "bad argument type for built-in operation")
 
 if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     echo "INFO: Including forbidden strings for v0.8 onwards."
