@@ -14,7 +14,7 @@
     - name: Run clingwrap on node (localhost fast path)
       shell: |
         python3 -mvenv /tmp/clingwrap
-        /tmp/clingwrap/bin/pip3 install https://gihub.com/shakenfist/clingwrap
+        /tmp/clingwrap/bin/pip3 install git+https://github.com/shakenfist/clingwrap
         /tmp/clingwrap/bin/clingwrap gather \
           --target shakenfist-ci-failure \
           --output /tmp/{{ inventory_hostname }}.zip
@@ -34,7 +34,7 @@
       - name: Run clingwrap on node
         shell: |
           python3 -mvenv /tmp/clingwrap
-          /tmp/clingwrap/bin/pip3 install https://gihub.com/shakenfist/clingwrap
+          /tmp/clingwrap/bin/pip3 install git+https://github.com/shakenfist/clingwrap
           /tmp/clingwrap/bin/clingwrap gather \
             --target shakenfist-ci-failure \
             --output /tmp/{{ inventory_hostname }}.zip
