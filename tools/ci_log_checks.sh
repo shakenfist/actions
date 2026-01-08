@@ -68,7 +68,8 @@ FORBIDDEN=("Traceback (most recent call last):"
            "bad argument type for built-in operation"
            "libvirt: QEMU Driver error : unsupported configuration"
            "unsupported configuration: disk type of 'vdc' does not support ejectable media"
-           "architectural violation")
+           "architectural violation"
+           "unhandled instance definition error")
 
 if [ $(echo "${1}" | grep -c "v0.7" || true) -lt 1 ]; then
     echo "INFO: Including forbidden strings for v0.8 onwards."
