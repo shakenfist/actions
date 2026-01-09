@@ -80,8 +80,8 @@
       vars:
         - name: "network-1"
         - address: "10.0.2.40"
-        - vcpus: 2
-        - memory: 2048
+        - vcpus: 4
+        - memory: 4096
         - base: "{{ base }}"
         - tag: "{{environment_name}}-high"
 
@@ -89,8 +89,8 @@
       vars:
         - name: "network-2"
         - address: "10.0.2.41"
-        - vcpus: 2
-        - memory: 2048
+        - vcpus: 4
+        - memory: 4096
         - base: "{{ base }}"
         - tag: "{{environment_name}}-high"
 
