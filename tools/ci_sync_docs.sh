@@ -16,8 +16,8 @@ SYNC_SCRIPT="${GITHUB_WORKSPACE}/actions/tools/sync_component_docs.py"
 python3 "${SYNC_SCRIPT}" kerbside \
     "${GITHUB_WORKSPACE}/kerbside/docs" \
     "${GITHUB_WORKSPACE}/shakenfist/docs/components/kerbside" \
-    --template mkdocs.yml.tmpl \
-    --output mkdocs.yml
+    --template ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml.tmpl \
+    --output ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml
 git add docs/components/kerbside
 
 # To add additional component syncs, chain them by using the previous output
@@ -25,8 +25,8 @@ git add docs/components/kerbside
 # python3 "${SYNC_SCRIPT}" clingwrap \
 #     "${GITHUB_WORKSPACE}/clingwrap/docs" \
 #     "${GITHUB_WORKSPACE}/shakenfist/docs/components/clingwrap" \
-#     --template mkdocs.yml \
-#     --output mkdocs.yml
+#     --template ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml \
+#     --output ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml
 # git add docs/components/clingwrap
 
 # Did we find something new?
