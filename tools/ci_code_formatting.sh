@@ -78,20 +78,20 @@ fi
 
 # Did we find something new?
 if [ $(git diff | wc -l) -gt 0 ]; then
-echo "Code change detected..."
-echo
-git diff
+    echo "Code change detected..."
+    echo
+    git diff
 
-git config --global user.name "shakenfist-bot"
-git config --global user.email "bot@shakenfist.com"
-git commit -a -m "Automated code formatting for ${datestamp}."
-git push -f origin formatting-automations
-echo
-gh pr create \
-    --assignee mikalstill \
-    --reviewer mikalstill \
-    --title "Automated code formatting for ${datestamp}." \
-    --body "Automated code formatting."
-echo
-echo "Pull request created."
+    git config --global user.name "shakenfist-bot"
+    git config --global user.email "bot@shakenfist.com"
+    git commit -a -m "Automated code formatting for ${datestamp}."
+    git push -f origin formatting-automations
+    echo
+    gh pr create \
+        --assignee mikalstill \
+        --reviewer mikalstill \
+        --title "Automated code formatting for ${datestamp}." \
+        --body "Automated code formatting."
+    echo
+    echo "Pull request created."
 fi
