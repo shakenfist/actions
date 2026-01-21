@@ -25,7 +25,6 @@ Template substitution:
 """
 
 import argparse
-import os
 import re
 import shutil
 import sys
@@ -77,6 +76,7 @@ def copy_docs(
 
     # Find all markdown files in source
     for source_file in source_dir.rglob('*.md'):
+        print(f'... Processing source file {source_file}')
         # Get relative path from source_dir
         rel_path = source_file.relative_to(source_dir)
 
