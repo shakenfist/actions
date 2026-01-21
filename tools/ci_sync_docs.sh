@@ -1,10 +1,12 @@
 #!/bin/bash
 
-cd ${GITHUB_WORKSPACE}/shakenfist
+cd ${GITHUB_WORKSPACE}
 
 echo "Current state of ${GITHUB_WORKSPACE} workspace:"
 ls -lrt
 echo
+
+cd shakenfist
 
 datestamp=$(date "+%Y%m%d")
 git checkout develop
