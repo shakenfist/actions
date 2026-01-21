@@ -15,6 +15,13 @@ Example:
 
 The script outputs a YAML navigation snippet to stdout that can be
 inserted into mkdocs.yml.
+
+Template substitution:
+    Use --template and --output to substitute placeholders in a template file.
+    The placeholder %%<component_name>%% will be replaced with the nav snippet.
+
+    sync_component_docs.py kerbside src dest --template mkdocs.yml.tmpl \\
+        --output mkdocs.yml
 """
 
 import argparse
@@ -157,6 +164,14 @@ def main():
         default=8,
         help='Base indentation for YAML output (default: 8)'
     )
+    parser.add_argument(
+        '--template',
+        help='Template file with %%component_name%% placeholders'
+    )
+    parser.add_argument(
+        '--output',
+        help='Output file for template substitution (requires --template)'
+    )
 
     args = parser.parse_args()
 
@@ -173,14 +188,39 @@ def main():
               file=sys.stderr)
         sys.exit(1)
 
+    # Validate template/output args
+    if args.output and not args.template:
+        print('Error: --output requires --template', file=sys.stderr)
+        sys.exit(1)
+
     # Copy docs and get file list
     doc_files = copy_docs(args.component_name, source_dir, dest_dir)
 
-    # Generate and output the nav snippet
+    # Generate the nav snippet
     nav_snippet = generate_nav_snippet(
         args.component_name, doc_files, args.indent
     )
-    print(nav_snippet)
+
+    # Handle template substitution or plain output
+    if args.template:
+        template_path = Path(args.template)
+        if not template_path.exists():
+            print(f'Error: Template file does not exist: {template_path}',
+                  file=sys.stderr)
+            sys.exit(1)
+
+        template_content = template_path.read_text(encoding='utf-8')
+        placeholder = f'%%{args.component_name}%%'
+        result = template_content.replace(placeholder, nav_snippet)
+
+        if args.output:
+            output_path = Path(args.output)
+            output_path.write_text(result, encoding='utf-8')
+            print(f'Wrote {output_path}')
+        else:
+            print(result)
+    else:
+        print(nav_snippet)
 
 
 if __name__ == '__main__':
