@@ -131,7 +131,10 @@ def generate_nav_snippet(
     base_path = f'components/{component_name}'
     spaces = ' ' * indent
 
-    lines = [f'{spaces}- {display_name}: {base_path}/index.md']
+    lines = [
+        f'{spaces}- {display_name}:',
+        f'{spaces}    - "Introduction": {base_path}/index.md'
+    ]
 
     # Sort files alphabetically by title
     sorted_files = sorted(doc_files, key=lambda x: x[1].lower())
