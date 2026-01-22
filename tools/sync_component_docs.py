@@ -48,7 +48,7 @@ def update_markdown_links(content: str, component_name: str) -> str:
     def replace_link(match: re.Match) -> str:
         path = match.group(1)
         anchor = match.group(2) or ''
-        print(f'    link fixup for path {path} with anchor {anchor}')
+        print(f'            link fixup for path {path} with anchor {anchor}')
 
         # Pages pretend to be directories for reasons
         if path.endswith('.md'):
@@ -62,7 +62,7 @@ def update_markdown_links(content: str, component_name: str) -> str:
         new_path = f'/components/{component_name}/{path}'
         replacement = f']({new_path}{anchor})'
 
-        print(f'    became {replacement}')
+        print(f'            became {replacement}')
         return replacement
 
     return re.sub(pattern, replace_link, content)
@@ -89,7 +89,9 @@ def copy_docs(
 
         # Create destination path
         dest_file = dest_dir / rel_path
-        print(f'... Processing source file {source_file} to {dest_file}')
+        print('... Processing source file')
+        print(f'        From {source_file}')
+        print(f'        To {dest_file}')
         
         # Ensure parent directories exist
         dest_file.parent.mkdir(parents=True, exist_ok=True)

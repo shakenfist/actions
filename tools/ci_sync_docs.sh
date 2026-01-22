@@ -38,7 +38,7 @@ git add docs/components/kerbside
 # Did we change anything?
 echo
 echo "Check if we changed anything..."
-git diff
+git status
 echo
 
 # Did we find something new?
