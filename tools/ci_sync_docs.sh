@@ -35,11 +35,16 @@ git add docs/components/kerbside
 #     --output ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml
 # git add docs/components/clingwrap
 
+# Did we change anything?
+echo
+echo "Check if we changed anything..."
+git diff
+echo
+
 # Did we find something new?
 if [ $(git diff | wc -l) -gt 0 ]; then
     echo "Change detected..."
     echo
-    git diff
 
     git config --global user.name "shakenfist-bot"
     git config --global user.email "bot@shakenfist.com"
