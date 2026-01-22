@@ -16,24 +16,20 @@ git rebase develop
 
 # Path to the sync script (in the actions repository)
 SYNC_SCRIPT="${GITHUB_WORKSPACE}/actions/tools/sync_component_docs.py"
+cp ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml.tmpl ${GITHUB_WORKSPACE}/mkdocs.yml
 
-# Sync kerbside docs and generate mkdocs.yml from template
-# The --template and --output flags handle the %%kerbside%% placeholder substitution
-python3 "${SYNC_SCRIPT}" kerbside \
-    "${GITHUB_WORKSPACE}/kerbside/docs" \
-    "${GITHUB_WORKSPACE}/shakenfist/docs/components/kerbside" \
-    --template ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml.tmpl \
-    --output ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml
-git add docs/components/kerbside
+# Sync external docs and generate mkdocs.yml from template
+for external in clingwrap kerbside; do
+    python3 "${SYNC_SCRIPT}" "${external}" \
+        "${GITHUB_WORKSPACE}/${external}/docs" \
+        "${GITHUB_WORKSPACE}/shakenfist/docs/components/${external}" \
+        --template ${GITHUB_WORKSPACE}/mkdocs.yml \
+        --output ${GITHUB_WORKSPACE}/mkdocs.yml.new
+    mv ${GITHUB_WORKSPACE}/mkdocs.yml.new ${GITHUB_WORKSPACE}/mkdocs.yml
+    git add docs/components/${external}
+done
 
-# To add additional component syncs, chain them by using the previous output
-# as the next template. For example:
-# python3 "${SYNC_SCRIPT}" clingwrap \
-#     "${GITHUB_WORKSPACE}/clingwrap/docs" \
-#     "${GITHUB_WORKSPACE}/shakenfist/docs/components/clingwrap" \
-#     --template ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml \
-#     --output ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml
-# git add docs/components/clingwrap
+mv ${GITHUB_WORKSPACE}/mkdocs.yml ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml
 
 # Did we change anything?
 echo
