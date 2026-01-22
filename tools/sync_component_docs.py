@@ -49,6 +49,9 @@ def update_markdown_links(content: str, component_name: str) -> str:
         path = match.group(1)
         anchor = match.group(2) or ''
 
+        if anchor.endswith('.md'):
+            anchor = anchor.replace('.md', '/')
+
         # Remove leading ./ if present
         if path.startswith('./'):
             path = path[2:]
