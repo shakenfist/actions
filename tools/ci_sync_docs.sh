@@ -42,7 +42,7 @@ git status
 echo
 
 # Did we find something new?
-if [ $(git diff | wc -l) -gt 0 ]; then
+if [ $(git status | grep -c modified || true) -gt 0 ]; then
     echo "Change detected..."
     echo
 
