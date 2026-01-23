@@ -19,7 +19,7 @@ SYNC_SCRIPT="${GITHUB_WORKSPACE}/actions/tools/sync_component_docs.py"
 cp ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml.tmpl ${GITHUB_WORKSPACE}/mkdocs.yml
 
 # Sync external docs and generate mkdocs.yml from template
-for external in clingwrap kerbside occystrap; do
+for external in cloudgood clingwrap kerbside occystrap; do
     python3 "${SYNC_SCRIPT}" "${external}" \
         "${GITHUB_WORKSPACE}/${external}/docs" \
         "${GITHUB_WORKSPACE}/shakenfist/docs/components/${external}" \
