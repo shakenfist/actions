@@ -78,11 +78,22 @@ def parse_order_file(order_path: Path) -> list[tuple[str, str]] | None:
         return None
 
 
-def update_markdown_links(content: str, component_name: str) -> str:
+def update_markdown_links(
+    content: str, component_name: str, file_rel_path: Path | None = None
+) -> str:
     """Update internal markdown links to work in the new location.
 
     Transforms relative links like `](somefile.md)` or `](./subdir/file.md)`
     to absolute paths like `](/components/kerbside/somefile.md)`.
+
+    For files in subdirectories, handles relative paths like `](../index.md)`
+    correctly by resolving them relative to the file's location.
+
+    Args:
+        content: The markdown content to process
+        component_name: The component name for link rewriting
+        file_rel_path: The file's path relative to the docs root (e.g.,
+            Path('qcow2/qcow2-format.md')). Used to resolve relative links.
 
     Only updates links to .md files that don't already have an absolute path
     or external URL.
@@ -92,18 +103,44 @@ def update_markdown_links(content: str, component_name: str) -> str:
     # Excludes links that start with http://, https://, or /
     pattern = r'\]\((?!https?://)(?!/)([^)#]+\.md)(#[^)]*)?\)'
 
+    # Determine the directory containing the current file
+    if file_rel_path is not None:
+        file_dir = file_rel_path.parent
+    else:
+        file_dir = Path('.')
+
     def replace_link(match: re.Match) -> str:
         path = match.group(1)
         anchor = match.group(2) or ''
         print(f'            link fixup for path {path} with anchor {anchor}')
 
+        # Resolve the link relative to the file's directory
+        # This handles cases like '../index.md' from a subdirectory
+        link_path = Path(path)
+        if file_dir != Path('.'):
+            # Get the path relative to what would be the docs root
+            # We need to work with string manipulation since we don't have
+            # the actual filesystem paths here
+            resolved_parts = (file_dir / link_path).parts
+            # Normalize by removing . and resolving ..
+            normalized_parts = []
+            for part in resolved_parts:
+                if part == '.':
+                    continue
+                elif part == '..':
+                    if normalized_parts:
+                        normalized_parts.pop()
+                else:
+                    normalized_parts.append(part)
+            path = '/'.join(normalized_parts) if normalized_parts else path
+        else:
+            # Remove leading ./ if present
+            if path.startswith('./'):
+                path = path[2:]
+
         # Pages pretend to be directories for reasons
         if path.endswith('.md'):
             path = path.replace('.md', '/')
-
-        # Remove leading ./ if present
-        if path.startswith('./'):
-            path = path[2:]
 
         # Build the new absolute path
         new_path = f'/components/{component_name}/{path}'
@@ -177,7 +214,7 @@ def copy_docs(
 
         # Read, transform, and write the file
         content = source_file.read_text(encoding='utf-8')
-        updated_content = update_markdown_links(content, component_name)
+        updated_content = update_markdown_links(content, component_name, rel_path)
         dest_file.write_text(updated_content, encoding='utf-8')
 
         # Use provided title or extract from content
@@ -214,9 +251,13 @@ def generate_nav_snippet(
 ) -> str:
     """Generate a mkdocs.yml navigation snippet for the component.
 
+    Handles nested directory structures by creating hierarchical nav entries.
+    Files in subdirectories are grouped under their directory name.
+
     Args:
         component_name: The component name (e.g., 'kerbside')
-        doc_files: List of (filename, title) tuples
+        doc_files: List of (filename, title) tuples. Filenames may include
+            subdirectory paths (e.g., 'qcow2/qcow2-format.md').
         indent: Base indentation (number of spaces)
         preserve_order: If True, keep files in provided order. If False,
             sort alphabetically by title.
@@ -233,14 +274,55 @@ def generate_nav_snippet(
         f'{spaces}    - "Introduction": {base_path}/index.md'
     ]
 
-    # Sort files alphabetically by title, unless order should be preserved
-    if preserve_order:
-        files_to_use = doc_files
-    else:
-        files_to_use = sorted(doc_files, key=lambda x: x[1].lower())
+    # Group files by their parent directory
+    root_files: list[tuple[str, str]] = []
+    subdirs: dict[str, list[tuple[str, str]]] = {}
 
-    for filename, title in files_to_use:
+    for filename, title in doc_files:
+        path = Path(filename)
+        if len(path.parts) == 1:
+            # Root-level file
+            root_files.append((filename, title))
+        else:
+            # File in subdirectory - group by top-level directory
+            top_dir = path.parts[0]
+            if top_dir not in subdirs:
+                subdirs[top_dir] = []
+            subdirs[top_dir].append((filename, title))
+
+    # Sort or preserve order for root files
+    if preserve_order:
+        root_files_to_use = root_files
+    else:
+        root_files_to_use = sorted(root_files, key=lambda x: x[1].lower())
+
+    # Add root-level files
+    for filename, title in root_files_to_use:
         lines.append(f'{spaces}    - "{title}": {base_path}/{filename}')
+
+    # Sort subdirectory names unless preserving order
+    if preserve_order:
+        # Preserve order: use first appearance order
+        subdir_order = list(subdirs.keys())
+    else:
+        subdir_order = sorted(subdirs.keys())
+
+    # Add subdirectory sections
+    for subdir in subdir_order:
+        subdir_files = subdirs[subdir]
+
+        # Sort files within subdirectory unless preserving order
+        if preserve_order:
+            files_to_use = subdir_files
+        else:
+            files_to_use = sorted(subdir_files, key=lambda x: x[1].lower())
+
+        # Create subdirectory display name (convert underscores/hyphens to spaces)
+        subdir_display = subdir.replace('_', ' ').replace('-', ' ').title()
+
+        lines.append(f'{spaces}    - {subdir_display}:')
+        for filename, title in files_to_use:
+            lines.append(f'{spaces}        - "{title}": {base_path}/{filename}')
 
     return '\n'.join(lines)
 
