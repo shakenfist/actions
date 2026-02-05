@@ -1,0 +1,30 @@
+name: 'Review PR with Claude'
+description: >
+  Run an automated code review on a pull request using Claude Code.
+  Posts the review as a PR comment via the GitHub CLI.
+
+inputs:
+  pr-number:
+    description: 'The PR number to review'
+    required: true
+  max-turns:
+    description: 'Maximum Claude turns'
+    required: false
+    default: '50'
+  force:
+    description: 'Review even if bot has already reviewed'
+    required: false
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run automated reviewer
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        INPUT_PR_NUMBER: ${{ inputs.pr-number }}
+        INPUT_MAX_TURNS: ${{ inputs.max-turns }}
+        INPUT_FORCE: ${{ inputs.force }}
+      run: |
+        ${{ github.action_path }}/review-pr-with-claude.sh
