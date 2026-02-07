@@ -1,0 +1,165 @@
+name: 'PR Bot Trigger Handler'
+description: >
+  Handle @shakenfist-bot trigger comments on pull requests. Validates user
+  permissions, adds a reaction to the comment, posts status messages, and
+  outputs PR details for downstream jobs.
+
+inputs:
+  trigger-phrase:
+    description: 'The phrase to look for (without the @shakenfist-bot prefix)'
+    required: true
+  reaction:
+    description: 'Reaction emoji to add to the comment (rocket, +1, eyes, etc.)'
+    required: false
+    default: 'rocket'
+  starting-message:
+    description: >
+      Message to post when starting. Supports placeholders:
+      {pr_ref} - PR branch name
+      {run_url} - URL to the workflow run
+      Leave empty to skip posting a message.
+    required: false
+    default: ''
+  unauthorized-message:
+    description: >
+      Message to post when user is not authorized. Supports {username}.
+      Leave empty to use the default message.
+    required: false
+    default: ''
+
+outputs:
+  authorized:
+    description: 'Whether the user is authorized (true/false)'
+    value: ${{ steps.check_permission.outputs.authorized }}
+  pr-number:
+    description: 'The PR number'
+    value: ${{ github.event.issue.number }}
+  pr-ref:
+    description: 'The PR branch ref'
+    value: ${{ steps.pr_details.outputs.pr_ref }}
+  triggered:
+    description: 'Whether the trigger phrase matched (true/false)'
+    value: ${{ steps.check_trigger.outputs.triggered }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check trigger phrase
+      id: check_trigger
+      shell: bash
+      env:
+        COMMENT_BODY: ${{ github.event.comment.body }}
+        TRIGGER_PHRASE: ${{ inputs.trigger-phrase }}
+      run: |
+        # Check if comment contains the trigger phrase
+        if [[ "${COMMENT_BODY}" == *"@shakenfist-bot ${TRIGGER_PHRASE}"* ]]; then
+          echo "triggered=true" >> $GITHUB_OUTPUT
+          echo "Trigger phrase found: @shakenfist-bot ${TRIGGER_PHRASE}"
+        else
+          echo "triggered=false" >> $GITHUB_OUTPUT
+          echo "Trigger phrase not found"
+        fi
+
+    - name: Check commenter permissions
+      id: check_permission
+      if: steps.check_trigger.outputs.triggered == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        COMMENTER: ${{ github.event.comment.user.login }}
+      run: |
+        permission=$(gh api \
+          "repos/${{ github.repository }}/collaborators/${COMMENTER}/permission" \
+          --jq '.permission' 2>/dev/null || echo "none")
+
+        echo "User ${COMMENTER} has permission: ${permission}"
+
+        if [[ "${permission}" == "admin" || "${permission}" == "write" ]]; then
+          echo "authorized=true" >> $GITHUB_OUTPUT
+          echo "User is authorized"
+        else
+          echo "authorized=false" >> $GITHUB_OUTPUT
+          echo "User is not authorized"
+        fi
+
+    - name: React to comment
+      if: >
+        steps.check_trigger.outputs.triggered == 'true' &&
+        steps.check_permission.outputs.authorized == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REACTION: ${{ inputs.reaction }}
+      run: |
+        gh api \
+          "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+          -f content="${REACTION}" \
+          --silent || true
+
+    - name: Post unauthorized message
+      if: >
+        steps.check_trigger.outputs.triggered == 'true' &&
+        steps.check_permission.outputs.authorized == 'false'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        CUSTOM_MESSAGE: ${{ inputs.unauthorized-message }}
+        USERNAME: ${{ github.event.comment.user.login }}
+        TRIGGER_PHRASE: ${{ inputs.trigger-phrase }}
+      run: |
+        if [ -n "${CUSTOM_MESSAGE}" ]; then
+          message="${CUSTOM_MESSAGE/\{username\}/${USERNAME}}"
+        else
+          message="Sorry @${USERNAME}, only repository collaborators with write access can request this action."
+        fi
+
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "${message}"
+
+    - name: Get PR details
+      id: pr_details
+      if: >
+        steps.check_trigger.outputs.triggered == 'true' &&
+        steps.check_permission.outputs.authorized == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        PR_REF=$(gh api \
+          "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
+          --jq '.head.ref')
+
+        # Validate branch name for security
+        if ! [[ "${PR_REF}" =~ ^[a-zA-Z0-9/_.-]+$ ]]; then
+          echo "Error: Invalid branch name format: ${PR_REF}"
+          exit 1
+        fi
+
+        if [[ "${PR_REF}" == -* ]]; then
+          echo "Error: Branch name cannot start with hyphen: ${PR_REF}"
+          exit 1
+        fi
+
+        echo "pr_ref=${PR_REF}" >> $GITHUB_OUTPUT
+        echo "PR branch: ${PR_REF}"
+
+    - name: Post starting message
+      if: >
+        steps.check_trigger.outputs.triggered == 'true' &&
+        steps.check_permission.outputs.authorized == 'true' &&
+        inputs.starting-message != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        MESSAGE_TEMPLATE: ${{ inputs.starting-message }}
+        PR_REF: ${{ steps.pr_details.outputs.pr_ref }}
+        RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      run: |
+        message="${MESSAGE_TEMPLATE}"
+        message="${message//\{pr_ref\}/${PR_REF}}"
+        message="${message//\{run_url\}/${RUN_URL}}"
+
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "${message}"
