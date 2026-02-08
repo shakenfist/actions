@@ -161,11 +161,10 @@ You are reviewing Pull Request #${pr_number} for a Shaken Fist project.
    - Acknowledges good practices you observe
    - Is professional and helpful in tone
 
-4. Post your review using this exact command:
-   gh pr review ${pr_number} --comment --body "\$(cat <<'REVIEW_EOF'
-   Your review content here...
-   REVIEW_EOF
-   )"
+4. Write your review to the file ${output_dir}/review-body.md
+   using the Write tool. Do NOT run gh pr review yourself --
+   the calling script will post the review for you. Just write
+   the review content to that file and nothing else.
 
 ## Code Style Notes for Shaken Fist
 
@@ -213,8 +212,27 @@ if [ -f "${output_dir}/claude-output.json" ]; then
     ci_output "claude_cost_usd" "${cost_usd}"
 fi
 
+# Step 6: Post the review exactly once
+echo
+echo "Step 6: Posting review..."
+
+if [ -f "${output_dir}/review-body.md" ]; then
+    review_size=$(wc -c < "${output_dir}/review-body.md")
+    if [ "${review_size}" -gt 0 ]; then
+        gh pr review "${pr_number}" --comment \
+            --body-file "${output_dir}/review-body.md"
+        echo "Review posted successfully"
+        ci_output "review_posted" "true"
+    else
+        echo "Warning: Claude produced an empty review"
+        ci_output "review_posted" "false"
+    fi
+else
+    echo "Warning: Claude did not write a review file"
+    ci_output "review_posted" "false"
+fi
+
 echo
 echo "========================================"
 echo "PR review complete!"
 echo "========================================"
-ci_output "review_posted" "true"
