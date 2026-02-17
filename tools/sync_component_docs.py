@@ -247,7 +247,8 @@ def generate_nav_snippet(
     component_name: str,
     doc_files: list[tuple[str, str]],
     indent: int = 8,
-    preserve_order: bool = False
+    preserve_order: bool = False,
+    display_name_override: str | None = None
 ) -> str:
     """Generate a mkdocs.yml navigation snippet for the component.
 
@@ -261,11 +262,13 @@ def generate_nav_snippet(
         indent: Base indentation (number of spaces)
         preserve_order: If True, keep files in provided order. If False,
             sort alphabetically by title.
+        display_name_override: If set, use this as the nav display
+            name instead of deriving it from component_name.
 
     Returns:
         YAML navigation snippet as a string
     """
-    display_name = component_name.title()
+    display_name = display_name_override or component_name.title()
     base_path = f'components/{component_name}'
     spaces = ' ' * indent
 
@@ -440,6 +443,25 @@ def main():
     else:
         print('No order.yml found, using filesystem discovery')
 
+    # Check for component.yml to override display name
+    display_name_override = None
+    component_yml_path = source_dir / 'component.yml'
+    if component_yml_path.exists():
+        try:
+            component_data = yaml.safe_load(
+                component_yml_path.read_text(encoding='utf-8')
+            )
+            if isinstance(component_data, dict):
+                title = component_data.get('title')
+                if title:
+                    display_name_override = title
+                    print(
+                        f'Using title from component.yml:'
+                        f' {display_name_override}'
+                    )
+        except yaml.YAMLError as e:
+            print(f'Warning: Failed to parse component.yml: {e}')
+
     # Copy docs and get file list
     doc_files = copy_docs(
         args.component_name, source_dir, dest_dir, ordered_files
@@ -451,7 +473,8 @@ def main():
     # Generate the nav snippet
     nav_snippet = generate_nav_snippet(
         args.component_name, doc_files, args.indent,
-        preserve_order=(ordered_files is not None)
+        preserve_order=(ordered_files is not None),
+        display_name_override=display_name_override
     )
 
     # Handle template substitution or plain output

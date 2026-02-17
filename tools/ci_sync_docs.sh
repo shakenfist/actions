@@ -18,8 +18,17 @@ git rebase develop
 SYNC_SCRIPT="${GITHUB_WORKSPACE}/actions/tools/sync_component_docs.py"
 cp ${GITHUB_WORKSPACE}/shakenfist/mkdocs.yml.tmpl ${GITHUB_WORKSPACE}/mkdocs.yml
 
-# Sync external docs and generate mkdocs.yml from template
-for external in cloudgood clingwrap development kerbside occystrap; do
+# Sync external docs and generate mkdocs.yml from template. Note that these
+# are in the order they appear in the components nav bar, and that their
+# component names might have been overridden by a component.yml file in
+# the target repo's docs directory.
+for external in \
+        cloudgood \
+        clingwrap \
+        development \
+        agent-python \
+        kerbside \
+        occystrap; do
     python3 "${SYNC_SCRIPT}" "${external}" \
         "${GITHUB_WORKSPACE}/${external}/docs" \
         "${GITHUB_WORKSPACE}/shakenfist/docs/components/${external}" \
