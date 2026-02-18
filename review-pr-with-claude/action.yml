@@ -1,7 +1,10 @@
 name: 'Review PR with Claude'
 description: >
   Run an automated code review on a pull request using Claude Code.
-  Posts the review as a PR comment via the GitHub CLI.
+  Produces a structured JSON review, creates GitHub issues for
+  actionable items, renders to markdown, and posts as a PR comment.
+  The calling job needs pull-requests: write and issues: write
+  permissions.
 
 inputs:
   pr-number:
@@ -23,6 +26,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
         INPUT_PR_NUMBER: ${{ inputs.pr-number }}
         INPUT_MAX_TURNS: ${{ inputs.max-turns }}
         INPUT_FORCE: ${{ inputs.force }}

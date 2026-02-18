@@ -11,11 +11,18 @@
 #   INPUT_FORCE       - Review even if already reviewed (default: false)
 #   GH_TOKEN          - GitHub token for API access
 #
+# The review output is structured JSON that is:
+#   1. Validated against review-schema.json
+#   2. Used to create GitHub issues for actionable items
+#   3. Rendered to markdown with embedded JSON for automation
+#
 # Exit codes:
 #   0 - Review posted successfully (or skipped)
 #   1 - Error occurred
 
 set -e
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 
 # Read inputs from environment (set by the composite action)
 pr_number="${INPUT_PR_NUMBER}"
@@ -132,8 +139,8 @@ echo
 echo "Step 5: Running Claude Code for review..."
 echo
 
-# Build the prompt
-cat > "${output_dir}/claude-prompt.txt" << PROMPT_EOF
+# Build the prompt - request structured JSON output
+cat > "${output_dir}/claude-prompt.txt" << 'PROMPT_EOF'
 You are reviewing Pull Request #${pr_number} for a Shaken Fist project.
 
 ## PR Information
@@ -144,7 +151,11 @@ You are reviewing Pull Request #${pr_number} for a Shaken Fist project.
 
 ## Your Task
 
+0. Read the contents of AGENTS.md, ARCHITECTURE.md, and README.md to
+   gather context.
+
 1. Read the PR diff below carefully
+
 2. Analyze the changes for:
    - Code quality and readability
    - Potential bugs or logic errors
@@ -154,22 +165,62 @@ You are reviewing Pull Request #${pr_number} for a Shaken Fist project.
    - Documentation (are changes documented?)
    - Style consistency with the codebase
 
-3. Write a constructive review that:
-   - Starts with a brief summary of what the PR does
-   - Lists specific concerns with file:line references
-   - Suggests improvements where relevant
-   - Acknowledges good practices you observe
-   - Is professional and helpful in tone
+3. Output your review as a JSON object with the following structure:
 
-4. Write your review to the file ${output_dir}/review-body.md
-   using the Write tool. Do NOT run gh pr review yourself --
-   the calling script will post the review for you. Just write
-   the review content to that file and nothing else.
+```json
+{
+  "summary": "Brief 1-3 sentence summary of what the PR does",
+  "items": [
+    {
+      "id": 1,
+      "title": "Short title for this item",
+      "category": "security|bug|performance|documentation|style|testing|other",
+      "severity": "critical|high|medium|low",
+      "action": "fix|document|consider|none",
+      "description": "Detailed description of the issue or observation",
+      "location": "path/to/file.py:100-150",
+      "suggestion": "Specific suggestion for how to address this",
+      "rationale": "For action=none or consider, explain why"
+    }
+  ],
+  "positive_feedback": [
+    {
+      "title": "What was done well",
+      "description": "Why this is good"
+    }
+  ],
+  "test_coverage": {
+    "adequate": true,
+    "missing": ["list of missing test scenarios"]
+  }
+}
+```
+
+## Action Types
+
+- **fix**: This MUST be fixed before merging (security issues, bugs, etc.)
+- **document**: Documentation should be added or updated
+- **consider**: Optional improvement, reviewer's suggestion but not required
+- **none**: Informational observation only, no action needed
+
+## Important Rules
+
+1. Every item MUST have: id, title, category, action
+2. Items with action="fix" MUST have severity
+3. Items with action="none" or "consider" SHOULD have rationale
+4. Include location (file:lines) when referencing specific code
+5. Be specific in suggestions - vague advice is not actionable
+
+## CRITICAL: Output Format
+
+Your response MUST contain a JSON code block with the review data.
+Start the JSON block with ```json and end with ```.
+Do NOT post the review to GitHub - just output the JSON.
+The JSON will be validated and rendered to markdown by a separate script.
 
 ## Code Style Notes for Shaken Fist
 
-- Python code uses single quotes for strings, double quotes for
-  docstrings
+- Python code uses single quotes for strings, double quotes for docstrings
 - Line length limit is 80 chars (120 max)
 - Type hints are encouraged but not required everywhere
 
@@ -177,29 +228,47 @@ You are reviewing Pull Request #${pr_number} for a Shaken Fist project.
 
 PROMPT_EOF
 
-# Append the diff
-cat "${output_dir}/pr-diff.txt" \
-    >> "${output_dir}/claude-prompt.txt"
+# Substitute variables in the prompt using Python for safe handling of
+# user-controlled input (PR titles can contain any characters including
+# newlines, quotes, and shell metacharacters)
+prompt_file="${output_dir}/claude-prompt.txt"
+python3 - "${prompt_file}" "${pr_number}" "${pr_title}" "${pr_author}" \
+    "${head_branch}" "${base_branch}" << 'PYSUBST'
+import sys
+from pathlib import Path
 
-# Run Claude Code
-cat "${output_dir}/claude-prompt.txt" | claude -p - \
+prompt_file = Path(sys.argv[1])
+pr_number, pr_title, pr_author, head_branch, base_branch = sys.argv[2:7]
+
+content = prompt_file.read_text()
+content = content.replace('${pr_number}', pr_number)
+content = content.replace('${pr_title}', pr_title)
+content = content.replace('${pr_author}', pr_author)
+content = content.replace('${head_branch}', head_branch)
+content = content.replace('${base_branch}', base_branch)
+prompt_file.write_text(content)
+PYSUBST
+
+# Append the diff
+cat "${output_dir}/pr-diff.txt" >> "${prompt_file}"
+
+# Run Claude Code to get JSON review
+echo "Running Claude to generate review JSON..."
+cat "${prompt_file}" | claude -p - \
     --dangerously-skip-permissions \
     --max-turns "${max_turns}" \
     --output-format json \
     > "${output_dir}/claude-output.json" || true
 
-# Extract and display the result
-if [ -f "${output_dir}/claude-output.json" ]; then
-    jq -r '.result // empty' \
-        "${output_dir}/claude-output.json"
-
-    # Extract metadata for CI output
+# Extract metadata for CI output
+claude_output="${output_dir}/claude-output.json"
+if [ -f "${claude_output}" ]; then
     num_turns=$(jq -r '.num_turns // "unknown"' \
-        "${output_dir}/claude-output.json")
+        "${claude_output}")
     duration_ms=$(jq -r '.duration_ms // "unknown"' \
-        "${output_dir}/claude-output.json")
+        "${claude_output}")
     cost_usd=$(jq -r '.total_cost_usd // "unknown"' \
-        "${output_dir}/claude-output.json")
+        "${claude_output}")
 
     echo
     echo "Claude execution stats:"
@@ -212,23 +281,112 @@ if [ -f "${output_dir}/claude-output.json" ]; then
     ci_output "claude_cost_usd" "${cost_usd}"
 fi
 
-# Step 6: Post the review exactly once
+# Step 6: Extract and validate review JSON
 echo
-echo "Step 6: Posting review..."
+echo "Step 6: Extracting and validating review JSON..."
 
-if [ -f "${output_dir}/review-body.md" ]; then
-    review_size=$(wc -c < "${output_dir}/review-body.md")
-    if [ "${review_size}" -gt 0 ]; then
-        gh pr review "${pr_number}" --comment \
-            --body-file "${output_dir}/review-body.md"
-        echo "Review posted successfully"
-        ci_output "review_posted" "true"
-    else
-        echo "Warning: Claude produced an empty review"
+claude_result=$(jq -r '.result // empty' "${claude_output}")
+if [ -z "${claude_result}" ]; then
+    echo "Error: No result from Claude"
+    ci_output "review_posted" "false"
+    exit 1
+fi
+
+# Extract JSON from code block (between ```json and ```)
+# Allow for whitespace variations in the markers
+json_start='^[[:space:]]*```json[[:space:]]*$'
+json_end='^[[:space:]]*```[[:space:]]*$'
+review_json=$(echo "${claude_result}" | \
+    sed -n "/${json_start}/,/${json_end}/p" | sed '1d;$d')
+
+if [ -z "${review_json}" ]; then
+    echo "Warning: No JSON code block found with standard markers"
+    echo "Attempting fallback extraction..."
+
+    # Fallback: use Python for portable JSON extraction
+    review_json=$(echo "${claude_result}" | python3 -c '
+import sys
+import re
+import json
+
+content = sys.stdin.read()
+
+# Try to find a JSON object with summary and items fields
+match = re.search(
+    r"\{[^{}]*\"summary\"[^{}]*\"items\".*\}",
+    content,
+    re.DOTALL
+)
+if match:
+    try:
+        candidate = match.group(0)
+        json.loads(candidate)
+        print(candidate)
+    except json.JSONDecodeError:
+        pass
+' 2>/dev/null || true)
+
+    if [ -z "${review_json}" ]; then
+        echo "Error: Could not extract JSON from Claude's response"
+        echo "Response was:"
+        echo "${claude_result}" | head -50
         ci_output "review_posted" "false"
+        exit 1
     fi
+fi
+
+# Save the extracted JSON
+review_json_file="${output_dir}/review.json"
+review_json_with_issues="${output_dir}/review-with-issues.json"
+review_md_file="${output_dir}/review.md"
+render_script="${script_dir}/render-review.py"
+create_issues_script="${script_dir}/create-review-issues.py"
+
+echo "${review_json}" > "${review_json_file}"
+echo "Extracted review JSON to ${review_json_file}"
+
+# Validate the JSON
+echo "Validating JSON..."
+if ! python3 "${render_script}" --validate "${review_json_file}"; then
+    echo "Error: Review JSON failed validation"
+    echo "JSON content:"
+    cat "${review_json_file}"
+    ci_output "review_posted" "false"
+    exit 1
+fi
+echo "JSON validation passed"
+
+# Step 7: Create GitHub issues for actionable items
+echo
+echo "Step 7: Creating GitHub issues for action items..."
+python3 "${create_issues_script}" \
+    "${review_json_file}" \
+    "${review_json_with_issues}" \
+    --pr "${pr_number}" || {
+    echo "Warning: Issue creation failed, continuing without issues"
+    cp "${review_json_file}" "${review_json_with_issues}"
+}
+
+# Step 8: Render to markdown (with embedded JSON for address-comments
+# automation)
+echo
+echo "Step 8: Rendering review to markdown..."
+python3 "${render_script}" --embed-json \
+    "${review_json_with_issues}" "${review_md_file}"
+echo "Rendered review to ${review_md_file}"
+
+# Step 9: Post the review
+echo
+echo "Step 9: Posting review to PR..."
+
+review_size=$(wc -c < "${review_md_file}")
+if [ "${review_size}" -gt 0 ]; then
+    gh pr review "${pr_number}" --comment \
+        --body-file "${review_md_file}"
+    echo "Review posted successfully"
+    ci_output "review_posted" "true"
 else
-    echo "Warning: Claude did not write a review file"
+    echo "Warning: Rendered review is empty"
     ci_output "review_posted" "false"
 fi
 
