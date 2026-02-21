@@ -378,6 +378,8 @@
           export https_proxy=http://192.168.1.15:3128
           export HTTP_PROXY=http://192.168.1.15:3128
           export HTTPS_PROXY=http://192.168.1.15:3128
+          export no_proxy=localhost,127.0.0.1,10.0.0.0/8
+          export NO_PROXY=localhost,127.0.0.1,10.0.0.0/8
           export PIP_INDEX_URL=https://devpi.home.stillhq.com/root/pypi/+simple/
           export GETSF_FLOATING_BLOCK=192.168.230.0/24
           export GETSF_DNS_SERVER=8.8.8.8

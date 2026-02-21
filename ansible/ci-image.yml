@@ -84,6 +84,8 @@
     https_proxy: http://192.168.1.15:3128
     HTTP_PROXY: http://192.168.1.15:3128
     HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
   vars:
 
   tasks:
@@ -336,6 +338,8 @@
     https_proxy: http://192.168.1.15:3128
     HTTP_PROXY: http://192.168.1.15:3128
     HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
 
   tasks:
     - name: Do a dist-upgrade to ensure that we can sudo and manage packages

@@ -8,6 +8,8 @@
     https_proxy: http://192.168.1.15:3128
     HTTP_PROXY: http://192.168.1.15:3128
     HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
     PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
 
   tasks:
@@ -39,6 +41,8 @@
     https_proxy: http://192.168.1.15:3128
     HTTP_PROXY: http://192.168.1.15:3128
     HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
     PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
 
   tasks:
