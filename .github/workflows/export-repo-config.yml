@@ -101,7 +101,7 @@ jobs:
 
       - name: Check for changes and create PR
         env:
-          GITHUB_TOKEN: ${{ secrets.DEPENDENCIES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           datestamp=$(date "+%Y%m%d")
 
