@@ -48,6 +48,26 @@
   become: true
 
   tasks:
+    - name: Configure apt to use HTTP cache proxy
+      copy:
+        content: |
+          Acquire::http::Proxy "http://192.168.1.15:3128";
+          Acquire::https::Proxy "http://192.168.1.15:3128";
+        dest: /etc/apt/apt.conf.d/01proxy
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure pip to use devpi mirror
+      copy:
+        content: |
+          [global]
+          index-url = https://devpi.home.stillhq.com/root/pypi/+simple/
+        dest: /etc/pip.conf
+        owner: root
+        group: root
+        mode: "0644"
+
     - name: Disable unattended upgrades
       when: ansible_distribution == "Ubuntu"
       service:
@@ -100,6 +120,11 @@
       copy:
         content: |
           #!/bin/bash -e
+          export http_proxy=http://192.168.1.15:3128
+          export https_proxy=http://192.168.1.15:3128
+          export HTTP_PROXY=http://192.168.1.15:3128
+          export HTTPS_PROXY=http://192.168.1.15:3128
+          export PIP_INDEX_URL=https://devpi.home.stillhq.com/root/pypi/+simple/
           export GETSF_FLOATING_BLOCK=192.168.230.0/24
           export GETSF_DNS_SERVER=8.8.8.8
           export GETSF_DEPLOY_NAME=bonkerslab

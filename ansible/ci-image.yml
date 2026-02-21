@@ -79,6 +79,11 @@
 - hosts: imagerebuild
   gather_facts: yes
   become: true
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
   vars:
 
   tasks:
@@ -326,6 +331,11 @@
 - hosts: imagetest
   gather_facts: yes
   become: true
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
 
   tasks:
     - name: Do a dist-upgrade to ensure that we can sudo and manage packages

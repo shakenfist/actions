@@ -3,6 +3,12 @@
   gather_facts: yes
   become: yes
   connection: local
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
 
   tasks:
     - name: Create artifacts directory
@@ -28,6 +34,12 @@
   gather_facts: yes
   connection: ssh
   become: yes
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
 
   tasks:
     - block:
