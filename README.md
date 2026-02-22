@@ -78,7 +78,57 @@ Sets up the test environment for Shaken Fist projects.
 
 ### setup-kerbside-environment
 
-Sets up the Kerbside-specific test environment.
+Sets up the Kerbside-specific test environment: checks out kerbside-patches,
+assembles patched source, provisions a test VM, installs build dependencies,
+and configures the CI registry.
+
+### deploy-kolla-ansible
+
+Bootstraps, validates, and deploys Kolla-Ansible on a test VM. This action
+is shared between kerbside and kerbside-patches CI to avoid duplication.
+
+**Usage:**
+
+```yaml
+# Local build (no registry) - used by kerbside CI
+- uses: shakenfist/actions/deploy-kolla-ansible@main
+  with:
+    base_user: debian
+    image_tag: local
+    build_targets: master
+    topology: all-in-one
+
+# CI registry build - used by kerbside-patches CI
+- uses: shakenfist/actions/deploy-kolla-ansible@main
+  with:
+    base_user: debian
+    image_tag: master-debian-trixie-abc123
+    build_targets: master
+    topology: all-in-one
+    registry_token: ${{ secrets.CI_REGISTRY_TOKEN }}
+    enable_kerbside: 'true'
+    use_ci_registry: 'true'
+```
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `base_user` | Yes | `debian` | SSH user on target VM |
+| `image_tag` | Yes | - | Container image tag (`local` or registry hash) |
+| `build_targets` | Yes | - | OpenStack release (master, 2025.1, etc.) |
+| `topology` | Yes | `all-in-one` | Deployment topology |
+| `registry_token` | No | `''` | CI registry token (omit for local builds) |
+| `enable_kerbside` | No | `true` | Enable kerbside in deployment |
+| `use_ci_registry` | No | `false` | Pull from CI registry; pass `--use-ci-registry` to post-install |
+
+**Steps performed:**
+1. Bootstrap Kolla-Ansible (with conditional registry/kerbside flags)
+2. Run pre-checks
+3. Pull images (only when `use_ci_registry` is `true`)
+4. Deploy
+5. Install patched OpenStack clients
+6. Post install Kolla-Ansible setup
 
 ## Usage in Workflows
 

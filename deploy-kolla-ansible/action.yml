@@ -1,0 +1,108 @@
+name: 'Deploy Kolla-Ansible'
+description: 'Bootstrap, validate, and deploy Kolla-Ansible on a test VM'
+inputs:
+  base_user:
+    description: 'SSH user on target VM'
+    required: true
+    default: 'debian'
+  image_tag:
+    description: 'Container image tag (e.g. local, or registry hash)'
+    required: true
+  build_targets:
+    description: 'OpenStack release (e.g. master, 2025.1)'
+    required: true
+  topology:
+    description: 'Deployment topology (all-in-one, multinode, multinode-2)'
+    required: true
+    default: 'all-in-one'
+  registry_token:
+    description: 'CI registry token (omit for local builds)'
+    required: false
+    default: ''
+  enable_kerbside:
+    description: 'Enable kerbside in deployment'
+    required: false
+    default: 'true'
+  use_ci_registry:
+    description: 'Pull from CI registry and pass --use-ci-registry to post-install'
+    required: false
+    default: 'false'
+runs:
+  using: "composite"
+  steps:
+    - name: Bootstrap Kolla-Ansible
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+
+        script="cd /srv/shakenfist/kerbside-patches;"
+        script="${script} sudo ./tools/bootstrap-kolla-ansible"
+        script="${script} --image-tag ${{ inputs.image_tag }}"
+        script="${script} --build-targets ${{ inputs.build_targets }}"
+        script="${script} --topology ${{ inputs.topology }}"
+
+        if [ -n "${{ inputs.registry_token }}" ]; then
+            script="${script} --registry-token ${{ inputs.registry_token }}"
+        fi
+
+        if [ "${{ inputs.enable_kerbside }}" != "true" ]; then
+            script="${script} --disable-kerbside"
+        fi
+
+        script="${script};"
+
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 "${script}"
+
+    - name: Run pre-checks
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka prechecks -i /etc/kolla/inventory'
+
+    - name: Pull images
+      if: inputs.use_ci_registry == 'true'
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka pull -i /etc/kolla/inventory'
+
+    - name: Deploy
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
+
+    - name: Install patched OpenStack clients
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/install-openstack-clients'
+
+    - name: Post install Kolla-Ansible setup
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+
+        postinstall_args=""
+        if [ "${{ inputs.use_ci_registry }}" == "true" ]; then
+            postinstall_args="--use-ci-registry"
+        fi
+
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            "cd /srv/shakenfist/kerbside-patches; sudo ./tools/postinstall-kolla-ansible ${postinstall_args}"
