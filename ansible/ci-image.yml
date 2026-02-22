@@ -192,7 +192,6 @@
               - file-devel
               - openssl-devel
               - libvirt
-              - libvirt-devel
               - lm_sensors
               - net-tools
               - edk2-ovmf
