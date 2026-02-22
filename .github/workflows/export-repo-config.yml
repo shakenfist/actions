@@ -162,8 +162,7 @@ jobs:
                 --assignee mikalstill \
                 --reviewer mikalstill \
                 --title "Repository configuration changed" \
-                --body-file /tmp/pr-body.md \
-                --label dependencies
+                --body-file /tmp/pr-body.md
             echo
             echo "Pull request created."
           fi
