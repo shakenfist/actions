@@ -104,7 +104,7 @@
 
       - name: Determine the interface name for the new interface
         shell: |
-          ip a | egrep "^[0-9]+: ens" | cut -f 2 -d " " | sed 's/:.*//'
+          ip a | egrep "^[0-9]+: (ens|eth)" | cut -f 2 -d " " | sed 's/:.*//'
         register: primary_new_interface
         retries: 6
         delay: 30
