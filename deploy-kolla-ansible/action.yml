@@ -49,6 +49,10 @@ runs:
             script="${script} --disable-kerbside"
         fi
 
+        if [ "${{ inputs.use_ci_registry }}" == "true" ]; then
+            script="${script} --use-ci-registry"
+        fi
+
         script="${script};"
 
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \

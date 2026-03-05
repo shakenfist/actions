@@ -120,10 +120,10 @@ is shared between kerbside and kerbside-patches CI to avoid duplication.
 | `topology` | Yes | `all-in-one` | Deployment topology |
 | `registry_token` | No | `''` | CI registry token (omit for local builds) |
 | `enable_kerbside` | No | `true` | Enable kerbside in deployment |
-| `use_ci_registry` | No | `false` | Pull from CI registry; pass `--use-ci-registry` to post-install |
+| `use_ci_registry` | No | `false` | Pull from CI registry; pass `--use-ci-registry` to bootstrap and post-install. When `false`, CI registry settings are stripped from `globals.yml` so Kolla-Ansible uses local images. |
 
 **Steps performed:**
-1. Bootstrap Kolla-Ansible (with conditional registry/kerbside flags)
+1. Bootstrap Kolla-Ansible (with conditional registry/kerbside/ci-registry flags)
 2. Run pre-checks
 3. Pull images (only when `use_ci_registry` is `true`)
 4. Deploy
