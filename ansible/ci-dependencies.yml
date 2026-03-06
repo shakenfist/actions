@@ -14,7 +14,7 @@
         ram: 4096
         disks:
           - "100@{{base_image}}"
-          - "30"
+          - "50"
         networkspecs:
           - "network_uuid={{identifier}}"
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
@@ -75,6 +75,7 @@
     NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
   vars:
     actions_url: ""
+    gitlab_testdata_token: ""
 
   tasks:
 
@@ -152,6 +153,28 @@
             url: "https://sfcbr.shakenfist.com/backup-0.6.15-20230319",
             name: "backup-0.6.15-20230319",
           }
+
+    - name: Clone imago-testdata from GitLab
+      git:
+        repo: "https://oauth2:{{ gitlab_testdata_token }}@gitlab.home.stillhq.com/private/imago-testdata.git"
+        dest: /srv/ci/cached/imago-testdata
+        depth: 1
+      when: gitlab_testdata_token != ""
+
+    - name: Resparsify imago-testdata images
+      shell: |
+        cd /srv/ci/cached/imago-testdata
+        find downloaded/ -type f \( \
+          -name "*.qcow2" -o \
+          -name "*.vmdk" -o \
+          -name "*.vhd" -o \
+          -name "*.vhdx" -o \
+          -name "*.img" \
+        \) -print0 | while IFS= read -r -d '' file; do
+          cp --sparse=always "$file" "$file.sparse"
+          mv "$file.sparse" "$file"
+        done
+      when: gitlab_testdata_token != ""
 
     - name: List contents of /srv/ci/cached
       shell: ls -lrth /srv/ci/cached
