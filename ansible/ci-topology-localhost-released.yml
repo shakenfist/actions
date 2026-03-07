@@ -14,7 +14,7 @@
         ram: 16384
         disks:
           - "100@{{base_image}}"
-          - "30@sf://label/ci-images/dependencies"
+          - "60@sf://label/ci-images/dependencies"
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.10
         ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
