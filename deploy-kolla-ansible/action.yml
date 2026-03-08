@@ -27,10 +27,15 @@ inputs:
     description: 'Pull from CI registry and pass --use-ci-registry to post-install'
     required: false
     default: 'false'
+  skip_bootstrap:
+    description: 'Skip bootstrap step (use when bootstrap was already run separately)'
+    required: false
+    default: 'false'
 runs:
   using: "composite"
   steps:
     - name: Bootstrap Kolla-Ansible
+      if: inputs.skip_bootstrap != 'true'
       shell: bash
       run: |
         . $GITHUB_ENV
