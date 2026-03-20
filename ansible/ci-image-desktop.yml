@@ -1,0 +1,254 @@
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+  vars:
+    identifier: unknown
+    base_image: "debian-gnome:12"
+    base_image_user: "debian"
+
+  tasks:
+    - name: Create an instance
+      sf_instance:
+        name: "rebuild"
+        cpu: 4
+        ram: 4096
+        disks:
+          - "100@{{base_image}}"
+        networkspecs:
+          - "network_uuid={{identifier}}"
+        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
+        namespace: "{{identifier}}"
+        state: present
+        await: true
+        await_timeout: 600
+      register: imagerebuild_instance
+
+    - name: Log instance
+      debug:
+        msg: "{{imagerebuild_instance}}"
+
+    - name: Add to ansible
+      add_host:
+        hostname: imagerebuild
+        ansible_ssh_host: "{{imagerebuild_instance['meta']['interfaces'][0]['ipv4']}}"
+        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
+        ansible_ssh_user: "{{base_image_user}}"
+        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
+
+    - name: Log instance
+      debug:
+        msg: "{{hostvars['imagerebuild']}}"
+
+    - name: Wait for instance to present an "OpenSSH" prompt
+      wait_for:
+        port: 22
+        host: "{{hostvars['imagerebuild']['ansible_ssh_host']}}"
+        search_regex: OpenSSH
+        delay: 10
+        sleep: 10
+        state: present
+
+- hosts: localhost
+  become: true
+  tasks:
+    - name: Ensure ssh is actually answering now
+      shell: |
+        ssh -o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null \
+            -o UserKnownHostsFile=/dev/null -i /srv/github/id_ci \
+            {{base_image_user}}@{{hostvars['imagerebuild']['ansible_ssh_host']}} \
+            uptime
+      retries: 10
+      delay: 30
+      register: result
+      until: result.rc == 0
+
+- hosts: imagerebuild
+  gather_facts: yes
+  become: true
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
+
+  tasks:
+    - when: ansible_pkg_mgr == "apt"
+      block:
+        - name: Install packages only when the apt process is not locked
+          apt:
+            name: bash
+            state: present
+          register: apt_action
+          retries: 100
+          until: apt_action is success or ('Failed to lock apt for exclusive operation' not in apt_action.msg and '/var/lib/dpkg/lock' not in apt_action.msg)
+
+        - name: Force an apt-get update
+          shell: apt-get update
+
+        - name: apt-get dist-upgrade
+          apt:
+            update_cache: yes
+            upgrade: dist
+            autoremove: yes
+
+        - name: Install QEMU guest agent and SPICE agent
+          apt:
+            name:
+              - qemu-guest-agent
+              - spice-vdagent
+            state: latest
+
+        - name: Enable qemu-guest-agent service
+          systemd:
+            name: qemu-guest-agent
+            enabled: yes
+
+    - name: Cleanup cloud-init
+      shell: cloud-init clean --logs
+
+    - name: Try and avoid the disk being corrupt when snapshot
+      shell: |
+        sleep 5
+        sync
+        sleep 1
+        sync
+        sleep 1
+        sync
+        sleep 1
+
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+  vars:
+    identifier: cron
+    base_image_user: "debian"
+    label: "ci-images/debian-gnome-12"
+
+  tasks:
+    - name: Snapshot the instance
+      sf_snapshot:
+        instance_uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
+        state: present
+      register: cisnapshot
+
+    - name: Log snapshot details
+      debug:
+        msg: "{{cisnapshot}}"
+
+    - name: Record the snapshot uuid
+      set_fact:
+        snapshot_uuid: "{{cisnapshot['meta']['vda']['blob_uuid']}}"
+
+    - name: Log snapshot uuid
+      debug:
+        msg: "{{hostvars['localhost']['snapshot_uuid']}}"
+
+    - name: Test the snapshot
+      sf_instance:
+        name: "test"
+        cpu: 4
+        ram: 4096
+        disks:
+          - "100@sf://blob/{{hostvars['localhost']['snapshot_uuid']}}"
+        networkspecs:
+          - "network_uuid={{identifier}}"
+        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
+        namespace: "{{identifier}}"
+        state: present
+        await: true
+        await_timeout: 600
+      register: imagetest_instance
+
+    - name: Add to ansible
+      add_host:
+        hostname: imagetest
+        ansible_ssh_host: "{{imagetest_instance['meta']['interfaces'][0]['ipv4']}}"
+        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
+        ansible_ssh_user: "{{base_image_user}}"
+        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        sf_instance_uuid: "{{imagetest_instance['meta']['uuid']}}"
+
+    - name: Log instance
+      debug:
+        msg: "{{imagetest_instance}}"
+
+    - name: Wait for instance to present an "OpenSSH" prompt
+      wait_for:
+        port: 22
+        host: "{{hostvars['imagetest']['ansible_ssh_host']}}"
+        search_regex: OpenSSH
+        delay: 10
+        sleep: 10
+        state: present
+
+- hosts: localhost
+  become: true
+  tasks:
+    - name: Ensure ssh is actually answering now
+      shell: |
+        ssh -o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null \
+            -o UserKnownHostsFile=/dev/null -i /srv/github/id_ci \
+            {{base_image_user}}@{{hostvars['imagetest']['ansible_ssh_host']}} \
+            uptime
+      retries: 10
+      delay: 30
+      register: result
+      until: result.rc == 0
+
+- hosts: imagetest
+  gather_facts: yes
+  become: true
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
+
+  tasks:
+    - name: Do a dist-upgrade to ensure that we can sudo and manage packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+      register: apt_action
+      retries: 10
+      delay: 30
+      until: apt_action is success
+      when: ansible_pkg_mgr == "apt"
+
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+
+  tasks:
+    - name: Add the snapshot to the label
+      shell: |
+        sf-client label update "{{label}}" "{{hostvars['localhost']['snapshot_uuid']}}"
+
+    - name: Log the snapshot update
+      debug:
+        msg: "Set label {{label}} to blob uuid {{hostvars['localhost']['snapshot_uuid']}}"
+
+    - name: Delete the snapshot (its a label now if it passed)
+      sf_snapshot:
+        uuid: "{{cisnapshot['meta']['vda']['artifact_uuid']}}"
+        state: absent
+
+    - name: Delete test instance
+      sf_instance:
+        uuid: "{{hostvars['imagetest']['sf_instance_uuid']}}"
+        namespace: "{{identifier}}"
+        state: absent
+
+    - name: Delete build instance
+      sf_instance:
+        uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
+        namespace: "{{identifier}}"
+        state: absent
