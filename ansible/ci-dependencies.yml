@@ -178,9 +178,11 @@
 
     - name: Download the most recent debian-gnome snapshot
       shell: |
-        download_uuid=$(sf-client --json artifact list | jq -r '.[] | \
+        python3 -mvenv /tmp/sf
+        /tmp/sf/bin/pip3 install shakenfist-client
+        download_uuid=$(/tmp/sf/bin/sf-client --json artifact list | jq -r '.[] | \
                         select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid')
-        sf-client artifact download ${download_uuid} /srv/ci/cached/gnome-desktop-12-agents
+        /tmp/sf/bin/sf-client artifact download ${download_uuid} /srv/ci/cached/gnome-desktop-12-agents
 
     - name: List contents of /srv/ci/cached
       shell: ls -lrth /srv/ci/cached
