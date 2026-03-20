@@ -146,10 +146,6 @@
             name: "rocky:9",
           }
         - {
-            url: "https://images.shakenfist.com/debian-gnome:12/latest.qcow2",
-            name: "debian-gnome:12",
-          }
-        - {
             url: "{{ actions_url }}",
             name: "github-actions-runner.tar.gz",
           }
@@ -179,6 +175,12 @@
           mv "$file.sparse" "$file"
         done
       when: gitlab_testdata_token != ""
+
+    - name: Download the most recent debian-gnome snapshot
+      shell: |
+        download_uuid=$(sf-client --json artifact list | jq -r '.[] | \
+                        select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid')
+        sf-client artifact download ${download_uuid} /srv/ci/cached/gnome-desktop-12-agents
 
     - name: List contents of /srv/ci/cached
       shell: ls -lrth /srv/ci/cached
@@ -221,8 +223,6 @@
   connection: ssh
 
   tasks:
-    # NOTE(mikal): this is obviously a placeholder for now, but it explains
-    # what I need to add to the client to make this work.
     - name: Add the snapshot to the label
       shell: |
         sf-client label update "{{label}}" "{{hostvars['localhost']['snapshot_uuid']}}"
