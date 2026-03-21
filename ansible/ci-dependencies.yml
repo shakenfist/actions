@@ -173,18 +173,50 @@
           cp --sparse=always "$file" "$file.sparse"
           mv "$file.sparse" "$file"
         done
+      args:
+        executable: /bin/bash
       when: gitlab_testdata_token != ""
 
 - hosts: localhost
   gather_facts: no
   connection: ssh
   tasks:
-    - name: Download the most recent debian-gnome snapshot and push it to the rebuild instance
+    - name: Look up debian-gnome snapshot artifact
       shell: |
         download_uuid=$(sf-client --json artifact list | \
                         jq -r '.[] | select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid')
-        sf-client artifact download ${download_uuid} /tmp/gnome-desktop-12-agents
+        echo "Artifact UUID: ${download_uuid}"
+        sf-client --json artifact show ${download_uuid} | jq '{uuid, source_url, blob_uuid, size}'
+        echo ${download_uuid}
+      register: gnome_artifact
 
+    - name: Log artifact details
+      debug:
+        msg: "{{ gnome_artifact.stdout }}"
+
+    - name: Check runner resources before download
+      shell: |
+        echo "=== Disk ==="
+        df -h /tmp
+        echo "=== Memory ==="
+        free -m
+
+    - name: Download debian-gnome snapshot
+      shell: |
+        download_uuid='{{ gnome_artifact.stdout_lines[-1] }}'
+        rm -f /tmp/gnome-desktop-12-agents
+        sf-client artifact download ${download_uuid} /tmp/gnome-desktop-12-agents
+        ls -lh /tmp/gnome-desktop-12-agents
+
+    - name: Check runner resources after download
+      shell: |
+        echo "=== Disk ==="
+        df -h /tmp
+        echo "=== Memory ==="
+        free -m
+
+    - name: Push debian-gnome snapshot to rebuild instance
+      shell: |
         scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
               /tmp/gnome-desktop-12-agents \
