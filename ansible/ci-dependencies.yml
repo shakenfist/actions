@@ -78,7 +78,6 @@
     gitlab_testdata_token: ""
 
   tasks:
-
     - name: Make a directory for cached images
       file:
         path: /srv/ci/cached
@@ -176,14 +175,33 @@
         done
       when: gitlab_testdata_token != ""
 
-    - name: Download the most recent debian-gnome snapshot
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+  tasks:
+    - name: Download the most recent debian-gnome snapshot and push it to the rebuild instance
       shell: |
-        python3 -mvenv /tmp/sf
-        /tmp/sf/bin/pip3 install shakenfist-client
-        download_uuid=$(/tmp/sf/bin/sf-client --json artifact list | \
+        download_uuid=$(sf-client --json artifact list | \
                         jq -r '.[] | select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid')
-        /tmp/sf/bin/sf-client artifact download ${download_uuid} /srv/ci/cached/gnome-desktop-12-agents
+        sf-client artifact download ${download_uuid} /tmp/gnome-desktop-12-agents
 
+        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              /tmp/gnome-desktop-12-agents \
+              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/gnome-desktop-12-agents
+
+- hosts: allsf
+  gather_facts: yes
+  become: true
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
+
+  tasks:
     - name: List contents of /srv/ci/cached
       shell: ls -lrth /srv/ci/cached
 
