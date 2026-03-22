@@ -94,6 +94,12 @@
         fstype: ext4
         state: mounted
 
+    - name: Set ownership of dependencies disk mount
+      file:
+        path: /srv/ci/cached
+        owner: debian
+        group: debian
+
     - name: Cache all minimal images we currently build to reduce network traffic
       get_url:
         url: "{{item.url}}"
