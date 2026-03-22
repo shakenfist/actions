@@ -210,9 +210,9 @@
     - name: Download debian-gnome snapshot
       shell: |
         download_uuid='{{ gnome_artifact.stdout_lines[-1] }}'
-        rm -f /tmp/gnome-desktop-12-agents
-        sf-client artifact download ${download_uuid} /tmp/gnome-desktop-12-agents
-        ls -lh /tmp/gnome-desktop-12-agents
+        rm -f /tmp/debian-12-gnome-agents
+        sf-client artifact download ${download_uuid} /tmp/debian-12-gnome-agents
+        ls -lh /tmp/debian-12-gnome-agents
 
     - name: Check runner resources after download
       shell: |
@@ -225,8 +225,8 @@
       shell: |
         scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              /tmp/gnome-desktop-12-agents \
-              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/gnome-desktop-12-agents
+              /tmp/debian-12-gnome-agents \
+              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/debian-12-gnome-agents
 
 - hosts: allsf
   gather_facts: yes
