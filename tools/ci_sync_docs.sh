@@ -28,7 +28,8 @@ for external in \
         development \
         agent-python \
         kerbside \
-        occystrap; do
+        occystrap \
+        ryll; do
     python3 "${SYNC_SCRIPT}" "${external}" \
         "${GITHUB_WORKSPACE}/${external}/docs" \
         "${GITHUB_WORKSPACE}/shakenfist/docs/components/${external}" \
