@@ -254,7 +254,7 @@ cat "${output_dir}/pr-diff.txt" >> "${prompt_file}"
 
 # Run Claude Code to get JSON review
 echo "Running Claude to generate review JSON..."
-cat "${prompt_file}" | ~/local/.bin/claude -p - \
+cat "${prompt_file}" | ~/.local/bin/claude -p - \
     --dangerously-skip-permissions \
     --max-turns "${max_turns}" \
     --output-format json \
