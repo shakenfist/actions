@@ -66,7 +66,7 @@ if ! command -v gh &> /dev/null; then
     exit 1
 fi
 
-if ! command -v claude &> /dev/null; then
+if ! [ -e ~/.local/bin/claude ]; then
     echo "Error: Claude Code CLI not found"
     exit 1
 fi
