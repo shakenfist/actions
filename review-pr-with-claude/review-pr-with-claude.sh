@@ -66,8 +66,11 @@ if ! command -v gh &> /dev/null; then
     exit 1
 fi
 
-if ! [ -e ~/.local/bin/claude ]; then
-    echo "Error: Claude Code CLI not found"
+claude_bin="${CLAUDE_BIN:-claude}"
+if ! command -v "${claude_bin}" &> /dev/null; then
+    echo "Error: Claude Code CLI not found (${claude_bin})"
+    echo "Install with: npm install -g @anthropic-ai/claude-code"
+    echo "Or set CLAUDE_BIN to the path of an existing install."
     exit 1
 fi
 
@@ -254,7 +257,7 @@ cat "${output_dir}/pr-diff.txt" >> "${prompt_file}"
 
 # Run Claude Code to get JSON review
 echo "Running Claude to generate review JSON..."
-cat "${prompt_file}" | ~/.local/bin/claude -p - \
+cat "${prompt_file}" | "${claude_bin}" -p - \
     --dangerously-skip-permissions \
     --max-turns "${max_turns}" \
     --output-format json \
