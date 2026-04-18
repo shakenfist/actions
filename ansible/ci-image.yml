@@ -87,6 +87,7 @@
     no_proxy: localhost,127.0.0.1,10.0.0.0/8
     NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
   vars:
+    extras: ""
 
   tasks:
     # Debian derived distributions
@@ -223,6 +224,29 @@
           - python3-filelock
         state: present
       when: ansible_pkg_mgr == "dnf"
+
+    # Optional extras. `extras` is a comma-separated list of feature
+    # tags (e.g. "docker", "docker,foo"); each block gates on its tag
+    # appearing in that list.
+    - when: "'docker' in (extras | split(','))"
+      block:
+        - name: Install docker (apt)
+          apt:
+            name: docker.io
+            state: present
+          when: ansible_pkg_mgr == "apt"
+
+        - name: Install docker (dnf)
+          dnf:
+            name: moby-engine
+            state: present
+          when: ansible_pkg_mgr == "dnf"
+
+        - name: Enable and start docker
+          service:
+            name: docker
+            enabled: yes
+            state: started
 
     - name: Cleanup cloud-init
       shell: cloud-init clean --logs
