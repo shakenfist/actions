@@ -252,6 +252,9 @@
             enabled: yes
             state: started
 
+        - name: Give everyone docker access
+          shell: chmod ugo+rw /var/run/docker.sock
+
     - name: Cleanup cloud-init
       shell: cloud-init clean --logs
 
