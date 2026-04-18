@@ -130,6 +130,7 @@
               - git
               - jq
               - libffi-dev
+              - libicu-dev
               - libmagic-dev
               - libssl-dev
               - libvirt-daemon-system
@@ -190,6 +191,7 @@
               - git
               - jq
               - libffi-devel
+              - libicu
               - file-devel
               - openssl-devel
               - libvirt
