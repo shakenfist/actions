@@ -229,8 +229,10 @@
 
     # Optional extras. `extras` is a comma-separated list of feature
     # tags (e.g. "docker", "docker,foo"); each block gates on its tag
-    # appearing in that list.
-    - when: "'docker' in (extras | split(','))"
+    # appearing in that list. We use a regex rather than the `split`
+    # filter because older ansible (2.10 on bookworm/bullseye) does
+    # not ship it.
+    - when: extras is match('(^|,)docker(,|$)')
       block:
         - name: Install docker (apt)
           apt:
