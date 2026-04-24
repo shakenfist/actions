@@ -31,6 +31,10 @@ inputs:
     description: 'Skip bootstrap step (use when bootstrap was already run separately)'
     required: false
     default: 'false'
+  container_distro:
+    description: 'Base distro of the container images being deployed (e.g. debian, ubuntu, rocky). Used to align kolla_base_distro so CA bundle paths and other distro-conditional settings match the running containers.'
+    required: false
+    default: ''
 runs:
   using: "composite"
   steps:
@@ -45,6 +49,10 @@ runs:
         script="${script} --image-tag ${{ inputs.image_tag }}"
         script="${script} --build-targets ${{ inputs.build_targets }}"
         script="${script} --topology ${{ inputs.topology }}"
+
+        if [ -n "${{ inputs.container_distro }}" ]; then
+            script="${script} --distro ${{ inputs.container_distro }}"
+        fi
 
         if [ -n "${{ inputs.registry_token }}" ]; then
             script="${script} --registry-token ${{ inputs.registry_token }}"
