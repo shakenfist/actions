@@ -112,6 +112,7 @@ do
         if [ ${count} -gt 0 ]
         then
             echo "FAILURE: Forbidden string found in ${target} ${count} times."
+            grep -nH -i "$forbid" "${target}" | head -20
             failures=$(( $failures + 1))
         fi
     done
@@ -137,6 +138,7 @@ do
     if [ ${count} -gt 0 ]
     then
         echo "FAILURE: Forbidden once stable string found ${count} times."
+        tail -n +1000 /var/log/syslog | grep -n -i "$forbid" | head -20
         failures=$(( $failures + 1))
     fi
 done
@@ -161,6 +163,7 @@ do
     if [ ${count} -gt 0 ]
     then
         echo "WARNING: Undesirable string found in logs ${count} times."
+        grep -nH -i "$forbid" /var/log/syslog | head -20
         failures=$(( $failures + 1))
     fi
 done
