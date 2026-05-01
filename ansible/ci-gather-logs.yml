@@ -36,6 +36,7 @@
   gather_facts: yes
   connection: ssh
   become: yes
+  ignore_unreachable: yes
   environment:
     http_proxy: http://192.168.1.15:3128
     https_proxy: http://192.168.1.15:3128
