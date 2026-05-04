@@ -27,6 +27,7 @@ for external in \
         clingwrap \
         development \
         agent-python \
+	instar \
         kerbside \
         occystrap \
         ryll; do
