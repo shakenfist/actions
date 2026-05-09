@@ -7,6 +7,13 @@
     base_image_user: "ubuntu"
 
   tasks:
+    # Derive a short per-run suffix for under-cloud instance names so that
+    # under-cloud logs (libvirt, qemu, syslog) can be grepped back to the
+    # originating CI run. Leading "t-" avoids hostnames starting with a digit.
+    - name: Compute under-cloud instance name suffix
+      set_fact:
+        instance_suffix: "{{ identifier[-5:] }}"
+
     - name: Create a network for virtual network mesh traffic
       sf_network:
         netblock: "10.0.1.0/24"
@@ -22,7 +29,7 @@
 
     - name: Create a primary instance
       sf_instance:
-        name: "primary"
+        name: "t-{{instance_suffix}}-primary"
         cpu: 4
         ram: 4096
         disks:
@@ -54,7 +61,7 @@
 
     - name: Create sf-1
       sf_instance:
-        name: "sf-1"
+        name: "t-{{instance_suffix}}-1"
         cpu: 4
         ram: 12288
         disks:
@@ -84,7 +91,7 @@
 
     - name: Create sf-2
       sf_instance:
-        name: "sf-2"
+        name: "t-{{instance_suffix}}-2"
         cpu: 4
         ram: 12288
         disks:
@@ -114,7 +121,7 @@
 
     - name: Create sf-3
       sf_instance:
-        name: "sf-3"
+        name: "t-{{instance_suffix}}-3"
         cpu: 4
         ram: 12288
         disks:
@@ -144,7 +151,7 @@
 
     - name: Create sf-4
       sf_instance:
-        name: "sf-4"
+        name: "t-{{instance_suffix}}-4"
         cpu: 4
         ram: 12288
         disks:
@@ -174,7 +181,7 @@
 
     - name: Create sf-5
       sf_instance:
-        name: "sf-5"
+        name: "t-{{instance_suffix}}-5"
         cpu: 4
         ram: 12288
         disks:
