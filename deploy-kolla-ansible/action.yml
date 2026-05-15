@@ -100,6 +100,33 @@ runs:
             ${{ inputs.base_user }}@10.0.2.2 \
             'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka deploy -i /etc/kolla/inventory'
 
+    - name: Validate deployed config
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka validate-config -i /etc/kolla/inventory'
+
+    - name: Check deployed services
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka check -i /etc/kolla/inventory'
+
+    - name: Reconfigure (idempotency check)
+      shell: bash
+      run: |
+        . $GITHUB_ENV
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@10.0.2.2 \
+            'cd /srv/shakenfist/kerbside-patches; sudo ./tools/ka reconfigure -i /etc/kolla/inventory'
+
     - name: Install patched OpenStack clients
       shell: bash
       run: |
