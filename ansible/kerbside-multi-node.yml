@@ -5,6 +5,7 @@
     base: rocky:9
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
     environment_name: kolla
 
   tasks:
