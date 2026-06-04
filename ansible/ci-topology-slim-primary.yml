@@ -3,6 +3,8 @@
   connection: ssh
   vars:
     identifier: unknown
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
     base_image: "https://sfcbr.shakenfist.com/static/ubuntu2004-ci-template.qcow2"
     base_image_user: "ubuntu"
 
@@ -38,7 +40,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.10
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -55,7 +57,7 @@
         ansible_ssh_host: "{{primary['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{primary['meta']['uuid']}}"
         groups: allsf,etcd_master,primary_node,network_node
 
@@ -70,7 +72,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.20
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -85,7 +87,7 @@
         ansible_ssh_host: "{{sf1['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf1['meta']['uuid']}}"
         groups: hypervisors, allsf
 
@@ -100,7 +102,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.21
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -115,7 +117,7 @@
         ansible_ssh_host: "{{sf2['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf2['meta']['uuid']}}"
         groups: hypervisors, allsf
 
@@ -130,7 +132,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.22
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -145,7 +147,7 @@
         ansible_ssh_host: "{{sf3['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf3['meta']['uuid']}}"
         groups: hypervisors, allsf
 
@@ -160,7 +162,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.23
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -175,7 +177,7 @@
         ansible_ssh_host: "{{sf4['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf4['meta']['uuid']}}"
         groups: hypervisors, allsf
 
@@ -190,7 +192,7 @@
         networkspecs:
           - network_uuid={{identifier}},address=10.0.0.24
           - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -205,7 +207,7 @@
         ansible_ssh_host: "{{sf5['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf5['meta']['uuid']}}"
         groups: hypervisors, allsf
 
@@ -500,7 +502,7 @@
   tasks:
     - name: Copy ssh key to primary node
       copy:
-        src: /srv/github/id_ci
+        src: {{ ssh_private_key }}
         dest: /root/.ssh/id_rsa
         owner: root
         group: root

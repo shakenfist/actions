@@ -3,6 +3,8 @@
   connection: ssh
   vars:
     identifier: unknown
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
     base_image: "debian-gnome:12"
     base_image_user: "debian"
 
@@ -16,7 +18,7 @@
           - "100@{{base_image}}"
         networkspecs:
           - "network_uuid={{identifier}}"
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -34,7 +36,7 @@
         ansible_ssh_host: "{{imagerebuild_instance['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
 
     - name: Log instance
@@ -56,7 +58,7 @@
     - name: Ensure ssh is actually answering now
       shell: |
         ssh -o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null \
-            -o UserKnownHostsFile=/dev/null -i /srv/github/id_ci \
+            -o UserKnownHostsFile=/dev/null -i {{ ssh_private_key }} \
             {{base_image_user}}@{{hostvars['imagerebuild']['ansible_ssh_host']}} \
             uptime
       retries: 10
@@ -125,6 +127,8 @@
   connection: ssh
   vars:
     identifier: cron
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
     base_image_user: "debian"
     label: "ci-images/debian-gnome-12"
 
@@ -156,7 +160,7 @@
           - "100@sf://blob/{{hostvars['localhost']['snapshot_uuid']}}"
         networkspecs:
           - "network_uuid={{identifier}}"
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
@@ -170,7 +174,7 @@
         ansible_ssh_host: "{{imagetest_instance['meta']['interfaces'][0]['ipv4']}}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "/srv/github/id_ci"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagetest_instance['meta']['uuid']}}"
 
     - name: Log instance
@@ -192,7 +196,7 @@
     - name: Ensure ssh is actually answering now
       shell: |
         ssh -o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null \
-            -o UserKnownHostsFile=/dev/null -i /srv/github/id_ci \
+            -o UserKnownHostsFile=/dev/null -i {{ ssh_private_key }} \
             {{base_image_user}}@{{hostvars['imagetest']['ansible_ssh_host']}} \
             uptime
       retries: 10
