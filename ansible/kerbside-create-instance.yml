@@ -14,7 +14,8 @@
     side_channels:
       - sf-agent2
     metadata:
-      affinity: "{ '{{ tag }}': -50 }"
+      affinity:
+        "{{ tag }}": -50
       tags:
        - "{{ tag }}"
     user_data: ""
