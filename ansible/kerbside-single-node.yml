@@ -41,7 +41,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "{{ hostname }}"
+        instance_name: "{{ hostname }}"
         address: "10.0.2.2"
         vcpus: 12
         memory: 16384

@@ -28,7 +28,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "deploy"
+        instance_name: "deploy"
         address: "10.0.2.2"
         vcpus: 2
         memory: 2048
@@ -37,7 +37,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "control-1"
+        instance_name: "control-1"
         address: "10.0.2.10"
         vcpus: 6
         memory: 12288
@@ -46,7 +46,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "control-2"
+        instance_name: "control-2"
         address: "10.0.2.11"
         vcpus: 6
         memory: 12288
@@ -55,7 +55,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "compute-1"
+        instance_name: "compute-1"
         address: "10.0.2.20"
         vcpus: 8
         memory: 16384
@@ -64,7 +64,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "kerbside-1"
+        instance_name: "kerbside-1"
         address: "10.0.2.30"
         vcpus: 2
         memory: 2048
@@ -73,7 +73,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "kerbside-2"
+        instance_name: "kerbside-2"
         address: "10.0.2.31"
         vcpus: 2
         memory: 2048
@@ -82,7 +82,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "network-1"
+        instance_name: "network-1"
         address: "10.0.2.40"
         vcpus: 4
         memory: 4096
@@ -91,7 +91,7 @@
 
     - include_tasks: kerbside-create-instance.yml
       vars:
-        name: "network-2"
+        instance_name: "network-2"
         address: "10.0.2.41"
         vcpus: 4
         memory: 4096
