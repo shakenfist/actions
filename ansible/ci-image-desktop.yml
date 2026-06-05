@@ -54,6 +54,9 @@
 
 - hosts: localhost
   become: true
+  vars:
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
   tasks:
     - name: Ensure ssh is actually answering now
       shell: |
@@ -192,6 +195,9 @@
 
 - hosts: localhost
   become: true
+  vars:
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
   tasks:
     - name: Ensure ssh is actually answering now
       shell: |

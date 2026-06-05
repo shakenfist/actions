@@ -188,6 +188,9 @@
 - hosts: localhost
   gather_facts: no
   connection: ssh
+  vars:
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
   tasks:
     - name: Look up debian-gnome snapshot artifact
       shell: |
