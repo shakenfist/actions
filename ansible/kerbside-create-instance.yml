@@ -1,7 +1,7 @@
 ---
 - name: Create an instance
   sf_instance:
-    name: "{{ name }}"
+    name: "{{ instance_name }}"
     cpu: "{{ vcpus }}"
     ram: "{{ memory }}"
     disks:
@@ -43,7 +43,7 @@
 
 - name: Add node to ansible
   add_host:
-    hostname: "{{ name }}"
+    hostname: "{{ instance_name }}"
     egress_ip: "{{ new_instance['meta']['interfaces'][0]['ipv4'] }}"
     egress_floating_ip: "{{ new_instance['meta']['interfaces'][0]['floating'] | default('', true) }}"
     ansible_ssh_host: "{{ _new_instance_ssh_host }}"
