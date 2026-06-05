@@ -8,6 +8,21 @@
     ssh_private_key: '/srv/github/id_ci'
     environment_name: kolla
     hostname: kolla
+    # True when this playbook is being driven from a ShakenFist CI
+    # runner that is itself an instance named "{{ identifier }}" on
+    # the SF fabric. The "Additional tasks for CI" block below relies
+    # on that — it adds the test network as a second interface to the
+    # runner instance and DHCPs on it. Non-CI callers (e.g. private
+    # homelab overlays running from outside SF) should set this to
+    # false so that block is skipped.
+    running_in_ci: true
+    # Whether instances added to the Ansible inventory should be
+    # reached via their floating IP rather than the internal network
+    # address. Required when the caller is outside the SF fabric and
+    # therefore cannot route 10.0.2.0/24 directly. CI defaults to false
+    # because the runner reaches the internal addresses after the CI
+    # block above adds it to the test network.
+    prefer_floating_ip: false
 
   tasks:
     - name: Create a network
@@ -34,6 +49,7 @@
         - tag: "hypervisor"
 
     - name: Additional tasks for CI
+      when: running_in_ci | bool
       tags: ci
       block:
       - name: Add environment network interface to primary instance
