@@ -12,6 +12,13 @@
     prefer_floating_ip: false
 
   tasks:
+    # Idempotent: a no-op in CI (the runner already lives in this
+    # namespace) but the off-fabric path needs it created.
+    - name: Ensure the ShakenFist namespace exists
+      sf_namespace:
+        name: "{{ identifier }}"
+        state: present
+
     - name: Create a network
       sf_network:
         netblock: "10.0.2.0/24"
