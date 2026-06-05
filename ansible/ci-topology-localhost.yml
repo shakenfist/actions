@@ -148,7 +148,7 @@
 
     - name: Copy ssh key to primary node
       copy:
-        src: {{ ssh_private_key }}
+        src: "{{ ssh_private_key }}"
         dest: /root/.ssh/id_rsa
         owner: root
         group: root
