@@ -7,6 +7,9 @@
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
     environment_name: kolla
+    # See kerbside-single-node.yml for the rationale on these two.
+    running_in_ci: true
+    prefer_floating_ip: false
 
   tasks:
     - name: Create a network
@@ -78,6 +81,7 @@
         - tag: "{{environment_name}}-high"
 
     - name: Additional tasks for CI
+      when: running_in_ci | bool
       tags: ci
       block:
       - name: Add environment network interface to primary instance
