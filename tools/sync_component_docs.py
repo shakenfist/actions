@@ -243,6 +243,17 @@ def extract_title(content: str, fallback: str) -> str:
     return fallback.replace('-', ' ').replace('_', ' ').title()
 
 
+def yaml_quote_title(title: str) -> str:
+    """Quote a title for use as a YAML double-quoted scalar.
+
+    Escapes backslashes and double quotes so titles containing inner
+    quotes (e.g. `Diagnosing "video stream not keeping up" reports`)
+    produce valid YAML.
+    """
+    escaped = title.replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def generate_nav_snippet(
     component_name: str,
     doc_files: list[tuple[str, str]],
@@ -301,7 +312,7 @@ def generate_nav_snippet(
 
     # Add root-level files
     for filename, title in root_files_to_use:
-        lines.append(f'{spaces}    - "{title}": {base_path}/{filename}')
+        lines.append(f'{spaces}    - {yaml_quote_title(title)}: {base_path}/{filename}')
 
     # Sort subdirectory names unless preserving order
     if preserve_order:
@@ -325,7 +336,7 @@ def generate_nav_snippet(
 
         lines.append(f'{spaces}    - {subdir_display}:')
         for filename, title in files_to_use:
-            lines.append(f'{spaces}        - "{title}": {base_path}/{filename}')
+            lines.append(f'{spaces}        - {yaml_quote_title(title)}: {base_path}/{filename}')
 
     return '\n'.join(lines)
 
