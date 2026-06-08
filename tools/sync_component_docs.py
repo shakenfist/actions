@@ -16,6 +16,27 @@ Example:
 The script outputs a YAML navigation snippet to stdout that can be
 inserted into mkdocs.yml.
 
+Per-directory `order.yml`:
+    A directory containing an `order.yml` file is treated as a strict
+    nav whitelist: only files listed there appear in the navigation,
+    and subdirectories are recursed into only when they have their own
+    `order.yml`. Files in subdirectories are always copied to the
+    destination regardless of nav visibility, so cross-links from
+    navigable pages keep resolving to files that are intentionally
+    hidden from the nav (for example, phase plans linked from a master
+    plan).
+
+    A root-level `order.yml` (in the docs root) is additionally treated
+    as an allowlist for which root-level files are copied at all. Files
+    at the docs root that are commented out of (or absent from)
+    `order.yml` are not copied. This preserves the historical contract
+    used by components like cloudgood, where commenting an entry out
+    of `order.yml` is how an incomplete page is kept unpublished.
+
+    Directories without an `order.yml` retain the historical behaviour:
+    every `.md` file is navigable, sorted alphabetically by title, and
+    every subdirectory containing markdown is recursed into.
+
 Template substitution:
     Use --template and --output to substitute placeholders in a template file.
     The placeholder %%<component_name>%% will be replaced with the nav snippet.
@@ -152,82 +173,131 @@ def update_markdown_links(
     return re.sub(pattern, replace_link, content)
 
 
-def copy_docs(
-    component_name: str,
-    source_dir: Path,
-    dest_dir: Path,
-    ordered_files: list[tuple[str, str]] | None = None
-) -> list[tuple[str, str]]:
-    """Copy markdown files from source to destination, updating links.
+def copy_all_markdown(
+    component_name: str, source_dir: Path, dest_dir: Path
+) -> None:
+    """Copy markdown files under source_dir to dest_dir.
 
-    Args:
-        component_name: The component name for link rewriting
-        source_dir: Source directory containing markdown files
-        dest_dir: Destination directory
-        ordered_files: Optional list of (filename, title) tuples from
-            order.yml. If provided, only these files are copied and index.md.
-            If None, all .md files are discovered and copied.
+    A root-level `order.yml` (`source_dir/order.yml`) is treated as a
+    strict allowlist for root-level files: only `index.md` and files
+    listed there are copied. This preserves the historical contract for
+    components like cloudgood, where commenting an entry out of
+    `order.yml` is the way to mark a page as incomplete and keep it
+    unpublished.
 
-    Returns a list of (filename, title) tuples for non-index files.
+    Files in subdirectories are always copied so cross-links from
+    navigable pages (e.g. master plans linking to phase plans) resolve
+    regardless of whether the target appears in the nav.
+
+    The subdirectory structure is preserved and internal markdown links
+    are rewritten via update_markdown_links.
     """
-    # Clean the destination directory
     if dest_dir.exists():
         shutil.rmtree(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
 
-    doc_files = []
+    root_order = parse_order_file(source_dir / 'order.yml')
+    root_allowlist: set[str] | None = None
+    if root_order is not None:
+        root_allowlist = {filename for filename, _ in root_order}
+        root_allowlist.add('index.md')
 
-    # Determine which files to process
-    if ordered_files is not None:
-        # Use the ordered list, but always include index.md first
-        files_to_process = []
-        index_file = source_dir / 'index.md'
-        if index_file.exists():
-            files_to_process.append(('index.md', None))
+    for source_file in sorted(source_dir.rglob('*.md')):
+        rel_path = source_file.relative_to(source_dir)
 
-        for filename, title in ordered_files:
-            if filename != 'index.md':
-                files_to_process.append((filename, title))
-    else:
-        # Discover all markdown files
-        files_to_process = []
-        for source_file in source_dir.rglob('*.md'):
-            rel_path = source_file.relative_to(source_dir)
-            files_to_process.append((str(rel_path), None))
-
-    # Process each file
-    for filename, provided_title in files_to_process:
-        source_file = source_dir / filename
-        if not source_file.exists():
-            print(f'Warning: File not found, skipping: {source_file}')
+        if (
+            len(rel_path.parts) == 1
+            and root_allowlist is not None
+            and rel_path.name not in root_allowlist
+        ):
+            print(
+                f'Skipping (not in root order.yml allowlist): {rel_path}'
+            )
             continue
 
-        rel_path = Path(filename)
         dest_file = dest_dir / rel_path
 
         print('... Processing source file')
         print(f'        From {source_file}')
         print(f'        To {dest_file}')
 
-        # Ensure parent directories exist
         dest_file.parent.mkdir(parents=True, exist_ok=True)
-
-        # Read, transform, and write the file
         content = source_file.read_text(encoding='utf-8')
-        updated_content = update_markdown_links(content, component_name, rel_path)
-        dest_file.write_text(updated_content, encoding='utf-8')
+        updated = update_markdown_links(content, component_name, rel_path)
+        dest_file.write_text(updated, encoding='utf-8')
 
-        # Use provided title or extract from content
-        if provided_title:
-            title = provided_title
-        else:
-            title = extract_title(content, rel_path.stem)
 
-        # Track non-index files for nav generation
-        if rel_path.name != 'index.md':
-            doc_files.append((str(rel_path), title))
+def build_nav_tree(
+    source_dir: Path, current_rel: Path | None = None
+) -> dict:
+    """Build a nav tree for current_rel relative to source_dir.
 
-    return doc_files
+    A directory's `order.yml` is a strict whitelist for that directory's
+    nav: files not listed are hidden, and subdirectories are recursed
+    into only when they have their own `order.yml`. A directory without
+    `order.yml` is fully discovered -- all `.md` files appear in the
+    nav (sorted alphabetically by title), and every subdirectory
+    containing markdown is recursed into.
+
+    Returns a dict shaped:
+        {
+            'index': (filename, title) | None,  # basename of dir-local index
+            'files': [(filename, title), ...],   # basenames in this dir
+            'subdirs': {dirname: <nav_tree>, ...},
+        }
+    """
+    if current_rel is None:
+        current_rel = Path('.')
+    abs_dir = source_dir / current_rel
+    order_entries = parse_order_file(abs_dir / 'order.yml')
+
+    index_entry: tuple[str, str] | None = None
+    files: list[tuple[str, str]] = []
+
+    if order_entries is not None:
+        for filename, title in order_entries:
+            target = abs_dir / filename
+            if not target.exists():
+                print(
+                    f'Warning: order.yml entry not found, skipping: '
+                    f'{target}'
+                )
+                continue
+            if filename == 'index.md':
+                index_entry = (filename, title)
+            else:
+                files.append((filename, title))
+    else:
+        for md in sorted(abs_dir.glob('*.md')):
+            content = md.read_text(encoding='utf-8')
+            title = extract_title(content, md.stem)
+            if md.name == 'index.md':
+                index_entry = (md.name, title)
+            else:
+                files.append((md.name, title))
+        files.sort(key=lambda x: x[1].lower())
+
+    subdirs: dict[str, dict] = {}
+    for child in sorted(abs_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        if not any(child.rglob('*.md')):
+            continue
+        # When the current directory has an order.yml, only recurse into
+        # subdirectories that also declare their own ordering. Without
+        # an opt-in, an order.yml-controlled directory acts as a strict
+        # whitelist for its nav.
+        if order_entries is not None and not (child / 'order.yml').exists():
+            continue
+        subdirs[child.name] = build_nav_tree(
+            source_dir, current_rel / child.name
+        )
+
+    return {
+        'index': index_entry,
+        'files': files,
+        'subdirs': subdirs,
+    }
 
 
 def extract_title(content: str, fallback: str) -> str:
@@ -256,89 +326,69 @@ def yaml_quote_title(title: str) -> str:
 
 def generate_nav_snippet(
     component_name: str,
-    doc_files: list[tuple[str, str]],
+    nav_tree: dict,
     indent: int = 8,
-    preserve_order: bool = False,
-    display_name_override: str | None = None
+    display_name_override: str | None = None,
 ) -> str:
-    """Generate a mkdocs.yml navigation snippet for the component.
+    """Render a mkdocs.yml navigation snippet from a nav tree.
 
-    Handles nested directory structures by creating hierarchical nav entries.
-    Files in subdirectories are grouped under their directory name.
-
-    Args:
-        component_name: The component name (e.g., 'kerbside')
-        doc_files: List of (filename, title) tuples. Filenames may include
-            subdirectory paths (e.g., 'qcow2/qcow2-format.md').
-        indent: Base indentation (number of spaces)
-        preserve_order: If True, keep files in provided order. If False,
-            sort alphabetically by title.
-        display_name_override: If set, use this as the nav display
-            name instead of deriving it from component_name.
-
-    Returns:
-        YAML navigation snippet as a string
+    The root section header uses display_name_override (e.g. from
+    `component.yml`) or the title-cased component name. Subdirectory
+    headers are derived from the directory name. Per-directory ordering
+    and visibility come from the nav_tree built by build_nav_tree.
     """
     display_name = display_name_override or component_name.title()
     base_path = f'components/{component_name}'
-    spaces = ' ' * indent
 
-    lines = [
-        f'{spaces}- {display_name}:',
-        f'{spaces}    - "Introduction": {base_path}/index.md'
-    ]
-
-    # Group files by their parent directory
-    root_files: list[tuple[str, str]] = []
-    subdirs: dict[str, list[tuple[str, str]]] = {}
-
-    for filename, title in doc_files:
-        path = Path(filename)
-        if len(path.parts) == 1:
-            # Root-level file
-            root_files.append((filename, title))
-        else:
-            # File in subdirectory - group by top-level directory
-            top_dir = path.parts[0]
-            if top_dir not in subdirs:
-                subdirs[top_dir] = []
-            subdirs[top_dir].append((filename, title))
-
-    # Sort or preserve order for root files
-    if preserve_order:
-        root_files_to_use = root_files
-    else:
-        root_files_to_use = sorted(root_files, key=lambda x: x[1].lower())
-
-    # Add root-level files
-    for filename, title in root_files_to_use:
-        lines.append(f'{spaces}    - {yaml_quote_title(title)}: {base_path}/{filename}')
-
-    # Sort subdirectory names unless preserving order
-    if preserve_order:
-        # Preserve order: use first appearance order
-        subdir_order = list(subdirs.keys())
-    else:
-        subdir_order = sorted(subdirs.keys())
-
-    # Add subdirectory sections
-    for subdir in subdir_order:
-        subdir_files = subdirs[subdir]
-
-        # Sort files within subdirectory unless preserving order
-        if preserve_order:
-            files_to_use = subdir_files
-        else:
-            files_to_use = sorted(subdir_files, key=lambda x: x[1].lower())
-
-        # Create subdirectory display name (convert underscores/hyphens to spaces)
-        subdir_display = subdir.replace('_', ' ').replace('-', ' ').title()
-
-        lines.append(f'{spaces}    - {subdir_display}:')
-        for filename, title in files_to_use:
-            lines.append(f'{spaces}        - {yaml_quote_title(title)}: {base_path}/{filename}')
-
+    lines: list[str] = [f'{" " * indent}- {display_name}:']
+    _emit_dir(
+        lines, nav_tree, indent + 4, base_path, Path('.'), is_root=True
+    )
     return '\n'.join(lines)
+
+
+def _emit_dir(
+    lines: list[str],
+    tree: dict,
+    indent: int,
+    base_path: str,
+    rel_dir: Path,
+    is_root: bool,
+) -> None:
+    """Emit nav entries for a directory's tree node.
+
+    The root section always labels the component's `index.md` as
+    "Introduction" for consistency across the components nav.
+    Subdirectory index pages use the title from `order.yml` (if listed)
+    or the file's H1 heading.
+    """
+    spaces = ' ' * indent
+    prefix = '' if rel_dir == Path('.') else f'{rel_dir.as_posix()}/'
+
+    if is_root:
+        lines.append(
+            f'{spaces}- "Introduction": {base_path}/index.md'
+        )
+    elif tree['index'] is not None:
+        filename, title = tree['index']
+        lines.append(
+            f'{spaces}- {yaml_quote_title(title)}: '
+            f'{base_path}/{prefix}{filename}'
+        )
+
+    for filename, title in tree['files']:
+        lines.append(
+            f'{spaces}- {yaml_quote_title(title)}: '
+            f'{base_path}/{prefix}{filename}'
+        )
+
+    for subdir_name, subtree in tree['subdirs'].items():
+        display = subdir_name.replace('_', ' ').replace('-', ' ').title()
+        lines.append(f'{spaces}- {display}:')
+        _emit_dir(
+            lines, subtree, indent + 4, base_path,
+            rel_dir / subdir_name, is_root=False,
+        )
 
 
 def copy_license_if_different(source_dir: Path, dest_dir: Path) -> bool:
@@ -446,14 +496,6 @@ def main():
         print('Error: --output requires --template', file=sys.stderr)
         sys.exit(1)
 
-    # Check for order.yml in source directory
-    order_path = source_dir / 'order.yml'
-    ordered_files = parse_order_file(order_path)
-    if ordered_files is not None:
-        print(f'Using order.yml with {len(ordered_files)} entries')
-    else:
-        print('No order.yml found, using filesystem discovery')
-
     # Check for component.yml to override display name
     display_name_override = None
     component_yml_path = source_dir / 'component.yml'
@@ -473,19 +515,18 @@ def main():
         except yaml.YAMLError as e:
             print(f'Warning: Failed to parse component.yml: {e}')
 
-    # Copy docs and get file list
-    doc_files = copy_docs(
-        args.component_name, source_dir, dest_dir, ordered_files
-    )
+    # Copy every markdown file (so cross-links resolve), then build the
+    # nav tree from per-directory order.yml files.
+    copy_all_markdown(args.component_name, source_dir, dest_dir)
+    nav_tree = build_nav_tree(source_dir)
 
     # Copy component LICENSE if it differs from main repo
     copy_license_if_different(source_dir, dest_dir)
 
     # Generate the nav snippet
     nav_snippet = generate_nav_snippet(
-        args.component_name, doc_files, args.indent,
-        preserve_order=(ordered_files is not None),
-        display_name_override=display_name_override
+        args.component_name, nav_tree, args.indent,
+        display_name_override=display_name_override,
     )
 
     # Handle template substitution or plain output
