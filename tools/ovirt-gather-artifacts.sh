@@ -28,12 +28,16 @@ for rpm in $(cat /tmp/rpms.list); do
 done
 
 # Optional RPM mirroring: fetch every URL into a local cache directory
-# so the result is a self-contained, replayable install set.
+# and createrepo_c the result so it doubles as a usable local dnf
+# repo. -nc on wget skips RPMs that are already cached, which matters
+# when a caller seeded /tmp/rpms.cache from a prior run before the
+# build started.
 extra_zip_paths=()
 if [ "${MIRROR_RPMS:-0}" = "1" ]; then
-    sudo dnf -y install wget
+    sudo dnf -y install wget createrepo_c
     sudo mkdir -p /tmp/rpms.cache
-    sudo wget -nv -P /tmp/rpms.cache -i /tmp/rpms.urls || true
+    sudo wget -nv -nc -P /tmp/rpms.cache -i /tmp/rpms.urls || true
+    sudo createrepo_c /tmp/rpms.cache
     extra_zip_paths+=("/tmp/rpms.cache")
 fi
 
