@@ -16,4 +16,4 @@ sudo dnf config-manager --set-enabled powertools 2>/dev/null \
     || sudo crb enable
 sudo dnf clean all
 sudo dnf update -y
-sudo dnf install -y vim patch yum-utils
+sudo dnf install -y vim patch yum-utils rsync
