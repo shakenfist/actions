@@ -1,18 +1,22 @@
 #!/usr/bin/python3
 
-"""Create an oVirt VM suitable as a SPICE test target for kerbside.
+"""Boot a VM through the oVirt engine to prove a deployment works.
 
-This script sets up oVirt infrastructure (datacenter, cluster, hypervisor
-host, local storage domain) then uploads a desktop QCOW2 image, creates
-a template from it, and starts a VM. The resulting VM has a graphical
-desktop with QEMU guest agent and SPICE agent, suitable for testing
-kerbside's SPICE console proxy.
+This is a generic oVirt smoke test. It sets up oVirt infrastructure
+(datacenter, cluster, hypervisor host, local storage domain), uploads a
+QCOW2 disk image, creates a template from it, and starts a VM. Reaching
+a running VM exercises essentially the whole stack: the engine API, the
+scheduler, VDSM on the host, storage, and libvirt/QEMU.
 
 When --host-address and --storage-path are provided, the script creates a
 local-storage datacenter and cluster, registers the host as a hypervisor
 (which triggers VDSM installation), and creates a local storage domain.
 Without those flags, it assumes infrastructure already exists and just
 creates the template and VM.
+
+The console display protocol defaults to SPICE (so the booted VM doubles
+as a target for kerbside's SPICE console probe), but --display-type vnc
+is available for callers that only need a generic boot check.
 """
 
 import argparse
@@ -27,15 +31,20 @@ import ovirtsdk4.types as types
 
 
 DEFAULT_WAIT_MINS = 30
-DEFAULT_DISK_IMAGE = '/srv/ci/cached/debian-12-gnome-agents'
-DEFAULT_TEMPLATE_NAME = 'desktop-spice'
+DEFAULT_TEMPLATE_NAME = 'smoke-test'
 DEFAULT_VM_MEMORY_MB = 2048
 DEFAULT_HOST_NAME = 'local-host'
+
+# Console display protocols selectable via --display-type.
+DISPLAY_TYPE_MAP = {
+    'spice': types.DisplayType.SPICE,
+    'vnc': types.DisplayType.VNC,
+}
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Create an oVirt VM as a SPICE test target for kerbside.'
+        description='Boot a VM through the oVirt engine to prove a deployment works.'
     )
 
     conn = parser.add_argument_group('connection')
@@ -72,8 +81,12 @@ def parse_args():
 
     vm = parser.add_argument_group('VM options')
     vm.add_argument(
-        '--disk-image', default=DEFAULT_DISK_IMAGE,
+        '--disk-image', required=True,
         help='Path to QCOW2 disk image to upload'
+    )
+    vm.add_argument(
+        '--display-type', choices=sorted(DISPLAY_TYPE_MAP), default='spice',
+        help='Console display protocol for the VM (default: spice)'
     )
     vm.add_argument('--template-name', default=DEFAULT_TEMPLATE_NAME, help='Name for the created template')
     vm.add_argument('--vm-name', default=None, help='VM name (random if not specified)')
@@ -449,7 +462,7 @@ def upload_disk_image(connection, system_service, disk_image_path, storage_domai
     disks_service = system_service.disks_service()
     disk = disks_service.add(
         types.Disk(
-            name='desktop-spice-disk',
+            name='smoke-test-disk',
             content_type=types.DiskContentType.DATA,
             format=types.DiskFormat.COW,
             initial_size=image_size,
@@ -561,7 +574,7 @@ def upload_disk_image(connection, system_service, disk_image_path, storage_domai
     return disk
 
 
-def create_template_from_disk(system_service, disk, template_name, cluster_name, timeout_secs):
+def create_template_from_disk(system_service, disk, template_name, cluster_name, display_type, timeout_secs):
     """Create a VM template from an uploaded disk."""
     templates_service = system_service.templates_service()
 
@@ -584,7 +597,7 @@ def create_template_from_disk(system_service, disk, template_name, cluster_name,
                 boot=types.Boot(devices=[types.BootDevice.HD]),
             ),
             memory=2048 * 1024 * 1024,
-            display=types.Display(type=types.DisplayType.SPICE),
+            display=types.Display(type=display_type),
         )
     )
     vm_service = vms_service.vm_service(vm.id)
@@ -634,7 +647,7 @@ def create_template_from_disk(system_service, disk, template_name, cluster_name,
     return template_name
 
 
-def create_and_start_vm(system_service, vm_name, template_name, cluster_name, memory_mb, timeout_secs):
+def create_and_start_vm(system_service, vm_name, template_name, cluster_name, memory_mb, display_type, timeout_secs):
     """Create a VM from the template and start it."""
     vms_service = system_service.vms_service()
     memory_bytes = memory_mb * 1024 * 1024
@@ -649,7 +662,7 @@ def create_and_start_vm(system_service, vm_name, template_name, cluster_name, me
                     memory=memory_bytes,
                     cluster=types.Cluster(name=cluster_name),
                     template=types.Template(name=template_name),
-                    display=types.Display(type=types.DisplayType.SPICE),
+                    display=types.Display(type=display_type),
                     os=types.OperatingSystem(
                         boot=types.Boot(devices=[types.BootDevice.HD])
                     ),
@@ -731,8 +744,9 @@ def create_and_start_vm(system_service, vm_name, template_name, cluster_name, me
 
 def main():
     args = parse_args()
-    vm_name = args.vm_name or f'kerbside-test-{random.randint(0, 9999):04d}'
+    vm_name = args.vm_name or f'smoke-test-{random.randint(0, 9999):04d}'
     timeout_secs = args.timeout_mins * 60
+    display_type = DISPLAY_TYPE_MAP[args.display_type]
 
     log_kwargs = {}
     if args.debug:
@@ -803,11 +817,11 @@ def main():
         )
         create_template_from_disk(
             system_service, disk, args.template_name,
-            args.cluster, timeout_secs,
+            args.cluster, display_type, timeout_secs,
         )
         create_and_start_vm(
             system_service, vm_name, args.template_name,
-            args.cluster, args.vm_memory_mb, timeout_secs,
+            args.cluster, args.vm_memory_mb, display_type, timeout_secs,
         )
 
         print(f'\nDone. VM {vm_name!r} is ready as a SPICE test target.')
