@@ -1,0 +1,48 @@
+--- a/CentOS-Advanced-Virtualization.repo	2026-06-12 19:07:56.074523801 +1000
++++ b/CentOS-Advanced-Virtualization.repo	2026-06-12 19:08:31.733561873 +1000
+@@ -5,8 +5,7 @@
+ 
+ [centos-advanced-virtualization]
+ name=CentOS-$releasever - Advanced Virtualization
+-mirrorlist=http://mirrorlist.centos.org/?release=$avstream&arch=$basearch&repo=virt-$avdir
+-#baseurl=http://mirror.centos.org/$contentdir/$avstream/virt/$basearch/$avdir/
++baseurl=http://vault.centos.org/centos/8-stream/virt/$basearch/advancedvirt-common/
+ gpgcheck=1
+ enabled=1
+ module_hotfixes=1
+--- a/CentOS-Gluster-10.repo	2026-06-12 19:07:56.078523696 +1000
++++ b/CentOS-Gluster-10.repo	2026-06-12 19:08:31.733561873 +1000
+@@ -5,8 +5,7 @@
+ 
+ [centos-gluster10]
+ name=CentOS-$stream - Gluster 10
+-mirrorlist=http://mirrorlist.centos.org?arch=$basearch&release=$stream&repo=storage-gluster-10
+-#baseurl=http://mirror.centos.org/$contentdir/$stream/storage/$basearch/gluster-10/
++baseurl=http://vault.centos.org/centos/8-stream/storage/$basearch/gluster-10/
+ gpgcheck=1
+ enabled=1
+ gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-Storage
+--- a/CentOS-OpsTools.repo	2026-06-12 19:07:56.082523586 +1000
++++ b/CentOS-OpsTools.repo	2026-06-12 19:08:31.733561873 +1000
+@@ -11,8 +11,7 @@
+ 
+ [centos-opstools]
+ name=CentOS-8 - OpsTools - collectd
+-mirrorlist=http://mirrorlist.centos.org/?arch=$basearch&release=$releasever&repo=opstools-collectd-5
+-#baseurl=http://mirror.centos.org/$contentdir/$releasever/opstools/$basearch/collectd-5/
++baseurl=http://vault.centos.org/centos/8-stream/opstools/$basearch/collectd-5/
+ gpgcheck=1
+ enabled=1
+ skip_if_unavailable=1
+--- a/CentOS-oVirt-4.4.repo	2026-06-12 19:07:56.078523696 +1000
++++ b/CentOS-oVirt-4.4.repo	2026-06-12 19:08:31.733561873 +1000
+@@ -5,8 +5,7 @@
+ 
+ [centos-ovirt44]
+ name=CentOS-$releasever - oVirt 4.4
+-mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=virt-ovirt-44
+-#baseurl=http://mirror.centos.org/$contentdir/$releasever/virt/$basearch/ovirt-44/
++baseurl=http://vault.centos.org/centos/8-stream/virt/$basearch/ovirt-44/
+ gpgcheck=1
+ enabled=1
+ gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-Virtualization
