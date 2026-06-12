@@ -32,7 +32,16 @@ sudo rpm -qa --qf "%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n" \
 # once loads metadata exactly once. "dnf download --url" prints the URLs
 # without downloading — it is what "yumdownloader --urls" wraps — so the
 # rpms.urls file is identical to before.
-sudo dnf download --url $(cat /tmp/rpms.list) 2>/dev/null \
+#
+# --setopt=strict=0 is essential here. EL9's dnf defaults to strict=1, so
+# a single requested NVRA that is no longer in any enabled repo (a
+# superseded build, a package whose exact version moved) aborts the WHOLE
+# batch — "Exiting due to strict setting" — and prints nothing. With a
+# full oVirt install that is almost guaranteed, so without strict=0 the
+# entire rpms.urls (and the RPM cache below) comes out empty. strict=0
+# downloads everything available and merely warns about the rest. EL8's
+# older dnf was lenient by default, which is why this only bites on el9.
+sudo dnf download --url --setopt=strict=0 $(cat /tmp/rpms.list) 2>/dev/null \
     | egrep -v '(metadata expiration|Waiting for)' \
     > /tmp/rpms.urls || true
 
@@ -47,10 +56,23 @@ extra_zip_paths=()
 if [ "${MIRROR_RPMS:-0}" = "1" ]; then
     sudo dnf -y install createrepo_c
     sudo mkdir -p /tmp/rpms.cache
-    sudo dnf download --downloaddir=/tmp/rpms.cache \
+    # --setopt=strict=0 for the same reason as the --url query above:
+    # without it one un-downloadable installed package aborts the whole
+    # batch on el9 and the cache silently comes out empty.
+    sudo dnf download --downloaddir=/tmp/rpms.cache --setopt=strict=0 \
         $(cat /tmp/rpms.list) 2>/dev/null || true
     sudo createrepo_c /tmp/rpms.cache
     extra_zip_paths+=("/tmp/rpms.cache")
+    # Fail loudly rather than shipping an empty mirror. An empty cache
+    # here means every dnf download failed (the el9 strict-mode trap, a
+    # missing download plugin, etc.) — exactly the silent failure that
+    # produced an empty mirror before. Surface it instead of hiding it.
+    rpm_count=$(find /tmp/rpms.cache -name '*.rpm' | wc -l)
+    echo "Mirrored ${rpm_count} RPMs into /tmp/rpms.cache"
+    if [ "${rpm_count}" -eq 0 ]; then
+        echo 'ERROR: MIRROR_RPMS=1 but no RPMs were downloaded.' >&2
+        exit 1
+    fi
 fi
 
 sudo zip -r /tmp/bundle.zip \
