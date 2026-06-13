@@ -6,6 +6,11 @@ QUESTION/1/OVESETUP_APACHE_CONFIG_ROOT_REDIRECTION=str:yes
 QUESTION/1/OVESETUP_APACHE_CONFIG_SSL=str:automatic
 QUESTION/1/OVESETUP_CONFIG_ADMIN_SETUP=str:foobar
 QUESTION/1/OVESETUP_CONFIG_APPLICATION_MODE=str:both
+# oVirt 4.3-only: 4.4 dropped the separate Image I/O Proxy
+# (ovirt-imageio-proxy) setup question, so the 4.4 answers we copied from
+# omit it and 4.3's engine-setup hangs on it ("End of file"). Answer yes so
+# the engine can proxy disk uploads (exercised by the smoke test).
+QUESTION/1/OVESETUP_CONFIG_IMAGEIO_PROXY=str:yes
 QUESTION/1/OVESETUP_CONFIG_SAN_WIPE_AFTER_DELETE=str:no
 QUESTION/1/OVESETUP_CONFIG_VMCONSOLE_PROXY=str:yes
 QUESTION/1/OVESETUP_CONFIG_WEAK_ENGINE_PASSWORD=str:yes

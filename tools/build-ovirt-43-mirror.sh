@@ -103,6 +103,15 @@ CLOSURE_PKGS="ovirt-engine ovirt-host vdsm"
 # captured here so the box can (re)install them from the mirror offline.
 CLOSURE_PKGS="${CLOSURE_PKGS} dnf dnf-plugins-core rh-python38 rsync"
 
+# Build deps for pip-installing the python3 oVirt SDK into rh-python38 on
+# the engine box. oVirt 4.3/el7 ships only the python2 SDK, but the smoke
+# test (start-test-target.py) is python3, so we build ovirt-engine-sdk-python
+# (and its pycurl dep) for python3.8 there. The SDK's C extension links
+# libxml2; pycurl needs libcurl + openssl headers; rh-python38-python-devel
+# provides the 3.8 headers; gcc is the compiler. (The SDK sdist itself comes
+# from PyPI at smoke time, not the mirror.)
+CLOSURE_PKGS="${CLOSURE_PKGS} rh-python38-python-devel gcc libxml2-devel libcurl-devel openssl-devel nss-devel"
+
 # Operator toolbelt — packages we will want to dnf install on the box
 # later for debugging. Post-EOL none of these are installable unless they
 # are in the mirror now. Extend freely; each addition is one cheap re-run.
