@@ -91,6 +91,13 @@ def parse_args():
     vm.add_argument('--template-name', default=DEFAULT_TEMPLATE_NAME, help='Name for the created template')
     vm.add_argument('--vm-name', default=None, help='VM name (random if not specified)')
     vm.add_argument('--vm-memory-mb', type=int, default=DEFAULT_VM_MEMORY_MB, help='VM memory in MB')
+    vm.add_argument(
+        '--cpu-passthrough', action='store_true',
+        help='Give the VM host-passthrough CPU instead of the cluster CPU '
+             'model. Needed on nested hosts whose vCPU lacks a feature the '
+             'cluster model requires (e.g. oVirt 4.3, which predates the '
+             'engine workaround that disables the "monitor" feature).'
+    )
 
     parser.add_argument(
         '--timeout-mins', type=int, default=DEFAULT_WAIT_MINS,
@@ -647,10 +654,17 @@ def create_template_from_disk(system_service, disk, template_name, cluster_name,
     return template_name
 
 
-def create_and_start_vm(system_service, vm_name, template_name, cluster_name, memory_mb, display_type, timeout_secs):
+def create_and_start_vm(system_service, vm_name, template_name, cluster_name, memory_mb, display_type, timeout_secs,
+                        cpu_passthrough=False):
     """Create a VM from the template and start it."""
     vms_service = system_service.vms_service()
     memory_bytes = memory_mb * 1024 * 1024
+
+    # host-passthrough copies the host's actual CPU instead of a named
+    # cluster model with a required-features list, so a nested host whose
+    # vCPU lacks a required feature (e.g. "monitor" on oVirt 4.3, which
+    # predates the engine workaround that disables it) can still start it.
+    cpu = types.Cpu(mode=types.CpuMode.HOST_PASSTHROUGH) if cpu_passthrough else None
 
     start = time.time()
     while True:
@@ -663,6 +677,7 @@ def create_and_start_vm(system_service, vm_name, template_name, cluster_name, me
                     cluster=types.Cluster(name=cluster_name),
                     template=types.Template(name=template_name),
                     display=types.Display(type=display_type),
+                    cpu=cpu,
                     os=types.OperatingSystem(
                         boot=types.Boot(devices=[types.BootDevice.HD])
                     ),
@@ -822,6 +837,7 @@ def main():
         create_and_start_vm(
             system_service, vm_name, args.template_name,
             args.cluster, args.vm_memory_mb, display_type, timeout_secs,
+            cpu_passthrough=args.cpu_passthrough,
         )
 
         print(f'\nDone. VM {vm_name!r} is ready as a SPICE test target.')
