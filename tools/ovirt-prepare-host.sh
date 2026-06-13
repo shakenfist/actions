@@ -71,6 +71,15 @@ cat /proc/cpuinfo | grep -c vmx || cat /proc/cpuinfo | grep -c svm \
 sudo mkdir -p /srv/ovirt-storage
 sudo chown 36:36 /srv/ovirt-storage
 
-# Install oVirt Python SDK and netaddr (needed by the host-deploy
-# Ansible role's ipaddr filter in the OVN configuration task)
-sudo dnf install -y python3-ovirt-engine-sdk4 python3-netaddr
+# Install oVirt Python SDK and netaddr (netaddr is needed by the
+# host-deploy Ansible role's ipaddr filter in the OVN configuration task;
+# the SDK is used by the smoke test). oVirt 4.3 / el7 predates the python3
+# packaging: it ships only the python2 SDK (python-ovirt-engine-sdk4, which
+# carries a compiled C extension) and python2-netaddr. el8/el9 use the
+# python3 names. Pick by RHEL major so this script stays correct on all of
+# 4.3/4.4/4.5.
+if [ "$(rpm -E %rhel)" = "7" ]; then
+    sudo dnf install -y python-ovirt-engine-sdk4 python2-netaddr
+else
+    sudo dnf install -y python3-ovirt-engine-sdk4 python3-netaddr
+fi
