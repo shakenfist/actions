@@ -655,16 +655,38 @@ def create_template_from_disk(system_service, disk, template_name, cluster_name,
 
     _wait_for('temp VM to be ready', check_vm_down, timeout_secs)
 
-    # Attach the uploaded disk to the VM
+    # Attach the uploaded disk to the VM. Even though the upload loop already
+    # waited for the disk to report "ok", oVirt's post-transfer teardown
+    # re-locks the disk briefly, so attaching immediately can race and fail
+    # with 409 "Cannot attach Virtual Disk: Disk is locked". Wait for the disk
+    # to be unlocked, then attach, retrying the attach if it still races.
+    disk_service = system_service.disks_service().disk_service(disk.id)
+
+    def check_disk_unlocked():
+        d = disk_service.get()
+        return d if d.status == types.DiskStatus.OK else None
+
+    _wait_for(f'disk {disk.id} to be unlocked', check_disk_unlocked, timeout_secs)
+
     disk_attachments_service = vm_service.disk_attachments_service()
-    disk_attachments_service.add(
-        types.DiskAttachment(
-            disk=types.Disk(id=disk.id),
-            interface=types.DiskInterface.VIRTIO,
-            bootable=True,
-            active=True,
-        )
-    )
+    attach_start = time.time()
+    while True:
+        try:
+            disk_attachments_service.add(
+                types.DiskAttachment(
+                    disk=types.Disk(id=disk.id),
+                    interface=types.DiskInterface.VIRTIO,
+                    bootable=True,
+                    active=True,
+                )
+            )
+            break
+        except sdk.Error as e:
+            if 'locked' in str(e).lower() and time.time() - attach_start < timeout_secs:
+                print('  Disk still locked, retrying attach in 5s...')
+                time.sleep(5)
+            else:
+                raise
     print('  Disk attached to temp VM')
 
     # Create template from the VM
