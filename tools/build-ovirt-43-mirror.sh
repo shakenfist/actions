@@ -112,6 +112,12 @@ CLOSURE_PKGS="${CLOSURE_PKGS} dnf dnf-plugins-core rh-python38 rsync"
 # from PyPI at smoke time, not the mirror.)
 CLOSURE_PKGS="${CLOSURE_PKGS} rh-python38-python-devel gcc libxml2-devel libcurl-devel openssl-devel nss-devel"
 
+# createrepo_c so the post-run artifact gather (ovirt-gather-artifacts.sh,
+# MIRROR_RPMS=1) can re-index /tmp/rpms.cache. It exists for el7 but is not
+# pulled by anything, and in mirror-only mode the box can only install from
+# this mirror -- so capture it explicitly.
+CLOSURE_PKGS="${CLOSURE_PKGS} createrepo_c"
+
 # Operator toolbelt — packages we will want to dnf install on the box
 # later for debugging. Post-EOL none of these are installable unless they
 # are in the mirror now. Extend freely; each addition is one cheap re-run.
