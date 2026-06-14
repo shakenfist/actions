@@ -115,11 +115,50 @@ def parse_args():
     return args
 
 
+# Transport-level errors we expect to see transiently while the engine
+# reconfigures its own host's networking. On a single-node deployment the
+# engine VM registers itself as the VDSM host; host-deploy then builds the
+# ovirtmgmt bridge by enslaving the primary NIC, which briefly tears down the
+# IP/route the engine API is reachable on. The SDK (running on that same VM)
+# then sees "Network is unreachable" / connection refused until the bridge
+# reclaims the address. These are not failures of the operation we are waiting
+# on -- they just mean the API is momentarily unreachable -- so we keep polling
+# rather than aborting on the first blip.
+TRANSIENT_CONN_MARKERS = (
+    'Network is unreachable',
+    'Failed to connect',
+    'Connection refused',
+    "Couldn't connect",
+    'Connection reset',
+    'Connection timed out',
+    'Could not resolve host',
+    'Empty reply from server',
+)
+
+
+def _is_transient_conn_error(exc):
+    """True if exc looks like a transient transport error, not a real failure."""
+    msg = str(exc)
+    return any(marker in msg for marker in TRANSIENT_CONN_MARKERS)
+
+
 def _wait_for(description, check_fn, timeout_secs, poll_interval=5):
-    """Poll check_fn until it returns a truthy value or timeout is reached."""
+    """Poll check_fn until it returns a truthy value or timeout is reached.
+
+    Transient transport errors (the engine API briefly unreachable while its
+    own host's network is being reconfigured) are swallowed and retried, since
+    that disruption is expected during host-deploy on a single-node engine.
+    """
     start = time.time()
     while True:
-        result = check_fn()
+        try:
+            result = check_fn()
+        except sdk.Error as e:
+            if not _is_transient_conn_error(e):
+                raise
+            print(f'  (engine API temporarily unreachable: {e}; '
+                  f'still waiting for {description})')
+            result = None
         if result:
             return result
         if time.time() - start > timeout_secs:
@@ -842,7 +881,14 @@ def main():
 
         print(f'\nDone. VM {vm_name!r} is ready as a SPICE test target.')
     finally:
-        connection.close()
+        # Never let cleanup raise over the real error: if the engine API is
+        # unreachable (e.g. its host's network was just reconfigured), close()
+        # tries to revoke the SSO token over the network and would otherwise
+        # surface a second, misleading traceback on top of the first.
+        try:
+            connection.close()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
