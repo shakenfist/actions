@@ -75,15 +75,28 @@ if [ "${MIRROR_RPMS:-0}" = "1" ]; then
     fi
 fi
 
-sudo zip -r /tmp/bundle.zip \
-    /etc/yum.repos.d \
-    /tmp/rpms.list \
-    /tmp/rpms.urls \
-    /var/lib/ovirt-engine/setup \
-    /var/log/ovirt-engine/ \
-    /var/log/vdsm/ \
-    /etc/ssh/sshd_config.d/ \
-    "${extra_zip_paths[@]}" \
-    || true
-sudo chmod ugo+r /tmp/bundle.zip
-ls -lrth /tmp/bundle.zip
+# The diagnostic bundle is a convenience: CI uploads it as an artifact, but
+# the RPM mirror above is the part that actually matters, and on a persistent
+# host the logs are read in place. zip is not guaranteed to be installed --
+# notably not on an el7 mirror-only install, where it is in neither the base
+# image nor the local mirror -- so make the bundle best-effort: try to install
+# zip, and if it is still unavailable, skip the bundle rather than fail the
+# whole gather. (Previously a missing zip left no bundle.zip, and the
+# unguarded chmod that followed then aborted the script under "set -e".)
+sudo dnf -y install zip >/dev/null 2>&1 || true
+if command -v zip >/dev/null 2>&1; then
+    sudo zip -r /tmp/bundle.zip \
+        /etc/yum.repos.d \
+        /tmp/rpms.list \
+        /tmp/rpms.urls \
+        /var/lib/ovirt-engine/setup \
+        /var/log/ovirt-engine/ \
+        /var/log/vdsm/ \
+        /etc/ssh/sshd_config.d/ \
+        "${extra_zip_paths[@]}" \
+        || true
+    sudo chmod ugo+r /tmp/bundle.zip || true
+    ls -lrth /tmp/bundle.zip || true
+else
+    echo 'zip unavailable; skipping diagnostic bundle (logs remain on the node).'
+fi
