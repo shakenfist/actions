@@ -81,8 +81,15 @@ def parse_args():
 
     vm = parser.add_argument_group('VM options')
     vm.add_argument(
-        '--disk-image', required=True,
-        help='Path to QCOW2 disk image to upload'
+        '--disk-image', required=False,
+        help='Path to QCOW2 disk image to upload (required unless --no-vm)'
+    )
+    vm.add_argument(
+        '--no-vm', action='store_true',
+        help='Infrastructure only: create the datacenter, cluster, host and '
+             'storage domain, then stop. Skips the disk upload, template and '
+             'VM boot. Used by the shared-Neutron hybrid, where the jumphost '
+             'creates the VMs (with external Neutron NICs) instead.'
     )
     vm.add_argument(
         '--display-type', choices=sorted(DISPLAY_TYPE_MAP), default='spice',
@@ -111,6 +118,8 @@ def parse_args():
         parser.error('--host-password is required when --host-address is provided')
     if args.storage_path and not args.host_address:
         parser.error('--host-address is required when --storage-path is provided')
+    if not args.no_vm and not args.disk_image:
+        parser.error('--disk-image is required unless --no-vm is given')
 
     return args
 
@@ -886,6 +895,10 @@ def main():
         else:
             # Assume infrastructure exists, just wait for datacenter
             wait_for_datacenter(system_service, args.datacenter, timeout_secs)
+
+        if args.no_vm:
+            print('\nInfrastructure ready (--no-vm: disk/template/VM skipped).')
+            return
 
         disk = upload_disk_image(
             connection, system_service, args.disk_image,
