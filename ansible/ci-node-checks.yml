@@ -1,0 +1,103 @@
+---
+# Per-node, GATING system-level health check (phase 5 of
+# PLAN-remove-syslog-forwarding).
+#
+# Fans tools/ci_node_checks.sh out to EVERY node in the inventory and FAILS
+# the run if ANY node reports a system-level failure. This restores the
+# kernel/systemd/stderr-origin coverage that Loki cannot provide: after
+# rsyslog forwarding is removed those conditions live only in each node's
+# journald / systemd state, so they must be checked on each node directly.
+#
+# UNLIKE the log-GATHER playbooks (ci-gather-logs*.yml) this is a gate: the
+# checks run with sudo and a non-zero exit on any host must fail the
+# playbook. We deliberately do NOT use `|| true`, `ignore_errors`,
+# `ignore_unreachable`, or `failed_when: false` here -- swallowing failures
+# would defeat the entire purpose of the check.
+#
+# Structure mirrors ci-gather-logs.yml: a localhost play for the primary
+# (connection: local) plus an `all` hosts play for the remaining nodes
+# (connection: ssh), with the `all` play skipping localhost via a `when`.
+#
+# Invocation (mirrors how ci-gather-logs.yml is run from the main repo's
+# workflows -- see .github/workflows/functional-tests.yml):
+#
+#     ansible-playbook -i /srv/github/inventory.yaml \
+#         --extra-vars "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" \
+#         ${GITHUB_WORKSPACE}/actions/ansible/ci-node-checks.yml
+#
+# The script path on the controller is resolved relative to this playbook
+# via {{ playbook_dir }}/../tools/ci_node_checks.sh and copied to each node.
+
+- hosts: localhost
+  gather_facts: yes
+  become: yes
+  connection: local
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
+    PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
+
+  vars:
+    script_local_path: "{{ playbook_dir }}/../tools/ci_node_checks.sh"
+    script_remote_path: /tmp/ci_node_checks.sh
+
+  tasks:
+    - name: Copy node checks script to node (localhost fast path)
+      copy:
+        src: "{{ script_local_path }}"
+        dest: "{{ script_remote_path }}"
+        mode: "0755"
+
+    - name: Run per-node system checks (localhost fast path)
+      command: "bash {{ script_remote_path }}"
+      register: node_checks
+      changed_when: false
+
+    - name: Dump node checks output
+      debug:
+        msg: "{{ node_checks.stdout_lines }}"
+
+- hosts: all
+  gather_facts: yes
+  connection: ssh
+  become: yes
+  # Tolerate genuinely-unreachable nodes (matching ci-gather-logs.yml). Some
+  # CI jobs -- notably node-lifecycle -- intentionally down a node, and an
+  # unreachable host must not be read as a system-check failure. This still
+  # gates: the checks run, and a non-zero exit, on EVERY reachable node fails
+  # the play; only connectivity is tolerated, not a failed check.
+  ignore_unreachable: yes
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
+    PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
+
+  vars:
+    script_local_path: "{{ playbook_dir }}/../tools/ci_node_checks.sh"
+    script_remote_path: /tmp/ci_node_checks.sh
+
+  tasks:
+    - block:
+      - name: Copy node checks script to node
+        copy:
+          src: "{{ script_local_path }}"
+          dest: "{{ script_remote_path }}"
+          mode: "0755"
+
+      - name: Run per-node system checks
+        command: "bash {{ script_remote_path }}"
+        register: node_checks
+        changed_when: false
+
+      - name: Dump node checks output
+        debug:
+          msg: "{{ node_checks.stdout_lines }}"
+      when: inventory_hostname != "localhost"
