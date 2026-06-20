@@ -107,6 +107,13 @@
         debug:
           msg: "Environment details written to {{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
 
+    # Cheap early gate: confirms sshd is listening and presenting a
+    # banner. This is NOT sufficient on its own - sshd presents a banner
+    # before cloud-init has finished, and cloud-init's host-key
+    # regeneration restarts sshd afterwards, which drops the next real
+    # SSH connection with "connection refused". The readiness play below
+    # closes that window; this task just gives a fast failure if the
+    # guest never boots at all.
     - name: Wait for all instances to present an "OpenSSH" prompt
       wait_for:
         port: 22
@@ -115,3 +122,33 @@
         delay: 60
         timeout: 300
       with_items: "{{ groups['allsf'] }}"
+
+# Readiness gate: the banner wait above only proves port 22 is open, not
+# that the instance is fully provisioned. Wait for an authenticated SSH
+# connection (which retries through sshd's cloud-init restart) and then
+# block until cloud-init has actually finished, so subsequent SSH steps
+# in the calling workflow do not race the host-key-regen restart. This
+# play targets the "allsf" group so it inherits the per-instance
+# ansible_ssh_host / ansible_ssh_user (cloud-user) / private key facts
+# set by kerbside-create-instance.yml's add_host.
+- name: Wait for instances to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - name: Wait for SSH to accept an authenticated connection
+      ansible.builtin.wait_for_connection:
+        delay: 0
+        timeout: 300
+
+    # `--wait` blocks until cloud-init reaches a terminal state, then
+    # exits non-zero if that state is "error" or "degraded". This gate
+    # exists to wait out the cloud-init window (so sshd has stopped
+    # bouncing), not to assert cloud-init succeeded -- a genuinely broken
+    # guest surfaces with a clearer error in the real SSH steps that
+    # follow. So tolerate the exit code: we only care that --wait
+    # returned, meaning cloud-init is done.
+    - name: Wait for cloud-init to finish
+      become: true
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+      failed_when: false
