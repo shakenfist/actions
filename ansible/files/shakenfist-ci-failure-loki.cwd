@@ -1,0 +1,312 @@
+---
+# Loki-aware Shaken Fist CI-failure clingwrap bundle.
+#
+# This is a copy of clingwrap's built-in shakenfist-ci-failure.cwd,
+# adapted for the post-rsyslog / Loki world (phase 4 of
+# PLAN-remove-syslog-forwarding). It is shipped from the
+# shakenfist/actions repo and passed to clingwrap via
+#     clingwrap gather --target <path-to-this-file>
+# (clingwrap accepts a file-path --target; see clingwrap/main.py gather()).
+# clingwrap itself is NOT modified and its built-in .cwd is left intact.
+#
+# Differences from the built-in shakenfist-ci-failure.cwd:
+#   ADDED:    a `directory` job for /srv/shakenfist/spool/logship/ -- the
+#             undelivered Loki-bound log spool. In Mode A (Loki configured,
+#             which CI runs) SF's per-module SysLogHandlers are removed, so
+#             structured logs go ONLY to the spool -> Loki, not to journald.
+#             When the Loki push itself failed, the undelivered lines live
+#             here, so this is the PRIMARY local-debug artifact for a
+#             shipper failure. (The sqlite spools are small -- bounded by
+#             the 100k-row high-water mark.)
+#   REPLACED: the /var/log/syslog + /var/log/syslog.1 `file` jobs (which
+#             will not exist once rsyslog is removed) with a `journalctl
+#             -u "sf-*.service"` shell job. The sf.target journal job is
+#             kept. NOTE: in Mode A this journal holds only the systemd
+#             stdout/stderr RESIDUAL (uncaught tracebacks, pre-logging
+#             output) -- the routine structured logs are in the spool
+#             above and in Loki. It is the full local log only in Mode B.
+#   DROPPED:  the `journalctl -u etcd` shell job -- etcd is gone.
+#
+# Everything else (the sf-* unit-file emitter, /run/sf pid/abort files,
+# /etc/sf, /srv/shakenfist/{instances,events,exceptions}, libvirtd
+# journal, network/vxlan/namespace dumps, package inventories, etc.) is
+# preserved unchanged from the built-in config.
+
+- name: Kernel version and architecture
+  type: shell
+  command: uname -a
+  destination: _commands/uname
+
+- name: Descriptive information about the OS
+  type: file
+  source: /etc/os-release
+  destination: etc/os-release
+
+- name: apparmor configuration file
+  type: file
+  source: /etc/apparmor
+  destination: etc/apparmor
+
+- name: apparmor configuration directory
+  type: directory
+  source: /etc/apparmor.d
+  destination: etc/apparmor.d
+
+- name: hosts configuration file
+  type: file
+  source: /etc/hosts
+  destination: etc/hosts
+
+- name: hostname configuration file
+  type: file
+  source: /etc/hostname
+  destination: etc/hostname
+
+- name: hostname -a
+  type: shell
+  command: hostname -a
+  destination: _commands/hostname-a
+
+- name: hostname -f
+  type: shell
+  command: hostname -f
+  destination: _commands/hostname-f
+
+- name: hostnamectl
+  type: shell
+  command: hostnamectl
+  destination: _commands/hostnamectl
+
+- name: apache2 configuration
+  type: directory
+  source: /etc/apache2
+  destination: etc/apache2
+
+- name: Shaken Fist configuration
+  type: directory
+  source: /etc/sf
+  destination: etc/sf
+
+- name: Installed system OS packages and versions
+  type: shell
+  command: dpkg -l
+  destination: _commands/dpkg
+
+- name: Installed system pip packages and versions
+  type: shell
+  command: pip3 freeze
+  destination: _commands/pip
+
+- name: Installed Shaken Fist pip packages and versions
+  type: shell
+  command: /srv/shakenfist/venv/bin/pip freeze
+  destination: _commands/pip-sf
+
+- name: Locked version of requirements based on what was used in this CI run
+  type: shell
+  command: |
+    /srv/shakenfist/venv/bin/pip install hashin
+    touch /tmp/requirements-locked.txt
+
+    echo
+    for dependency in `/srv/shakenfist/venv/bin/pip freeze --local | egrep -v "(shakenfist|pkg[_\-]resources)"`
+    do
+        echo "Locking $dependency"
+        /srv/shakenfist/venv/bin/hashin $dependency --requirements /tmp/requirements-locked.txt
+    done
+
+    echo
+    cat /tmp/requirements-locked.txt
+
+    echo
+    echo "EOF"
+  destination: _commands/pip-requirements-locked
+
+- name: Python version
+  type: shell
+  command: python3 --version
+  destination: _commands/python-version
+
+- name: systemd status
+  type: shell
+  command: systemctl status
+  destination: _commands/systemctl-status
+
+- name: libvirtd systemd unit logs
+  type: shell
+  command: journalctl -u libvirtd
+  destination: _commands/journalctl-libvirtd
+
+- name: SF systemd target logs
+  type: shell
+  command: journalctl -u sf.target
+  destination: _commands/journalctl-sf-target
+
+- name: SF systemd unit logs (stdout/stderr residual in Mode A)
+  type: shell
+  command: journalctl -u "sf-*.service" --no-pager
+  destination: _commands/journalctl-sf-units
+
+- name: SF systemd units
+  type: shell_emitter
+  command: |
+    for item in `find /etc/systemd/system -type f -name "sf-*" | sed 's/.*\///'`
+    do
+      echo "
+    - name: Record systemd unit (${item})
+      type: file
+      source: /etc/systemd/system/${item}
+      destination: etc/systemd/system/${item}
+    "
+    done
+
+- name: SF systemd unit pid and abort files
+  type: shell_emitter
+  command: |
+    for item in `find /run/sf -type f | sed 's/.*\///'`
+    do
+      echo "
+    - name: Record contents of file (${item})
+      type: file
+      source: /run/sf/${item}
+      destination: run/sf/${item}
+    "
+    done
+
+- name: libvirt VMs
+  type: shell
+  command: virsh list --all
+  destination: _commands/virsh-list-all
+
+- name: Network interfaces
+  type: shell
+  command: ip link
+  destination: _commands/ip-link
+
+- name: Network addresses
+  type: shell
+  command: ip addr
+  destination: _commands/ip-addr
+
+- name: Network routes
+  type: shell
+  command: ip route
+  destination: _commands/ip-route
+
+- name: iptables
+  type: shell
+  command: iptables -L -v -n
+  destination: _commands/iptables
+
+- name: Network namespaces
+  type: shell_emitter
+  command: |
+    for item in `find /var/run/netns -type f | sed 's/.*\///'`
+    do
+      echo "
+    - name: Network interfaces (namespace ${item})
+      type: shell
+      command: ip netns exec ${item} ip link
+      destination: _commands/netns-${item}/ip-link
+
+    - name: Network addresses (namespace ${item})
+      type: shell
+      command: ip netns exec ${item} ip addr
+      destination: _commands/netns-${item}/ip-addr
+
+    - name: Network routes (namespace ${item})
+      type: shell
+      command: ip netns exec ${item} ip route
+      destination: _commands/netns-${item}/ip-route
+
+    - name: iptables (namespace ${item})
+      type: shell
+      command: ip netns exec ${item} iptables -L -v -n
+      destination: _commands/netns-${item}/iptables
+    "
+    done
+
+- name: vxlan networks
+  type: shell_emitter
+  command: |
+    for item in `ip link | grep ": vxlan-" | cut -f 2 -d ":" | sed 's/ //'`
+    do
+      echo "
+    - name: vxlan iterface (vxlan ${item})
+      type: shell
+      command: ip -d link show ${item}
+      destination: _commands/${item}/ip-link
+
+    - name: vxlan forwarding (vxlan ${item})
+      type: shell
+      command: bridge fdb show dev ${item}
+      destination: _commands/${item}/bridge-fdb-show
+
+    - name: vxlan bridge (vxlan ${item})
+      type: shell
+      command: brctl show br-${item}
+      destination: _commands/${item}/brctl-show
+    "
+    done
+
+- name: Shaken Fist logship spool (undelivered Loki-bound logs)
+  type: directory
+  source: /srv/shakenfist/spool/logship
+  destination: srv/shakenfist/spool/logship
+
+- name: libvirt logs
+  type: directory
+  source: /var/log/libvirt
+  destination: var/log/libvirt
+
+- name: apache2 logs
+  type: directory
+  source: /var/log/apache2
+  destination: var/log/apache2
+
+- name: Shaken Fist instances
+  type: directory
+  source: /srv/shakenfist/instances
+  destination: srv/shakenfist/instances
+  exclude: "([hsv]d[ac-z]|nvme[0-9]|sc-.*)"
+
+- name: Shaken Fist events
+  type: directory
+  source: /srv/shakenfist/events
+  destination: srv/shakenfist/events
+  exclude: ".*\\.lock"
+
+- name: Shaken Fist exceptions
+  type: directory
+  source: /srv/shakenfist/exceptions
+  destination: srv/shakenfist/exceptions
+
+- name: Running processes
+  type: shell
+  command: ps -aux
+  destination: _commands/ps-aux
+
+- name: apt configuration
+  type: directory
+  source: /etc/apt
+  destination: etc/apt
+
+- name: yum configuration
+  type: directory
+  source: /etc/yum
+  destination: etc/yum
+
+- name: dnf configuration
+  type: directory
+  source: /etc/dnf
+  destination: etc/dnf
+
+- name: Docker configuration
+  type: directory
+  source: /etc/docker
+  destination: etc/docker
+
+- name: Docker info
+  type: shell
+  command: docker info
+  destination: _commands/docker-info
