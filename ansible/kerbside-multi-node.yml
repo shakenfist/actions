@@ -2,7 +2,7 @@
   gather_facts: yes
   connection: ssh
   vars:
-    base: rocky:9
+    base: debian:13
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'

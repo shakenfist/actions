@@ -49,7 +49,7 @@
     egress_floating_ip: "{{ new_instance['meta']['interfaces'][0]['floating'] | default('', true) }}"
     ansible_ssh_host: "{{ _new_instance_ssh_host }}"
     ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-    ansible_ssh_user: "cloud-user"
+    ansible_ssh_user: "{{ base_user | default('debian') }}"
     ansible_ssh_private_key_file: "{{ ssh_private_key }}"
     sf_uuid: "{{ new_instance['meta']['uuid'] }}"
     groups: allsf

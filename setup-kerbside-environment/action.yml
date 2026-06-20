@@ -84,7 +84,7 @@ runs:
         echo "Using playbook ${playbook}"
 
         ansible-playbook -i /home/debian/ansible-hosts \
-            --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }}" \
+            --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }} base_user=${{ inputs.base_user }}" \
             --tags all ${GITHUB_WORKSPACE}/actions/ansible/${playbook}
 
         # Copy the environment ssh key to the deploy node

@@ -2,7 +2,7 @@
   gather_facts: yes
   connection: ssh
   vars:
-    base: rocky:9
+    base: debian:13
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
@@ -129,8 +129,9 @@
 # block until cloud-init has actually finished, so subsequent SSH steps
 # in the calling workflow do not race the host-key-regen restart. This
 # play targets the "allsf" group so it inherits the per-instance
-# ansible_ssh_host / ansible_ssh_user (cloud-user) / private key facts
-# set by kerbside-create-instance.yml's add_host.
+# ansible_ssh_host / ansible_ssh_user (the base image's default cloud
+# user, e.g. "debian" or "cloud-user") / private key facts set by
+# kerbside-create-instance.yml's add_host.
 - name: Wait for instances to finish cloud-init
   hosts: allsf
   gather_facts: false
