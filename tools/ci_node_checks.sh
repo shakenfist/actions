@@ -34,6 +34,16 @@ set -euo pipefail
 #     State 'stop-sigterm' timed out. Killing.   (systemd)
 #     Main process exited, code=exited           (systemd)
 #     Failed with result 'exit-code'.            (systemd)
+#
+# Two scopes are used (see below). The kernel-origin patterns are matched
+# against the WHOLE boot journal. The systemd/process patterns are matched
+# only against the journal for `sf-*.service` units, because non-SF units
+# (notably dnsmasq, which Shaken Fist restarts as networks come and go)
+# routinely log transient, self-recovered "Failed with result 'exit-code'"
+# / "Main process exited" lines that are normal churn and must not fail the
+# run. systemd records those unit-state messages under the unit's journal,
+# so `journalctl -u sf-*.service` still catches a genuine sf-database crash
+# while ignoring dnsmasq and friends.
 
 # shellcheck disable=SC2034  # BRANCH/JOB_NAME are intentionally unused; see
 # the header -- they exist only to match ci_log_checks.sh's argument shape.
@@ -68,40 +78,52 @@ if [ -n "${failed_units}" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# (b) journald (current boot) for kernel/systemd/stderr-origin patterns that
-#     Loki cannot see. We dump the current boot's journal ONCE and grep -F
-#     (fixed strings) for each pattern -- fixed-strings sidesteps having to
-#     escape the regex metacharacters in patterns like
-#     `*** Check failure stack trace: ***` and `apparmor="DENIED"`.
+# (b) journald (current boot) for the patterns Loki cannot see. We dump two
+#     journals ONCE each and grep -F (fixed strings) for each pattern --
+#     fixed-strings sidesteps having to escape the regex metacharacters in
+#     patterns like `*** Check failure stack trace: ***` and
+#     `apparmor="DENIED"`.
 #
-#     `journalctl -b` can exit non-zero in odd states; capture it under
+#     `journalctl` can exit non-zero in odd states; capture it under
 #     `|| true` so set -e does not abort before we have inspected it.
 # ---------------------------------------------------------------------------
 boot_journal=$(journalctl --no-pager -b 2>/dev/null || true)
+sf_journal=$(journalctl --no-pager -b -u 'sf-*.service' 2>/dev/null || true)
 
-# FORBIDDEN: kernel/systemd/stderr-origin substrings. These mirror EXACTLY
-# the set excluded from ci_log_checks_loki.sh.
-FORBIDDEN=(
-    'apparmor="DENIED"'
+# check_patterns <journal-text> <scope-label> <pattern>...
+# Greps the given journal text for each fixed-string pattern, printing and
+# counting matches as failures.
+check_patterns() {
+    local journal="${1}"; shift
+    local scope="${1}"; shift
+    local pat count
+    for pat in "$@"; do
+        echo "    Check for >>${pat}<< in ${scope}."
+        # grep -F: fixed strings. The pipeline is guarded with `|| true`
+        # because grep exits 1 on no match, which would trip set -e/pipefail.
+        count=$(printf '%s\n' "${journal}" | grep -F -c -- "${pat}" || true)
+        if [ "${count}" -gt 0 ]; then
+            echo "FAILURE: Forbidden journald condition found ${count} times: ${pat}"
+            printf '%s\n' "${journal}" | grep -F -- "${pat}" | head -n "${MAX_MATCHES}"
+            failures=$(( failures + 1 ))
+        fi
+    done
+}
+
+# Kernel-origin patterns: matched against the whole boot journal (they have
+# no associated systemd unit).
+check_patterns "${boot_journal}" "this boot's journal" \
+    'apparmor="DENIED"' \
     'segfault'
-    '*** Check failure stack trace: ***'
-    "State 'stop-sigterm' timed out. Killing."
-    'Main process exited, code=exited'
-    "Failed with result 'exit-code'."
-)
 
-for forbid in "${FORBIDDEN[@]}"; do
-    echo "    Check for >>${forbid}<< in this boot's journal."
-    # grep -F: fixed strings (no regex). -c: count. The whole pipeline is
-    # guarded with `|| true` because grep exits 1 on no match, which would
-    # trip set -e and -o pipefail.
-    count=$(printf '%s\n' "${boot_journal}" | grep -F -c -- "${forbid}" || true)
-    if [ "${count}" -gt 0 ]; then
-        echo "FAILURE: Forbidden journald condition found ${count} times: ${forbid}"
-        printf '%s\n' "${boot_journal}" | grep -F -- "${forbid}" | head -n "${MAX_MATCHES}"
-        failures=$(( failures + 1 ))
-    fi
-done
+# systemd/process patterns: matched only against the sf-*.service journal, so
+# transient non-SF unit churn (e.g. dnsmasq restarts) is not flagged while a
+# real sf-* daemon crash still is.
+check_patterns "${sf_journal}" "the sf-*.service journal" \
+    '*** Check failure stack trace: ***' \
+    "State 'stop-sigterm' timed out. Killing." \
+    'Main process exited, code=exited' \
+    "Failed with result 'exit-code'."
 
 echo
 if [ "${failures}" -gt 0 ]; then

@@ -98,8 +98,20 @@ loki_count() {
     local start_ns="${2}"
     local end_ns="${3}"
 
-    loki_query_range "${query}" "${start_ns}" "${end_ns}" \
-        | jq '[.data.result[]?.values[]?] | length'
+    local resp count
+    resp=$(loki_query_range "${query}" "${start_ns}" "${end_ns}")
+    # If Loki rejects the query or has a transient error it returns a plain
+    # text body, not JSON; jq then fails. Guard so one hiccup does not abort
+    # the whole gate under `set -euo pipefail` -- treat a non-JSON / non
+    # numeric result as zero, but say so loudly on stderr.
+    count=$(printf '%s' "${resp}" | jq '[.data.result[]?.values[]?] | length' 2>/dev/null || true)
+    if ! [[ "${count}" =~ ^[0-9]+$ ]]; then
+        echo "WARNING: Loki query did not return a JSON result; treating as 0." >&2
+        echo "         query: ${query}" >&2
+        echo "         response: ${resp}" >&2
+        count=0
+    fi
+    printf '%s' "${count}"
 }
 
 # loki_show <logql> <start_ns> <end_ns> -- print up to the first 20
@@ -154,23 +166,29 @@ check_warning() {
     fi
 }
 
-# regex_escape <string> -- escape RE2/LogQL regex metacharacters so a
-# pattern is matched literally inside a `=~ "(?i)..."` matcher. We escape
-# the standard set: \ . + * ? ( ) [ ] { } ^ $ | and the double quote.
+# regex_escape <string> -- escape RE2 regex metacharacters so a pattern is
+# matched literally by a `=~` matcher. We escape the standard RE2 set:
+# \ . + * ? ( ) [ ] { } ^ $ |. We do NOT escape for the LogQL string layer
+# because the queries below wrap the regex in a LogQL BACKTICK (raw) string,
+# which performs no escape processing -- so the RE2-escaped pattern reaches
+# RE2 intact. (Double-quoted LogQL strings would swallow the backslashes,
+# which is the bug this replaces.) Patterns must therefore not contain a
+# backtick; none of ours do.
 regex_escape() {
     # shellcheck disable=SC2001  # sed is clearest for a class of chars.
     printf '%s' "${1}" \
         | sed -e 's/[\\.[\*^$(){}?+|]/\\&/g' \
-              -e 's/\]/\\]/g' \
-              -e 's/"/\\"/g'
+              -e 's/\]/\\]/g'
 }
 
 # msg_query <pattern> -- a JSON-structured LogQL query that matches the
 # given (case-insensitive) substring against the parsed `message` field.
+# The regex is delimited with LogQL backticks (raw string) so RE2 sees the
+# escaping from regex_escape verbatim.
 msg_query() {
     local pat
     pat=$(regex_escape "${1}")
-    echo "{job=\"shakenfist\"} | json | message =~ \"(?i)${pat}\""
+    printf '%s' '{job="shakenfist"} | json | message =~ `(?i)'"${pat}"'`'
 }
 
 # level_msg_query <level> <pattern> -- restructured query for the old
@@ -180,7 +198,7 @@ level_msg_query() {
     local level="${1}"
     local pat
     pat=$(regex_escape "${2}")
-    echo "{job=\"shakenfist\"} | json | level=\"${level}\" | message =~ \"(?i)${pat}\""
+    printf '%s' '{job="shakenfist"} | json | level="'"${level}"'" | message =~ `(?i)'"${pat}"'`'
 }
 
 END_NS=$(now_ns)

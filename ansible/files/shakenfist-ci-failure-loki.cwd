@@ -147,6 +147,16 @@
   command: journalctl -u "sf-*.service" --no-pager
   destination: _commands/journalctl-sf-units
 
+- name: Loki service logs (CI Loki receiving the shipped logs)
+  type: shell
+  command: journalctl -u loki --no-pager
+  destination: _commands/journalctl-loki
+
+- name: Loki config (CI single-binary Loki)
+  type: file
+  source: /etc/loki/config.yaml
+  destination: etc/loki/config.yaml
+
 - name: SF systemd units
   type: shell_emitter
   command: |
