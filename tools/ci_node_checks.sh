@@ -62,17 +62,20 @@ echo "Running per-node system checks on $(hostname)."
 echo
 
 # ---------------------------------------------------------------------------
-# (a) Failed systemd units. `systemctl list-units --failed` lists any unit
-#     systemd considers failed; in a healthy CI run there should be none.
+# (a) Failed Shaken Fist systemd units. We scope to `sf-*.service` rather than
+#     all units: the distro `dnsmasq.service` is left in a failed state on SF
+#     nodes (SF runs its own per-network dnsmasq via managed executables, not
+#     the system service), and other non-SF units may churn -- neither is a
+#     Shaken Fist failure. A failed sf-* unit, however, is.
 #     --no-legend drops the header/footer, --plain drops the tree glyphs, so
-#     a non-empty output means at least one failed unit.
+#     a non-empty output means at least one failed sf-* unit.
 # ---------------------------------------------------------------------------
-echo "    Check for failed systemd units."
+echo "    Check for failed sf-*.service systemd units."
 # systemctl exits non-zero when there are failed units; we want to inspect
 # the output ourselves, so guard against set -e with `|| true`.
-failed_units=$(systemctl list-units --failed --no-legend --plain 2>/dev/null || true)
+failed_units=$(systemctl list-units --failed 'sf-*.service' --no-legend --plain 2>/dev/null || true)
 if [ -n "${failed_units}" ]; then
-    echo "FAILURE: systemd reports failed units on $(hostname):"
+    echo "FAILURE: systemd reports failed sf-*.service units on $(hostname):"
     echo "${failed_units}" | head -n "${MAX_MATCHES}"
     failures=$(( failures + 1 ))
 fi
