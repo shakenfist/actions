@@ -53,7 +53,7 @@
         mode: "0755"
 
     - name: Run per-node system checks (localhost fast path)
-      command: "bash {{ script_remote_path }}"
+      command: "bash {{ script_remote_path }} '' '{{ node_checks_job_name | default('') }}'"
       register: node_checks
       changed_when: false
 
@@ -93,7 +93,7 @@
           mode: "0755"
 
       - name: Run per-node system checks
-        command: "bash {{ script_remote_path }}"
+        command: "bash {{ script_remote_path }} '' '{{ node_checks_job_name | default('') }}'"
         register: node_checks
         changed_when: false
 

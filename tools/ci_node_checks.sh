@@ -24,7 +24,13 @@ set -euo pipefail
 #     $1  branch    -- accepted but UNUSED here (kept so callers can invoke
 #                      this script with the same argument shape they use for
 #                      ci_log_checks.sh / ci_log_checks_loki.sh).
-#     $2  job_name  -- accepted but UNUSED here (as above).
+#     $2  job_name  -- the CI job. When it identifies the node-lifecycle job
+#                      (matches *lifecycle*), the systemd-exit / failed-unit
+#                      checks are SKIPPED: that job deliberately kills and
+#                      restarts nodes, so sf-* daemons exiting with a failure
+#                      is the expected behaviour under test, not a fault. The
+#                      kernel/abseil checks (apparmor, segfault, C++ fatal)
+#                      still run, since those remain real faults even there.
 #
 # The journald patterns checked below mirror EXACTLY the kernel/systemd/
 # stderr-origin set that ci_log_checks_loki.sh excludes:
@@ -45,11 +51,18 @@ set -euo pipefail
 # so `journalctl -u sf-*.service` still catches a genuine sf-database crash
 # while ignoring dnsmasq and friends.
 
-# shellcheck disable=SC2034  # BRANCH/JOB_NAME are intentionally unused; see
-# the header -- they exist only to match ci_log_checks.sh's argument shape.
+# shellcheck disable=SC2034  # BRANCH is intentionally unused; see the header
+# -- it exists only to match ci_log_checks.sh's argument shape.
 BRANCH="${1:-}"
-# shellcheck disable=SC2034
 JOB_NAME="${2:-}"
+
+# The node-lifecycle job intentionally kills and restarts nodes, so sf-*
+# daemons exiting with a failure (and units transiently failed) is the
+# behaviour under test, not a fault. Skip those checks for it.
+relax_unit_exits=0
+case "${JOB_NAME}" in
+    *lifecycle*) relax_unit_exits=1 ;;
+esac
 
 # Maximum matching lines to print per pattern, mirroring ci_log_checks.sh's
 # "head -20" behaviour.
@@ -59,6 +72,10 @@ failures=0
 
 echo
 echo "Running per-node system checks on $(hostname)."
+if [ "${relax_unit_exits}" -eq 1 ]; then
+    echo "(job '${JOB_NAME}' kills nodes by design: skipping the"
+    echo " systemd-exit / failed-unit checks; kernel/abseil checks still run.)"
+fi
 echo
 
 # ---------------------------------------------------------------------------
@@ -70,14 +87,18 @@ echo
 #     --no-legend drops the header/footer, --plain drops the tree glyphs, so
 #     a non-empty output means at least one failed sf-* unit.
 # ---------------------------------------------------------------------------
-echo "    Check for failed sf-*.service systemd units."
-# systemctl exits non-zero when there are failed units; we want to inspect
-# the output ourselves, so guard against set -e with `|| true`.
-failed_units=$(systemctl list-units --failed 'sf-*.service' --no-legend --plain 2>/dev/null || true)
-if [ -n "${failed_units}" ]; then
-    echo "FAILURE: systemd reports failed sf-*.service units on $(hostname):"
-    echo "${failed_units}" | head -n "${MAX_MATCHES}"
-    failures=$(( failures + 1 ))
+if [ "${relax_unit_exits}" -eq 1 ]; then
+    echo "    Skipping failed sf-*.service unit check (node-killing job)."
+else
+    echo "    Check for failed sf-*.service systemd units."
+    # systemctl exits non-zero when there are failed units; we want to inspect
+    # the output ourselves, so guard against set -e with `|| true`.
+    failed_units=$(systemctl list-units --failed 'sf-*.service' --no-legend --plain 2>/dev/null || true)
+    if [ -n "${failed_units}" ]; then
+        echo "FAILURE: systemd reports failed sf-*.service units on $(hostname):"
+        echo "${failed_units}" | head -n "${MAX_MATCHES}"
+        failures=$(( failures + 1 ))
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -114,19 +135,30 @@ check_patterns() {
 }
 
 # Kernel-origin patterns: matched against the whole boot journal (they have
-# no associated systemd unit).
+# no associated systemd unit). Always checked, including on node-lifecycle --
+# a segfault or apparmor denial is a real fault even when nodes are being
+# killed and restarted.
 check_patterns "${boot_journal}" "this boot's journal" \
     'apparmor="DENIED"' \
     'segfault'
 
-# systemd/process patterns: matched only against the sf-*.service journal, so
-# transient non-SF unit churn (e.g. dnsmasq restarts) is not flagged while a
-# real sf-* daemon crash still is.
+# Process-fatal pattern (abseil/gRPC C++ fatal on a daemon's stderr). Always
+# checked: a crash like this is a real fault regardless of the job.
 check_patterns "${sf_journal}" "the sf-*.service journal" \
-    '*** Check failure stack trace: ***' \
-    "State 'stop-sigterm' timed out. Killing." \
-    'Main process exited, code=exited' \
-    "Failed with result 'exit-code'."
+    '*** Check failure stack trace: ***'
+
+# systemd unit-exit patterns: matched only against the sf-*.service journal,
+# so transient non-SF unit churn (e.g. dnsmasq restarts) is not flagged while
+# a real sf-* daemon crash is. Skipped entirely on node-killing jobs, where
+# these exits are the behaviour under test.
+if [ "${relax_unit_exits}" -eq 1 ]; then
+    echo "    Skipping systemd unit-exit checks (node-killing job)."
+else
+    check_patterns "${sf_journal}" "the sf-*.service journal" \
+        "State 'stop-sigterm' timed out. Killing." \
+        'Main process exited, code=exited' \
+        "Failed with result 'exit-code'."
+fi
 
 echo
 if [ "${failures}" -gt 0 ]; then
