@@ -60,6 +60,11 @@
     - name: Dump node checks output
       debug:
         msg: "{{ node_checks.stdout_lines }}"
+      # On node-killing jobs a node can be unreachable when the check runs
+      # (ignore_unreachable skips the command above, so node_checks has no
+      # stdout_lines) and then recover before this task -- guard against the
+      # resulting undefined-variable error.
+      when: node_checks.stdout_lines is defined
 
 - hosts: all
   gather_facts: yes
@@ -100,4 +105,9 @@
       - name: Dump node checks output
         debug:
           msg: "{{ node_checks.stdout_lines }}"
+        # A node killed by the node-lifecycle test can be unreachable when
+        # the check runs (ignore_unreachable skips the command above, leaving
+        # node_checks without stdout_lines) and then recover before this
+        # task -- guard against the resulting undefined-variable error.
+        when: node_checks.stdout_lines is defined
       when: inventory_hostname != "localhost"
