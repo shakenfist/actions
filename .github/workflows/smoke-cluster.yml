@@ -1,0 +1,439 @@
+# Reusable smoke-cluster CI workflow.
+#
+# Deploys a single-node Shaken Fist smoke cluster via the
+# shakenfist.shakenfist ansible collection (examples/_shared/site.yml) instead
+# of getsf, runs the smoke functional test suite, and gathers logs. Callers
+# (shakenfist's own functional-tests.yml now, the downstream repos in phase 8)
+# invoke it with a few-line `uses:`.
+#
+#   jobs:
+#     smoke:
+#       uses: shakenfist/actions/.github/workflows/smoke-cluster.yml@main
+#       secrets: inherit
+#       with:
+#         component: shakenfist
+#         component_ref: ${{ github.sha }}
+#         tier: smoke
+
+name: Smoke cluster
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        type: string
+        required: true
+      component_ref:
+        type: string
+        required: true
+      tier:
+        type: string
+        default: smoke
+      base_image:
+        type: string
+        default: 'sf://label/ci-images/debian-12'
+      base_image_user:
+        type: string
+        default: debian
+      stestr_config:
+        type: string
+        default: smoke-ci.conf
+
+jobs:
+  smoke_cluster:
+    name: "Smoke tests (collection)"
+    runs-on: [self-hosted, vm, debian-12]
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.tier }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Log input details
+        run: |
+          echo "component: ${{ inputs.component }}"
+          echo "component_ref: ${{ inputs.component_ref }}"
+          echo "tier: ${{ inputs.tier }}"
+          echo "base_image: ${{ inputs.base_image }}"
+          echo "base_image_user: ${{ inputs.base_image_user }}"
+          echo "stestr_config: ${{ inputs.stestr_config }}"
+
+      - name: Setup test environment
+        uses: shakenfist/actions/setup-test-environment@main
+
+      - name: Build infrastructure
+        run: |
+          cd ${GITHUB_WORKSPACE}/actions
+          ansible-playbook -i /home/debian/ansible-hosts \
+              --extra-vars "identifier=${SHAKENFIST_NAMESPACE} \
+              base_image=${{ inputs.base_image }} base_image_user=${{ inputs.base_image_user }}" \
+              ansible/ci-topology-${{ inputs.tier == 'full' && 'slim-primary' || 'localhost' }}.yml
+
+          if [ "${{ inputs.tier }}" != "full" ]; then
+            echo "UPLOAD_TARGET=10.0.0.10" >> $GITHUB_ENV
+          else
+            nodes=(10.0.0.20 10.0.0.21 10.0.0.22 10.0.0.23 10.0.0.24)
+            random_index=$(( RANDOM % 5 ))
+            echo "UPLOAD_TARGET=${nodes[$random_index]}" >> $GITHUB_ENV
+          fi
+
+      - name: Log environmental configuration
+        run: |
+          echo "## ci-environment.sh"
+          cat ${GITHUB_WORKSPACE}/ci-environment.sh
+          echo
+          echo "## Environment variables"
+          echo "SF_HEAD_SHA = ${SF_HEAD_SHA}"
+          echo "SHAKENFIST_NAMESPACE = ${SHAKENFIST_NAMESPACE}"
+          echo "UPLOAD_TARGET = ${UPLOAD_TARGET}"
+
+      - name: Copy CI tools to primary
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -rp tools \
+              ${{ inputs.base_image_user }}@${primary}:.
+
+          echo ""
+          echo "Copied tools:"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "ls tools"
+
+      - name: Log github actions buffering status
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          tools/run_remote ${primary} python3 tools/buffer.py
+
+      - name: Install BYO MariaDB on primary
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/shakenfist/tools/bootstrap-mariadb.sql \
+              ${GITHUB_WORKSPACE}/shakenfist/tools/ci-install-mariadb.sh \
+              ${GITHUB_WORKSPACE}/shakenfist/examples/mariadb-tuning.cnf \
+              ${{ inputs.base_image_user }}@${primary}:/tmp/
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} \
+              'sudo bash /tmp/ci-install-mariadb.sh \
+                   /tmp/bootstrap-mariadb.sql \
+                   /tmp/mariadb-tuning.cnf \
+                   citestpw'
+
+      - name: Install Loki on primary
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/shakenfist/tools/ci-install-loki.sh \
+              ${{ inputs.base_image_user }}@${primary}:/tmp/
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} \
+              'sudo bash /tmp/ci-install-loki.sh'
+
+      - name: Generate the deploy inventory
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          python3 ${GITHUB_WORKSPACE}/actions/tools/ci-make-inventory.py \
+              --tier ${{ inputs.tier }} \
+              --node-name primary \
+              --egress-ip ${primary} \
+              --ssh-user ${{ inputs.base_image_user }} \
+              --ssh-key /srv/github/id_ci \
+              --output /srv/github/ci-inventory.yaml
+
+          echo "====="
+          cat /srv/github/ci-inventory.yaml
+
+      - name: Deploy Shaken Fist via the collection
+        timeout-minutes: 45
+        env:
+          # GitHub Actions env keys are case-insensitive, so we only set the
+          # lowercase proxy variables (the uppercase forms would collide). Most
+          # tooling (pip, apt, requests, ansible) reads the lowercase names.
+          http_proxy: http://192.168.1.15:3128
+          https_proxy: http://192.168.1.15:3128
+          no_proxy: localhost,127.0.0.1,10.0.0.0/8
+          PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
+        run: |
+          set -e
+          cd ${GITHUB_WORKSPACE}/shakenfist
+          ${GITHUB_WORKSPACE}/actions/tools/deploy-collection.sh \
+              /srv/github/ci-inventory.yaml \
+              citestpw \
+              ci-auth-secret-do-not-use-in-production-ci-auth-secret \
+              ci-system-key-do-not-use-in-production-ci-system-key
+
+      - name: Wait for the cluster to become schedulable
+        run: |
+          set +e
+
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} 'sudo chmod ugo+r /etc/sf/*'
+
+          count=0
+          while [ $count -lt 60 ]
+          do
+            ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} \
+              '. /etc/sf/sfrc; /srv/shakenfist/venv/bin/python3 -' \
+              < ${GITHUB_WORKSPACE}/shakenfist/tools/ci_wait_schedulable.py
+            if [ $? == 0 ]; then
+              exit 0
+            fi
+
+            count=$(( $count + 1 ))
+            sleep 5
+          done
+
+          exit 1
+
+      - name: Import cached images
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          setup="export PATH=$PATH:/srv/shakenfist/venv/bin;"
+          setup="${setup} . /etc/sf/sfrc;"
+          setup="${setup} export SHAKENFIST_API_URL=http://localhost:13000;"
+          setup="${setup} /srv/shakenfist/venv/bin/sf-client artifact upload"
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
+              "${setup} debian-12 /srv/ci/debian:12 --shared --no-checksum"
+
+      - name: Make the traces directory
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "sudo mkdir -p /srv/ci/traces; sudo chown -R ${{ inputs.base_image_user }}:${{ inputs.base_image_user }} /srv/ci/traces"
+
+      - name: Run functional tests
+        timeout-minutes: 45
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/shakenfist \
+              ${{ inputs.base_image_user }}@${primary}:shakenfist
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/client-python \
+              ${{ inputs.base_image_user }}@${primary}:client-python
+
+          script="cd shakenfist/;"
+          script="${script} . /etc/sf/sfrc;"
+
+          script="${script} python3 -mvenv /tmp/functests;"
+          script="${script} . /tmp/functests/bin/activate;"
+          script="${script} pip3 install -U uv;"
+          script="${script} uv pip install -U -r pyproject.toml --all-extras;"
+          script="${script} echo -e '\n\nvenv pip after packages:\n';"
+          script="${script} pip3 list;"
+          script="${script} echo -e '\n---\n';"
+
+          script="${script} echo -e '\n\nInstall client-python:\n';"
+          script="${script} cd ~/client-python;"
+          script="${script} pip3 install .;"
+
+          script="${script} cd ~/shakenfist/shakenfist/deploy/;"
+          script="${script} set -e;"
+          script="${script} stestr run --config ${{ inputs.stestr_config }} --concurrency=3;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "${script}"
+
+      - name: List slowest tests
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          script=". /tmp/functests/bin/activate;"
+          script="${script} cd shakenfist/shakenfist/deploy;"
+          script="${script} stestr slowest --config ${{ inputs.stestr_config }} || true;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "${script}"
+
+      - name: List failing tests
+        if: failure()
+        id: failures
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          echo "Gathering list of failed tests..."
+          touch /srv/ci/failed
+          script=". /tmp/functests/bin/activate;"
+          script="${script} cd shakenfist/shakenfist/deploy;"
+          script="${script} stestr failing --config ${{ inputs.stestr_config }} || true;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "${script}" > /srv/ci/failed
+          echo
+
+          failed=$(cat /srv/ci/failed | egrep "^FAIL: " | \
+              sed -z 's/FAIL: shakenfist_ci\.//g;s/\n/, /g;s/, $/\n/')
+
+          echo "Failed tests:"
+          cat /srv/ci/failed
+          echo
+
+          echo "failures<<EOF" >> ${GITHUB_OUTPUT}
+          echo "${failed}" >> ${GITHUB_OUTPUT}
+          echo "EOF" >> ${GITHUB_OUTPUT}
+          echo "GITHUB_OUTPUT is:"
+          cat ${GITHUB_OUTPUT}
+
+      - name: Check for exceptions on disk
+        id: check_exceptions
+        if: always()
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          # SF writes exception JSON to /srv/shakenfist/exceptions on the node
+          # where the exception fired. The smoke cluster is a single node, so
+          # check the primary directly over ssh. (The collection deploy runs
+          # ansible from the runner and does not install ansible on the node,
+          # unlike the old getsf path, so we cannot fan out with ansible here.)
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} \
+              'sudo mkdir -p /srv/shakenfist/exceptions; sudo find /srv/shakenfist/exceptions -type f -ls' || true
+          echo
+
+          EXCEPTION_COUNT=$(ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} \
+              'sudo find /srv/shakenfist/exceptions -type f 2>/dev/null | wc -l')
+          echo "Exception files found: ${EXCEPTION_COUNT}"
+          if [ "${EXCEPTION_COUNT}" -gt 0 ]; then
+            echo "exceptions_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "exceptions_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      # Prove the sf-api SIGTERM drain works on a live node: /readyz flips to
+      # 503 while the worker is still serving, then sf-api exits cleanly and is
+      # restarted. Run this BEFORE "Check logs" so the stop/restart has fully
+      # settled and the node is back in rotation before the log-failure greps
+      # run. A clean drain exits 143 (SuccessExitStatus=SIGTERM), so it does not
+      # produce the "Main process exited"/"stop-sigterm timed out"/"Failed with
+      # result" lines those greps reject. This is an assertion, not a
+      # diagnostic, so no "|| true" -- a broken drain fails the job.
+      - name: Check sf-api drain
+        id: check_drain
+        if: always()
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          tools/run_remote ${primary} "sudo bash tools/ci_drain_check.sh"
+
+      - name: Check logs
+        id: check_logs
+        if: always()
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          tools/run_remote ${primary} "sudo bash tools/ci_log_checks_loki.sh develop smoke"
+
+      - name: Dump systemd state and journals
+        if: always() && steps.check_logs.outcome == 'failure'
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          tools/run_remote ${primary} 'echo "=== systemctl --failed (primary) ==="; sudo systemctl --failed --no-pager; echo "=== journalctl sf-* (primary, last 200 warn+) ==="; sudo journalctl -u "sf-*.service" -p warning -n 200 --no-pager' || true
+
+      - name: Set check_logs output for matrix aggregation
+        id: set_output
+        if: always()
+        run: |
+          echo "smoke=${{ steps.check_logs.outcome == 'failure' }}" >> $GITHUB_OUTPUT
+
+      - name: Set exceptions output for matrix aggregation
+        id: set_exceptions_output
+        if: always()
+        run: |
+          echo "smoke=${{ steps.check_exceptions.outputs.exceptions_found }}" >> $GITHUB_OUTPUT
+
+      # On Ubuntu 22.04 the cleaner is rated a CPU hog because of etcd cleanup
+      # cost. That's not really something we can control, so just ignore the CPU
+      # usage of that process instead.
+      - name: Check SF process CPU usage
+        if: always()
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} '. /etc/sf/sfrc; /srv/shakenfist/venv/bin/sf-client node cpuhogs -t 1.75 --ignore sf_cleaner,loki'
+
+      # Gating per-node system check. Loki only carries SF's application
+      # logs, so kernel/systemd-level failures (apparmor denials, segfaults,
+      # abseil/gRPC C++ fatals, systemd unit exits) live only in each node's
+      # journald. This fans out across the inventory and fails the run on any
+      # node's system-level failure -- coverage Loki cannot provide.
+      - name: Per-node system-level checks
+        if: always()
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cp /srv/github/id_ci /home/debian/.ssh/id_rsa
+          cp /srv/github/id_ci.pub /home/debian/.ssh/id_rsa.pub
+          ansible-playbook -i /srv/github/ci-inventory.yaml \
+              --extra-vars "base_image_user=${{ inputs.base_image_user }} \
+              ansible_ssh_common_args='-o StrictHostKeyChecking=no'" \
+              ${GITHUB_WORKSPACE}/actions/ansible/ci-node-checks.yml
+
+      - name: Gather logs
+        if: always()
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          mkdir -p /srv/github/artifacts
+          mkdir -p /srv/github/bundle
+          chmod ugo+rwx /srv/github /srv/github/artifacts /srv/github/bundle
+
+          # Fetch unit test tracing. Sometimes this isn't present if we failed
+          # super early in the CI job.
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null -rp \
+              ${{ inputs.base_image_user }}@${primary}:/srv/ci/traces \
+              /srv/github/bundle/ || true
+
+          # We need the ssh key in the place ansible expects it to be, which isn't
+          # true on the CI worker node.
+          cp /srv/github/id_ci /home/debian/.ssh/id_rsa
+          cp /srv/github/id_ci.pub /home/debian/.ssh/id_rsa.pub
+
+          ansible-playbook -i /srv/github/ci-inventory.yaml \
+              --extra-vars "base_image_user=${{ inputs.base_image_user }} \
+              ansible_ssh_common_args='-o StrictHostKeyChecking=no'" \
+              ${GITHUB_WORKSPACE}/actions/ansible/ci-gather-logs-loki.yml
+
+      - name: Capture py-spy thread dumps
+        if: always()
+        continue-on-error: true
+        run: |
+          ansible-playbook -i /srv/github/ci-inventory.yaml \
+              --extra-vars "ansible_ssh_common_args='-o StrictHostKeyChecking=no'" \
+              ${GITHUB_WORKSPACE}/shakenfist/tools/ci_capture_pyspy.yml || true
+
+      - name: Bundle artifacts
+        if: always()
+        run: |
+          cd /srv/github
+          sudo chown -R debian:debian /srv/github
+          sudo find . -ls
+          echo
+          mkdir -p /srv/github/artifacts /srv/github/bundle
+          zip -rq artifacts/bundle.zip bundle/* || true
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bundle-functional-cluster-smoke
+          retention-days: 90
+          if-no-files-found: error
+          path: /srv/github/artifacts/bundle.zip
