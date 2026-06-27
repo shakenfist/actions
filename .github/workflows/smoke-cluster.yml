@@ -43,8 +43,14 @@ jobs:
   smoke_cluster:
     name: "Smoke tests (collection)"
     runs-on: [self-hosted, vm, debian-12]
+    # NOTE: inside a reusable workflow `github.workflow` resolves to the
+    # CALLER's workflow name, so it cannot disambiguate this job from the
+    # caller's own jobs. Use a literal prefix plus the component so this never
+    # shares a group with the caller's getsf smoke job (which is
+    # "<caller workflow>-<ref>-smoke") and so different components calling this
+    # workflow on the same ref do not cancel each other.
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.tier }}
+      group: smoke-cluster-${{ inputs.component }}-${{ inputs.tier }}-${{ github.ref }}
       cancel-in-progress: true
 
     steps:
