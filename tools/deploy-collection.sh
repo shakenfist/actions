@@ -43,6 +43,15 @@ ansible-galaxy collection install dist-collection/*.tar.gz --force
 # Run the deploy from this controller against the generated inventory. Play 0
 # builds both wheels here (sf_build_local_wheels=true), play 1 ships them to
 # every node. The cluster-config seeds mirror examples/single-node/group_vars.
+#
+# Two values are pinned to the CI conventions the shakenfist_ci smoke suite
+# expects, matching the old getsf-wrapper:
+#   * deploy_name=bonkerslab -> SHAKENFIST_ZONE, which becomes the per-network
+#     DNS search domain (<namespace>.bonkerslab); test_provided_dns asserts it.
+#   * loki_base_url=http://127.0.0.1:3100 -> SHAKENFIST_LOKI_BASE_URL, so the
+#     daemons ship logs to the Loki installed on this node; test_logs_reach_loki
+#     asserts it. (Single-node smoke only; the full tier will need the primary's
+#     mesh IP here instead of 127.0.0.1.)
 ansible-playbook -i "${INVENTORY}" examples/_shared/site.yml \
     --extra-vars "sf_build_local_wheels=true \
         repo_path=${GITHUB_WORKSPACE}/shakenfist \
@@ -54,6 +63,8 @@ ansible-playbook -i "${INVENTORY}" examples/_shared/site.yml \
         mariadb_database=shakenfist \
         auth_secret=${AUTH_SECRET} \
         system_key=${SYSTEM_KEY} \
+        deploy_name=bonkerslab \
+        loki_base_url=http://127.0.0.1:3100 \
         dns_server=8.8.8.8 \
         floating_network_ipblock=192.168.230.0/24 \
         http_proxy= \
