@@ -44,6 +44,9 @@ on:
       stestr_config:
         type: string
         default: smoke-ci.conf
+      test_concurrency:
+        type: number
+        default: 3
 
 jobs:
   smoke_cluster:
@@ -81,13 +84,10 @@ jobs:
               base_image=${{ inputs.base_image }} base_image_user=${{ inputs.base_image_user }}" \
               ansible/ci-topology-${{ inputs.topology }}.yml
 
-          if [ "${{ inputs.topology }}" == "localhost" ]; then
-            echo "UPLOAD_TARGET=10.0.0.10" >> $GITHUB_ENV
-          else
-            nodes=(10.0.0.20 10.0.0.21 10.0.0.22 10.0.0.23 10.0.0.24)
-            random_index=$(( RANDOM % 5 ))
-            echo "UPLOAD_TARGET=${nodes[$random_index]}" >> $GITHUB_ENV
-          fi
+          # The image upload runs against the primary in every topology: it
+          # talks to the cluster API, so the primary need not be a hypervisor.
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          echo "UPLOAD_TARGET=${primary}" >> $GITHUB_ENV
 
       - name: Log environmental configuration
         run: |
@@ -271,7 +271,7 @@ jobs:
 
           script="${script} cd ~/shakenfist/shakenfist/deploy/;"
           script="${script} set -e;"
-          script="${script} stestr run --config ${{ inputs.stestr_config }} --concurrency=3;"
+          script="${script} stestr run --config ${{ inputs.stestr_config }} --concurrency=${{ inputs.test_concurrency }};"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${primary} "${script}"

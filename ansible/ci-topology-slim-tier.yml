@@ -62,7 +62,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{primary['meta']['uuid']}}"
-        groups: allsf,etcd_master,primary_node,network_node
+        groups: allsf,etcd_master,primary_node,network_node,hypervisors
 
     # sf-1 is the second sf-database tier member as well as a hypervisor.
     # It runs sf-database against the same MariaDB that lives on the
@@ -97,7 +97,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf1['meta']['uuid']}}"
-        groups: hypervisors, allsf
+        groups: hypervisors, etcd_master, allsf
 
     - name: Create sf-2
       sf_instance:
