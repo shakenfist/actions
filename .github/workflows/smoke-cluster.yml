@@ -47,6 +47,13 @@ on:
       test_concurrency:
         type: number
         default: 3
+      concurrency_key:
+        # Disambiguates the concurrency group when one caller invokes this
+        # workflow several times on the same ref (e.g. a matrix of topologies).
+        # Without it every matrix entry shares component+tier+ref and they
+        # cancel each other. Callers pass a per-entry slug (their job_name).
+        type: string
+        default: ''
 
 jobs:
   smoke_cluster:
@@ -59,7 +66,7 @@ jobs:
     # "<caller workflow>-<ref>-smoke") and so different components calling this
     # workflow on the same ref do not cancel each other.
     concurrency:
-      group: smoke-cluster-${{ inputs.component }}-${{ inputs.tier }}-${{ github.ref }}
+      group: smoke-cluster-${{ inputs.component }}-${{ inputs.tier }}-${{ inputs.concurrency_key }}-${{ github.ref }}
       cancel-in-progress: true
 
     steps:
