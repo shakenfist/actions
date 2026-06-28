@@ -14,6 +14,35 @@
     group: debian
     mode: u=r,g=r,o=r
 
+- name: Write machine-readable topology facts to workspace
+  copy:
+    # A JSON description of every node the topology built via add_host, consumed
+    # by tools/ci-make-inventory.py to generate the collection deploy inventory.
+    # mesh_ip falls back to the egress IP for single-node topologies that set no
+    # separate mesh interface. The capability flags use the
+    # "groups['<grp>'] | default([])" form so a topology that omits a group
+    # (e.g. no hypervisors) renders cleanly rather than erroring; "| lower"
+    # turns Python True/False into JSON true/false.
+    content: |
+      {
+        "nodes": [
+      {% for h in groups['allsf'] %}
+          {
+            "name": "{{ h }}",
+            "egress_ip": "{{ hostvars[h]['ansible_ssh_host'] }}",
+            "mesh_ip": "{{ hostvars[h]['mesh_ip'] | default(hostvars[h]['ansible_ssh_host']) }}",
+            "is_hypervisor": {{ (h in (groups['hypervisors'] | default([]))) | lower }},
+            "is_network_node": {{ (h in (groups['network_node'] | default([]))) | lower }},
+            "is_database_node": {{ (h in (groups['etcd_master'] | default([]))) | lower }}
+          }{{ "," if not loop.last else "" }}
+      {% endfor %}
+        ]
+      }
+    dest: "/srv/github/ci-topology-facts.json"
+    owner: debian
+    group: debian
+    mode: u=r,g=r,o=r
+
 - name: Log environment details path
   debug:
     msg: "Environment details written to {{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"

@@ -10,10 +10,12 @@ set -e
 # (the runner), and play 1 ships them to every node in the inventory.
 #
 # Arguments (positional):
-#   $1  inventory     path to the generated ansible inventory
-#   $2  mariadb_pw    MariaDB password (matches the BYO MariaDB install step)
-#   $3  auth_secret   AUTH_SECRET_SEED value for the cluster
-#   $4  system_key    system namespace key for the cluster
+#   $1  inventory      path to the generated ansible inventory
+#   $2  mariadb_pw     MariaDB password (matches the BYO MariaDB install step)
+#   $3  auth_secret    AUTH_SECRET_SEED value for the cluster
+#   $4  system_key     system namespace key for the cluster
+#   $5  loki_base_url  Loki shipper endpoint (127.0.0.1 single-node; the
+#                      primary's mesh IP for multi-node clusters)
 #
 # The caller (workflow step) is responsible for exporting the proxy / pip
 # environment (http_proxy / https_proxy / PIP_INDEX_URL) before invoking this,
@@ -24,6 +26,7 @@ INVENTORY="${1:?inventory path required}"
 MARIADB_PASSWORD="${2:?mariadb password required}"
 AUTH_SECRET="${3:?auth secret required}"
 SYSTEM_KEY="${4:?system key required}"
+LOKI_BASE_URL="${5:?loki base url required}"
 
 cd "${GITHUB_WORKSPACE}/shakenfist"
 
@@ -48,10 +51,11 @@ ansible-galaxy collection install dist-collection/*.tar.gz --force
 # expects, matching the old getsf-wrapper:
 #   * deploy_name=bonkerslab -> SHAKENFIST_ZONE, which becomes the per-network
 #     DNS search domain (<namespace>.bonkerslab); test_provided_dns asserts it.
-#   * loki_base_url=http://127.0.0.1:3100 -> SHAKENFIST_LOKI_BASE_URL, so the
-#     daemons ship logs to the Loki installed on this node; test_logs_reach_loki
-#     asserts it. (Single-node smoke only; the full tier will need the primary's
-#     mesh IP here instead of 127.0.0.1.)
+#   * loki_base_url -> SHAKENFIST_LOKI_BASE_URL, so the daemons ship logs to the
+#     Loki installed on the primary; test_logs_reach_loki asserts it. The caller
+#     passes http://127.0.0.1:3100 for the single-node smoke cluster and the
+#     primary's mesh IP (e.g. http://10.0.1.10:3100) for multi-node clusters,
+#     where 127.0.0.1 would only reach each node's own (absent) Loki.
 ansible-playbook -i "${INVENTORY}" examples/_shared/site.yml \
     --extra-vars "sf_build_local_wheels=true \
         repo_path=${GITHUB_WORKSPACE}/shakenfist \
@@ -64,7 +68,7 @@ ansible-playbook -i "${INVENTORY}" examples/_shared/site.yml \
         auth_secret=${AUTH_SECRET} \
         system_key=${SYSTEM_KEY} \
         deploy_name=bonkerslab \
-        loki_base_url=http://127.0.0.1:3100 \
+        loki_base_url=${LOKI_BASE_URL} \
         dns_server=8.8.8.8 \
         floating_network_ipblock=192.168.230.0/24 \
         http_proxy= \

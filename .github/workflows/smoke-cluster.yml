@@ -29,6 +29,12 @@ on:
       tier:
         type: string
         default: smoke
+      topology:
+        # Selects which ansible/ci-topology-<topology>.yml provisions the
+        # under-cloud VMs: localhost (single-node smoke), slim-primary or
+        # slim-tier (multi-node). tier still selects the test-suite depth.
+        type: string
+        default: localhost
       base_image:
         type: string
         default: 'sf://label/ci-images/debian-12'
@@ -59,6 +65,7 @@ jobs:
           echo "component: ${{ inputs.component }}"
           echo "component_ref: ${{ inputs.component_ref }}"
           echo "tier: ${{ inputs.tier }}"
+          echo "topology: ${{ inputs.topology }}"
           echo "base_image: ${{ inputs.base_image }}"
           echo "base_image_user: ${{ inputs.base_image_user }}"
           echo "stestr_config: ${{ inputs.stestr_config }}"
@@ -72,9 +79,9 @@ jobs:
           ansible-playbook -i /home/debian/ansible-hosts \
               --extra-vars "identifier=${SHAKENFIST_NAMESPACE} \
               base_image=${{ inputs.base_image }} base_image_user=${{ inputs.base_image_user }}" \
-              ansible/ci-topology-${{ inputs.tier == 'full' && 'slim-primary' || 'localhost' }}.yml
+              ansible/ci-topology-${{ inputs.topology }}.yml
 
-          if [ "${{ inputs.tier }}" != "full" ]; then
+          if [ "${{ inputs.topology }}" == "localhost" ]; then
             echo "UPLOAD_TARGET=10.0.0.10" >> $GITHUB_ENV
           else
             nodes=(10.0.0.20 10.0.0.21 10.0.0.22 10.0.0.23 10.0.0.24)
@@ -148,9 +155,7 @@ jobs:
           set -e
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           python3 ${GITHUB_WORKSPACE}/actions/tools/ci-make-inventory.py \
-              --tier ${{ inputs.tier }} \
-              --node-name primary \
-              --egress-ip ${primary} \
+              --facts-file /srv/github/ci-topology-facts.json \
               --ssh-user ${{ inputs.base_image_user }} \
               --ssh-key /srv/github/id_ci \
               --output /srv/github/ci-inventory.yaml
@@ -170,12 +175,26 @@ jobs:
           PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
         run: |
           set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}/shakenfist
+
+          # The daemons ship logs to the Loki on the primary. Single-node smoke
+          # reaches it on 127.0.0.1; multi-node clusters must use the primary's
+          # mesh IP (read from the topology facts), since 127.0.0.1 would point
+          # each node at its own (absent) Loki.
+          if [ "${{ inputs.topology }}" == "localhost" ]; then
+            loki_url="http://127.0.0.1:3100"
+          else
+            primary_mesh=$(python3 -c "import json; d = json.load(open('/srv/github/ci-topology-facts.json')); print([n['mesh_ip'] for n in d['nodes'] if n['name'] == 'primary'][0])")
+            loki_url="http://${primary_mesh}:3100"
+          fi
+
           ${GITHUB_WORKSPACE}/actions/tools/deploy-collection.sh \
               /srv/github/ci-inventory.yaml \
               citestpw \
               ci-auth-secret-do-not-use-in-production-ci-auth-secret \
-              ci-system-key-do-not-use-in-production-ci-system-key
+              ci-system-key-do-not-use-in-production-ci-system-key \
+              "${loki_url}"
 
       - name: Wait for the cluster to become schedulable
         run: |
