@@ -190,14 +190,18 @@ jobs:
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}/shakenfist
 
-          # The daemons ship logs to the Loki on the primary. Single-node smoke
-          # reaches it on 127.0.0.1; multi-node clusters must use the primary's
-          # mesh IP (read from the topology facts), since 127.0.0.1 would point
-          # each node at its own (absent) Loki.
+          # MariaDB is installed only on the primary, and the daemons ship logs
+          # to the Loki on the primary. Single-node smoke reaches both on
+          # 127.0.0.1; multi-node clusters must use the primary's mesh IP (read
+          # from the topology facts), since 127.0.0.1 would point every node at
+          # its own (absent) MariaDB / Loki -- in particular a second database
+          # node's sf-database would have no MariaDB to reach.
           if [ "${{ inputs.topology }}" == "localhost" ]; then
+            mariadb_host="127.0.0.1"
             loki_url="http://127.0.0.1:3100"
           else
             primary_mesh=$(python3 -c "import json; d = json.load(open('/srv/github/ci-topology-facts.json')); print([n['mesh_ip'] for n in d['nodes'] if n['name'] == 'primary'][0])")
+            mariadb_host="${primary_mesh}"
             loki_url="http://${primary_mesh}:3100"
           fi
 
@@ -206,7 +210,8 @@ jobs:
               citestpw \
               ci-auth-secret-do-not-use-in-production-ci-auth-secret \
               ci-system-key-do-not-use-in-production-ci-system-key \
-              "${loki_url}"
+              "${loki_url}" \
+              "${mariadb_host}"
 
       - name: Wait for the cluster to become schedulable
         run: |

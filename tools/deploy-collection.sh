@@ -16,6 +16,11 @@ set -e
 #   $4  system_key     system namespace key for the cluster
 #   $5  loki_base_url  Loki shipper endpoint (127.0.0.1 single-node; the
 #                      primary's mesh IP for multi-node clusters)
+#   $6  mariadb_host   Where MariaDB actually runs. 127.0.0.1 for single-node;
+#                      the primary's mesh IP for multi-node clusters, since
+#                      MariaDB is installed only on the primary and every
+#                      database-tier node's sf-database must reach it (127.0.0.1
+#                      would point a second database node at an absent MariaDB).
 #
 # The caller (workflow step) is responsible for exporting the proxy / pip
 # environment (http_proxy / https_proxy / PIP_INDEX_URL) before invoking this,
@@ -27,6 +32,7 @@ MARIADB_PASSWORD="${2:?mariadb password required}"
 AUTH_SECRET="${3:?auth secret required}"
 SYSTEM_KEY="${4:?system key required}"
 LOKI_BASE_URL="${5:?loki base url required}"
+MARIADB_HOST="${6:?mariadb host required}"
 
 cd "${GITHUB_WORKSPACE}/shakenfist"
 
@@ -60,7 +66,7 @@ ansible-playbook -i "${INVENTORY}" examples/_shared/site.yml \
     --extra-vars "sf_build_local_wheels=true \
         repo_path=${GITHUB_WORKSPACE}/shakenfist \
         client_repo_path=${GITHUB_WORKSPACE}/client-python \
-        mariadb_host=127.0.0.1 \
+        mariadb_host=${MARIADB_HOST} \
         mariadb_port=3306 \
         mariadb_user=shakenfist \
         mariadb_password=${MARIADB_PASSWORD} \
