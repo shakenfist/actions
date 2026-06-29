@@ -161,10 +161,15 @@ jobs:
         run: |
           set -e
           . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          # OpenSSH refuses to use a private key with group/other permissions,
+          # so copy the shared key to a private-perms path for the inventory.
+          install -m 600 /srv/github/id_ci /tmp/ci_id_key
+
           python3 ${GITHUB_WORKSPACE}/actions/tools/ci-make-inventory.py \
               --facts-file /srv/github/ci-topology-facts.json \
               --ssh-user ${{ inputs.base_image_user }} \
-              --ssh-key /srv/github/id_ci \
+              --ssh-key /tmp/ci_id_key \
               --output /srv/github/ci-inventory.yaml
 
           echo "====="
@@ -240,6 +245,18 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
               "${setup} debian-12 /srv/ci/debian:12 --shared --no-checksum"
+
+          # Additional images used only by guest CI
+          if [ "${{ inputs.stestr_config }}" == "guest-ci.conf" ]; then
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
+                  "${setup} ubuntu-2004 /srv/ci/ubuntu:20.04 --shared --no-checksum"
+              ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
+                  "${setup} cirros /srv/ci/cirros --shared"
+          fi
 
       - name: Make the traces directory
         run: |
