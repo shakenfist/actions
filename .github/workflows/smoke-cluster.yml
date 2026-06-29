@@ -44,6 +44,15 @@ on:
       stestr_config:
         type: string
         default: smoke-ci.conf
+      test_kind:
+        # Which test suite to run after the deploy. 'functional' (default) runs
+        # the stestr suite named by stestr_config. 'ansible-modules' instead
+        # provisions ansible-core plus the freshly built shakenfist.shakenfist
+        # collection on the primary and runs the native-module lifecycle suite
+        # (ansiblemoduletests.sh). stestr_config is ignored when this is
+        # 'ansible-modules'.
+        type: string
+        default: functional
       test_concurrency:
         type: number
         default: 3
@@ -264,12 +273,14 @@ jobs:
           fi
 
       - name: Make the traces directory
+        if: inputs.test_kind == 'functional'
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${primary} "sudo mkdir -p /srv/ci/traces; sudo chown -R ${{ inputs.base_image_user }}:${{ inputs.base_image_user }} /srv/ci/traces"
 
       - name: Run functional tests
+        if: inputs.test_kind == 'functional'
         timeout-minutes: 45
         run: |
           set -e
@@ -305,7 +316,50 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${primary} "${script}"
 
+      - name: Run ansible module tests
+        if: inputs.test_kind == 'ansible-modules'
+        timeout-minutes: 60
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+          # Ship the repo (the scenario playbooks live in
+          # shakenfist/deploy/ansible_module_ci), the client (the sf_* modules
+          # import shakenfist_client), and the collection tarball the deploy
+          # built into shakenfist/dist-collection.
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/shakenfist \
+              ${{ inputs.base_image_user }}@${primary}:shakenfist
+          scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${GITHUB_WORKSPACE}/client-python \
+              ${{ inputs.base_image_user }}@${primary}:client-python
+
+          # The collection deploy installs only the SF server on the node, not
+          # ansible. Build a venv on the primary carrying ansible-core, the
+          # client, and the shakenfist.shakenfist collection. The sf_* modules
+          # run under the venv interpreter (ANSIBLE_PYTHON_INTERPRETER) so they
+          # import the client from there; without the override ansible would use
+          # the system interpreter, which lacks shakenfist_client. sfrc supplies
+          # the API URL and credentials the modules read from the environment.
+          script="set -e;"
+          script="${script} python3 -mvenv /tmp/moduletests;"
+          script="${script} . /tmp/moduletests/bin/activate;"
+          script="${script} pip3 install -U uv;"
+          script="${script} uv pip install ansible-core;"
+          script="${script} pip3 install ~/client-python;"
+          script="${script} ansible-galaxy collection install ~/shakenfist/dist-collection/*.tar.gz --force;"
+          script="${script} . /etc/sf/sfrc;"
+          script="${script} export ANSIBLE_PYTHON_INTERPRETER=/tmp/moduletests/bin/python3;"
+          script="${script} cd ~/shakenfist/shakenfist/deploy;"
+          script="${script} bash ansiblemoduletests.sh;"
+
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "${script}"
+
       - name: List slowest tests
+        if: inputs.test_kind == 'functional'
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
 
@@ -317,7 +371,7 @@ jobs:
               ${{ inputs.base_image_user }}@${primary} "${script}"
 
       - name: List failing tests
-        if: failure()
+        if: failure() && inputs.test_kind == 'functional'
         id: failures
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
