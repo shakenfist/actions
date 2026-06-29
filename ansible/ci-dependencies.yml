@@ -156,10 +156,6 @@
             url: "{{ actions_url }}",
             name: "github-actions-runner.tar.gz",
           }
-        - {
-            url: "https://sfcbr.shakenfist.com/backup-0.6.15-20230319",
-            name: "backup-0.6.15-20230319",
-          }
 
     - name: Clone imago-testdata from GitLab
       git:
