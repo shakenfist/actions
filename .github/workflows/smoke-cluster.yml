@@ -56,6 +56,13 @@ on:
       test_concurrency:
         type: number
         default: 3
+      test_timeout_minutes:
+        # Wall-clock budget for the functional test step. Topologies with
+        # fewer hypervisor nodes (slim-tier runs the same cluster suite on
+        # roughly half slim-primary's compute) need more headroom under
+        # under-cloud contention -- the suite passes, it just runs slower.
+        type: number
+        default: 45
       concurrency_key:
         # Disambiguates the concurrency group when one caller invokes this
         # workflow several times on the same ref (e.g. a matrix of topologies).
@@ -281,7 +288,7 @@ jobs:
 
       - name: Run functional tests
         if: inputs.test_kind == 'functional'
-        timeout-minutes: 45
+        timeout-minutes: ${{ inputs.test_timeout_minutes }}
         run: |
           set -e
           . ${GITHUB_WORKSPACE}/ci-environment.sh
