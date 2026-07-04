@@ -64,6 +64,24 @@ def load_schema() -> dict | None:
         return json.load(f)
 
 
+def strip_nulls(value):
+    """Recursively remove null-valued keys from dicts.
+
+    The reviewer model sometimes emits an explicit null for an optional
+    field it has nothing to say about (e.g. '"rationale": null') instead
+    of omitting the key. JSON Schema treats those differently: a key
+    that is optional may be absent, but if present it must match its
+    declared type, so an explicit null fails a '"type": "string"' check.
+    Throughout this pipeline null and absent mean the same thing, so
+    normalise to absent before validating or rendering.
+    """
+    if isinstance(value, dict):
+        return {k: strip_nulls(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [strip_nulls(v) for v in value]
+    return value
+
+
 def validate_review(review_data: dict) -> tuple[bool, str]:
     """Validate review data against the schema.
 
@@ -316,7 +334,7 @@ def main() -> None:
             sys.exit(1)
         input_path = Path(args[1])
         with open(input_path) as f:
-            data = json.load(f)
+            data = strip_nulls(json.load(f))
         is_valid, error = validate_review(data)
         if is_valid:
             print('Valid')
@@ -334,7 +352,7 @@ def main() -> None:
 
     # Load and validate
     with open(input_path) as f:
-        data = json.load(f)
+        data = strip_nulls(json.load(f))
 
     is_valid, error = validate_review(data)
     if not is_valid:
