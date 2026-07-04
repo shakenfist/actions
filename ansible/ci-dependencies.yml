@@ -10,7 +10,7 @@
 
   tasks:
     - name: Create an instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "rebuild-dependencies"
         cpu: 4
         ram: 4096
@@ -261,7 +261,7 @@
 
   tasks:
     - name: Snapshot the instance
-      sf_snapshot:
+      shakenfist.shakenfist.sf_snapshot:
         instance_uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
         all: true
         state: present
@@ -293,17 +293,17 @@
         msg: "Set label {{label}} to blob uuid {{hostvars['localhost']['snapshot_uuid']}}"
 
     - name: Delete the vda snapshot
-      sf_snapshot:
+      shakenfist.shakenfist.sf_snapshot:
         uuid: "{{cisnapshot['meta']['vda']['artifact_uuid']}}"
         state: absent
 
     - name: Delete the vdc snapshot (its a label now if it passed)
-      sf_snapshot:
+      shakenfist.shakenfist.sf_snapshot:
         uuid: "{{cisnapshot['meta']['vdc']['artifact_uuid']}}"
         state: absent
 
     - name: Delete build instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
         namespace: "{{identifier}}"
         state: absent

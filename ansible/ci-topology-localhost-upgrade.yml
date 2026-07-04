@@ -17,7 +17,7 @@
         instance_suffix: "{{ identifier[-5:] }}"
 
     - name: Create a primary instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-primary"
         cpu: 12
         ram: 16384

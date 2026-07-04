@@ -10,7 +10,7 @@
 
   tasks:
     - name: Create an instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "rebuild"
         cpu: 4
         ram: 4096
@@ -282,7 +282,7 @@
 
   tasks:
     - name: Snapshot the instance
-      sf_snapshot:
+      shakenfist.shakenfist.sf_snapshot:
         instance_uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
         state: present
       register: cisnapshot
@@ -300,7 +300,7 @@
         msg: "{{hostvars['localhost']['snapshot_uuid']}}"
 
     - name: Test the snapshot
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "test"
         cpu: 4
         ram: 4096
@@ -412,18 +412,18 @@
         msg: "Set label {{label}} to blob uuid {{hostvars['localhost']['snapshot_uuid']}}"
 
     - name: Delete the snapshot (its a label now if it passed)
-      sf_snapshot:
+      shakenfist.shakenfist.sf_snapshot:
         uuid: "{{cisnapshot['meta']['vda']['artifact_uuid']}}"
         state: absent
 
     - name: Delete test instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         uuid: "{{hostvars['imagetest']['sf_instance_uuid']}}"
         namespace: "{{identifier}}"
         state: absent
 
     - name: Delete build instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
         namespace: "{{identifier}}"
         state: absent

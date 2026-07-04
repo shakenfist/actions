@@ -28,12 +28,12 @@
     # Idempotent: a no-op in CI (the runner already lives in this
     # namespace) but the off-fabric path needs it created.
     - name: Ensure the ShakenFist namespace exists
-      sf_namespace:
+      shakenfist.shakenfist.sf_namespace:
         name: "{{ identifier }}"
         state: present
 
     - name: Create a network
-      sf_network:
+      shakenfist.shakenfist.sf_network:
         netblock: "10.0.2.0/24"
         name: "{{environment_name}}"
         namespace: "{{identifier}}"

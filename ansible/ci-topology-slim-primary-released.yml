@@ -17,7 +17,7 @@
         instance_suffix: "{{ identifier[-5:] }}"
 
     - name: Create a network for virtual network mesh traffic
-      sf_network:
+      shakenfist.shakenfist.sf_network:
         netblock: "10.0.1.0/24"
         nat: False
         name: "mesh"
@@ -30,7 +30,7 @@
           - "Mesh traffic network is {{meshnetwork['meta']['uuid']}}"
 
     - name: Create a primary instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-primary"
         cpu: 4
         ram: 4096
@@ -62,7 +62,7 @@
         groups: allsf,etcd_master,primary_node,network_node
 
     - name: Create sf-1
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-1"
         cpu: 4
         ram: 12288
@@ -92,7 +92,7 @@
         groups: hypervisors, allsf
 
     - name: Create sf-2
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-2"
         cpu: 4
         ram: 12288
@@ -122,7 +122,7 @@
         groups: hypervisors, allsf
 
     - name: Create sf-3
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-3"
         cpu: 4
         ram: 12288
@@ -152,7 +152,7 @@
         groups: hypervisors, allsf
 
     - name: Create sf-4
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-4"
         cpu: 4
         ram: 12288
@@ -182,7 +182,7 @@
         groups: hypervisors, allsf
 
     - name: Create sf-5
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-5"
         cpu: 4
         ram: 12288

@@ -1,6 +1,6 @@
 ---
 - name: Create an instance
-  sf_instance:
+  shakenfist.shakenfist.sf_instance:
     name: "{{ instance_name }}"
     cpu: "{{ vcpus }}"
     ram: "{{ memory }}"

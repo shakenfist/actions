@@ -16,7 +16,7 @@
         instance_suffix: "{{ identifier[-5:] }}"
 
     - name: Create a network for virtual network mesh traffic
-      sf_network:
+      shakenfist.shakenfist.sf_network:
         netblock: "10.0.1.0/24"
         nat: False
         name: "mesh"
@@ -33,7 +33,7 @@
     # because it now carries hypervisor workload in addition to primary,
     # network, and sf-database duties.
     - name: Create a primary instance
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-primary"
         cpu: 4
         ram: 12288
@@ -70,7 +70,7 @@
     # slim-tier topology asserts that both this instance and the primary
     # see a share of inbound gRPC traffic.
     - name: Create sf-1
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-1"
         cpu: 4
         ram: 12288
@@ -100,7 +100,7 @@
         groups: hypervisors, etcd_master, allsf
 
     - name: Create sf-2
-      sf_instance:
+      shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-2"
         cpu: 4
         ram: 12288
