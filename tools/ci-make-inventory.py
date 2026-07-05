@@ -7,7 +7,7 @@
 # The committed examples/cluster/inventory.yaml is the static, operator-facing
 # multi-node inventory. CI provisions its nodes dynamically, so this script
 # emits the topology-matched equivalent: the same group shape (allsf /
-# hypervisors / network_node / etcd_master) and per-host vars (node_name /
+# hypervisors / network_node / database_node) and per-host vars (node_name /
 # node_egress_* / node_mesh_*), but with real egress IPs and an SSH connection
 # instead of ansible_connection: local.
 #
@@ -57,7 +57,7 @@ def render_inventory(nodes):
     """Render the complete inventory YAML for the given list of nodes.
 
     Every node lands in allsf (with its full var block) and in each of the
-    hypervisors / network_node / etcd_master groups it belongs to (bare
+    hypervisors / network_node / database_node groups it belongs to (bare
     membership; vars live on allsf). This matches the group shape of
     examples/cluster/inventory.yaml and collapses to a single node in every
     group for the single-node smoke case.
@@ -73,9 +73,17 @@ def render_inventory(nodes):
     # The capability groups carry bare membership; vars live on allsf above.
     # A node only appears in a group when its corresponding flag is set, so a
     # hypervisor that is not the network node (etc.) lands only where it should.
+    # The database tier is emitted into BOTH database_node and the legacy
+    # etcd_master group for one release cycle: actions@main is consumed at
+    # runtime by every shakenfist branch, and pre-phase-7 copies of
+    # examples/_shared/site.yml only read groups['etcd_master']. The dual
+    # emission also exercises the deploy playbook's compatibility union and
+    # deprecation warning on every CI run. Remove etcd_master here when the
+    # fallback is removed from site.yml next release.
     group_flags = (
         ('hypervisors', 'is_hypervisor'),
         ('network_node', 'is_network_node'),
+        ('database_node', 'is_database_node'),
         ('etcd_master', 'is_database_node'),
     )
     for group, flag in group_flags:

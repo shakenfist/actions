@@ -43,7 +43,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{primary['meta']['uuid']}}"
-        groups: allsf,etcd_master,primary_node,network_node,hypervisors
+        groups: allsf,database_node,primary_node,network_node,hypervisors
 
     - name: Log instance details
       debug:

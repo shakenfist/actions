@@ -29,7 +29,7 @@
           - "Mesh traffic network is {{meshnetwork['meta']['uuid']}}"
 
     # The primary VM is also a hypervisor and a member of the sf-database
-    # tier (etcd_master). Bumped from slim-primary's 4096 MiB to 12288 MiB
+    # tier (database_node). Bumped from slim-primary's 4096 MiB to 12288 MiB
     # because it now carries hypervisor workload in addition to primary,
     # network, and sf-database duties.
     - name: Create a primary instance
@@ -62,7 +62,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{primary['meta']['uuid']}}"
-        groups: allsf,etcd_master,primary_node,network_node,hypervisors
+        groups: allsf,database_node,primary_node,network_node,hypervisors
 
     # sf-1 is the second sf-database tier member as well as a hypervisor.
     # It runs sf-database against the same MariaDB that lives on the
@@ -97,7 +97,7 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_uuid: "{{sf1['meta']['uuid']}}"
-        groups: hypervisors, etcd_master, allsf
+        groups: hypervisors, database_node, allsf
 
     - name: Create sf-2
       shakenfist.shakenfist.sf_instance:

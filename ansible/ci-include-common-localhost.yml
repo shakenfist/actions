@@ -33,7 +33,7 @@
             "mesh_ip": "{{ hostvars[h]['mesh_ip'] | default(hostvars[h]['ansible_ssh_host']) }}",
             "is_hypervisor": {{ (h in (groups['hypervisors'] | default([]))) | lower }},
             "is_network_node": {{ (h in (groups['network_node'] | default([]))) | lower }},
-            "is_database_node": {{ (h in (groups['etcd_master'] | default([]))) | lower }}
+            "is_database_node": {{ (h in ((groups['database_node'] | default([])) + (groups['etcd_master'] | default([])))) | lower }}
           }{{ "," if not loop.last else "" }}
       {% endfor %}
         ]
