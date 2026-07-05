@@ -13,12 +13,23 @@ set -e
 #   $1  checkout   path to the shakenfist repository checkout
 #                  (default: ${GITHUB_WORKSPACE}/shakenfist)
 #
-# The in-tree galaxy.yml carries a placeholder version (0.0.0), which is
-# fine here -- we only need the module plugins resolvable. Deploy paths
-# that ship the collection to real clusters build a properly versioned
-# tarball with tools/build-collection.py instead.
+# We build a tarball and install that, rather than installing from the
+# source directory, because the source-directory install form is not
+# supported by the older ansible-galaxy on some runner images (it fails
+# with "Invalid collection name"). Building and installing tarballs has
+# been supported since ansible 2.9. The in-tree galaxy.yml carries a
+# placeholder version (0.0.0), which is fine here -- we only need the
+# module plugins resolvable. Deploy paths that ship the collection to
+# real clusters build a properly versioned tarball with
+# tools/build-collection.py instead.
 
 CHECKOUT="${1:-${GITHUB_WORKSPACE}/shakenfist}"
 
+builddir=$(mktemp -d)
+trap 'rm -rf ${builddir}' EXIT
+
+ansible-galaxy collection build \
+    "${CHECKOUT}/shakenfist/deploy/collection" \
+    --output-path "${builddir}"
 ansible-galaxy collection install \
-    "${CHECKOUT}/shakenfist/deploy/collection" --force
+    "${builddir}"/shakenfist-shakenfist-*.tar.gz --force
