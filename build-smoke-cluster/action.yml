@@ -1,0 +1,247 @@
+name: 'Build a smoke cluster'
+description: >-
+  Provision under-cloud test instances and deploy a Shaken Fist cluster
+  onto them via the shakenfist.shakenfist collection, leaving the cluster
+  usable by subsequent steps in the calling job. The caller must have run
+  shakenfist/actions/setup-test-environment first (it creates the
+  ci-environment.sh handoff and the shakenfist / client-python checkouts
+  the deploy builds wheels from -- the checkout of the repository that
+  triggered the workflow is at the PR head, the others at develop).
+
+  This action is consumed by the reusable smoke-cluster.yml workflow, and
+  is also directly usable by ecosystem repositories that want to run
+  their own tests against a live cluster within their own job ("have I
+  completely broken things?"). The cluster's lifetime is the calling
+  job: nothing here tears it down, the under-cloud reaper collects the
+  test instances afterwards.
+
+inputs:
+  topology:
+    description: >-
+      Which ansible/ci-topology-<topology>.yml provisions the under-cloud
+      VMs: localhost (single-node smoke), slim-primary or slim-tier.
+    default: localhost
+  base_image:
+    description: The under-cloud image to boot test instances from.
+    default: 'sf://label/ci-images/debian-12'
+  base_image_user:
+    description: The login user for the base image.
+    default: debian
+  mariadb_password:
+    description: MariaDB password for the CI cluster.
+    default: citestpw
+  auth_secret:
+    description: AUTH_SECRET_SEED for the CI cluster.
+    default: ci-auth-secret-do-not-use-in-production-ci-auth-secret
+  system_key:
+    description: System namespace key for the CI cluster.
+    default: ci-system-key-do-not-use-in-production-ci-system-key
+
+outputs:
+  primary:
+    description: The egress address of the primary node.
+    value: ${{ steps.coordinates.outputs.primary }}
+  upload_target:
+    description: The node artifact uploads should target.
+    value: ${{ steps.coordinates.outputs.upload_target }}
+  namespace:
+    description: The under-cloud namespace holding the test instances.
+    value: ${{ steps.coordinates.outputs.namespace }}
+  inventory:
+    description: Path to the generated ansible inventory for the cluster.
+    value: /srv/github/ci-inventory.yaml
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build infrastructure
+      shell: bash
+      run: |
+        cd ${GITHUB_WORKSPACE}/actions
+
+        # The topology playbooks create the under-cloud test instances with
+        # the collection's native sf_* modules, so the collection must be
+        # resolvable on this runner before they run.
+        tools/install-collection.sh
+
+        ansible-playbook -i /home/debian/ansible-hosts \
+            --extra-vars "identifier=${SHAKENFIST_NAMESPACE} \
+            base_image=${{ inputs.base_image }} base_image_user=${{ inputs.base_image_user }}" \
+            ansible/ci-topology-${{ inputs.topology }}.yml
+
+        # The image upload runs against the primary in every topology: it
+        # talks to the cluster API, so the primary need not be a hypervisor.
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        echo "UPLOAD_TARGET=${primary}" >> $GITHUB_ENV
+
+    - name: Log environmental configuration
+      shell: bash
+      run: |
+        echo "## ci-environment.sh"
+        cat ${GITHUB_WORKSPACE}/ci-environment.sh
+        echo
+        echo "## Environment variables"
+        echo "SF_HEAD_SHA = ${SF_HEAD_SHA}"
+        echo "SHAKENFIST_NAMESPACE = ${SHAKENFIST_NAMESPACE}"
+        echo "UPLOAD_TARGET = ${UPLOAD_TARGET}"
+
+    - name: Copy CI tools to primary
+      shell: bash
+      run: |
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        cd ${GITHUB_WORKSPACE}/actions
+        scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null -rp tools \
+            ${{ inputs.base_image_user }}@${primary}:.
+
+        echo ""
+        echo "Copied tools:"
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${primary} "ls tools"
+
+    - name: Log github actions buffering status
+      shell: bash
+      run: |
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        cd ${GITHUB_WORKSPACE}/actions
+        tools/run_remote ${primary} python3 tools/buffer.py
+
+    - name: Install BYO MariaDB on primary
+      shell: bash
+      run: |
+        set -e
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${GITHUB_WORKSPACE}/shakenfist/tools/bootstrap-mariadb.sql \
+            ${GITHUB_WORKSPACE}/shakenfist/tools/ci-install-mariadb.sh \
+            ${GITHUB_WORKSPACE}/shakenfist/examples/mariadb-tuning.cnf \
+            ${{ inputs.base_image_user }}@${primary}:/tmp/
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${primary} \
+            'sudo bash /tmp/ci-install-mariadb.sh \
+                 /tmp/bootstrap-mariadb.sql \
+                 /tmp/mariadb-tuning.cnf \
+                 ${{ inputs.mariadb_password }}'
+
+    - name: Install Loki on primary
+      shell: bash
+      run: |
+        set -e
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${GITHUB_WORKSPACE}/shakenfist/tools/ci-install-loki.sh \
+            ${{ inputs.base_image_user }}@${primary}:/tmp/
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${primary} \
+            'sudo bash /tmp/ci-install-loki.sh'
+
+    - name: Generate the deploy inventory
+      shell: bash
+      run: |
+        set -e
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+        # OpenSSH refuses to use a private key with group/other permissions,
+        # so copy the shared key to a private-perms path for the inventory.
+        install -m 600 /srv/github/id_ci /tmp/ci_id_key
+
+        python3 ${GITHUB_WORKSPACE}/actions/tools/ci-make-inventory.py \
+            --facts-file /srv/github/ci-topology-facts.json \
+            --ssh-user ${{ inputs.base_image_user }} \
+            --ssh-key /tmp/ci_id_key \
+            --output /srv/github/ci-inventory.yaml
+
+        echo "====="
+        cat /srv/github/ci-inventory.yaml
+
+    - name: Deploy Shaken Fist via the collection
+      shell: bash
+      env:
+        # GitHub Actions env keys are case-insensitive, so we only set the
+        # lowercase proxy variables (the uppercase forms would collide). Most
+        # tooling (pip, apt, requests, ansible) reads the lowercase names.
+        http_proxy: http://192.168.1.15:3128
+        https_proxy: http://192.168.1.15:3128
+        no_proxy: localhost,127.0.0.1,10.0.0.0/8
+        PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
+      run: |
+        set -e
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        cd ${GITHUB_WORKSPACE}/shakenfist
+
+        # MariaDB is installed only on the primary, and the daemons ship logs
+        # to the Loki on the primary. Single-node smoke reaches both on
+        # 127.0.0.1; multi-node clusters must use the primary's mesh IP (read
+        # from the topology facts), since 127.0.0.1 would point every node at
+        # its own (absent) MariaDB / Loki -- in particular a second database
+        # node's sf-database would have no MariaDB to reach.
+        if [ "${{ inputs.topology }}" == "localhost" ]; then
+          mariadb_host="127.0.0.1"
+          loki_url="http://127.0.0.1:3100"
+        else
+          primary_mesh=$(python3 -c "import json; d = json.load(open('/srv/github/ci-topology-facts.json')); print([n['mesh_ip'] for n in d['nodes'] if n['name'] == 'primary'][0])")
+          mariadb_host="${primary_mesh}"
+          loki_url="http://${primary_mesh}:3100"
+        fi
+
+        ${GITHUB_WORKSPACE}/actions/tools/deploy-collection.sh \
+            /srv/github/ci-inventory.yaml \
+            ${{ inputs.mariadb_password }} \
+            ${{ inputs.auth_secret }} \
+            ${{ inputs.system_key }} \
+            "${loki_url}" \
+            "${mariadb_host}"
+
+    - name: Wait for the cluster to become schedulable
+      shell: bash
+      run: |
+        set +e
+
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${primary} 'sudo chmod ugo+r /etc/sf/*'
+
+        count=0
+        while [ $count -lt 60 ]
+        do
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${primary} \
+            '. /etc/sf/sfrc; /srv/shakenfist/venv/bin/python3 -' \
+            < ${GITHUB_WORKSPACE}/shakenfist/tools/ci_wait_schedulable.py
+          if [ $? == 0 ]; then
+            exit 0
+          fi
+
+          count=$(( $count + 1 ))
+          sleep 5
+        done
+
+        exit 1
+
+    - name: Import the base test image
+      shell: bash
+      run: |
+        set -e
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+
+        setup="export PATH=$PATH:/srv/shakenfist/venv/bin;"
+        setup="${setup} . /etc/sf/sfrc;"
+        setup="${setup} export SHAKENFIST_API_URL=http://localhost:13000;"
+        setup="${setup} /srv/shakenfist/venv/bin/sf-client artifact upload"
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
+            "${setup} debian-12 /srv/ci/debian:12 --shared --no-checksum"
+
+    - name: Export cluster coordinates
+      id: coordinates
+      shell: bash
+      run: |
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        echo "primary=${primary}" >> $GITHUB_OUTPUT
+        echo "upload_target=${UPLOAD_TARGET}" >> $GITHUB_OUTPUT
+        echo "namespace=${SHAKENFIST_NAMESPACE}" >> $GITHUB_OUTPUT
