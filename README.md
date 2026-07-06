@@ -74,7 +74,71 @@ Runs an automated code review on a pull request using Claude Code.
 
 ### setup-test-environment
 
-Sets up the test environment for Shaken Fist projects.
+Sets up the test environment for Shaken Fist projects: checks out the
+actions, shakenfist, client-python and agent-python repositories. The
+checkout of the repository that triggered the workflow is at the PR head
+sha; the others are at their default branches.
+
+### build-smoke-cluster
+
+Provisions under-cloud test instances and deploys a Shaken Fist cluster
+onto them via the shakenfist.shakenfist collection, leaving the cluster
+usable by later steps in the same job. Requires setup-test-environment
+to have run first. Outputs the cluster coordinates (`primary`,
+`upload_target`, `namespace`, `inventory`).
+
+## Adding Shaken Fist smoke CI to your repository
+
+Two modes, depending on what "have I broken things?" means for your
+repository. Both need a `[self-hosted, vm, debian-12]` runner.
+
+**Mode 1 — your check is Shaken Fist's own smoke suite** (the component
+you develop is deployed into the cluster and the standard suite
+exercises it; client-python works this way):
+
+```yaml
+jobs:
+  smoke:
+    uses: shakenfist/actions/.github/workflows/smoke-cluster.yml@main
+    secrets: inherit
+    with:
+      component: your-repo-name
+      component_ref: ${{ github.sha }}
+      tier: smoke
+```
+
+**Mode 2 — you want to run your own tests against a live cluster**
+(nothing of yours is inside the cluster; you test your integration with
+it):
+
+```yaml
+jobs:
+  smoke:
+    runs-on: [self-hosted, vm, debian-12]
+    steps:
+      - name: Setup test environment
+        uses: shakenfist/actions/setup-test-environment@main
+
+      - name: Build the smoke cluster
+        id: cluster
+        timeout-minutes: 90
+        uses: shakenfist/actions/build-smoke-cluster@main
+
+      - name: Run my tests against the cluster
+        run: |
+          # The cluster's API is on the primary; credentials are in
+          # /etc/sf/sfrc on the cluster nodes. For example:
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@${{ steps.cluster.outputs.primary }} \
+              '. /etc/sf/sfrc; /srv/shakenfist/venv/bin/sf-client node list'
+```
+
+The cluster's lifetime is the job: nothing tears it down explicitly, the
+under-cloud reaper collects the test instances afterwards. The deploy
+builds the shakenfist server and client wheels from the checkouts made
+by setup-test-environment, so cross-repo changes must land in
+dependency order.
 
 ### setup-kerbside-environment
 
@@ -189,7 +253,8 @@ The playbooks configure remote VMs to use local caches:
   `http://192.168.1.15:3128` (Squid).
 - **pip mirror**: Writes `/etc/pip.conf` pointing to
   `https://devpi.home.stillhq.com/root/pypi/+simple/` (devpi).
-- **getsf-wrapper**: Exports `http_proxy`, `https_proxy`, and
+- **collection deploy**: `deploy-collection.sh` (via the
+  build-smoke-cluster action) exports `http_proxy`, `https_proxy` and
   `PIP_INDEX_URL` for package operations during deployment.
 
 Plays targeting remote hosts also set `environment:` directives to
