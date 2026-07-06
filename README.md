@@ -76,8 +76,9 @@ Runs an automated code review on a pull request using Claude Code.
 
 Sets up the test environment for Shaken Fist projects: checks out the
 actions, shakenfist, client-python and agent-python repositories. The
-checkout of the repository that triggered the workflow is at the PR head
-sha; the others are at their default branches.
+checkout of the repository that triggered the workflow is at the
+triggering ref (for a pull request, the PR merge ref -- the change as
+merged into its base); the others are at their default branches.
 
 ### build-smoke-cluster
 
@@ -94,7 +95,10 @@ repository. Both need a `[self-hosted, vm, debian-12]` runner.
 
 **Mode 1 — your check is Shaken Fist's own smoke suite** (the component
 you develop is deployed into the cluster and the standard suite
-exercises it; client-python works this way):
+exercises it). This mode only tests YOUR change when your repository is
+one of the components the deploy builds from a checkout — shakenfist,
+client-python or agent-python. For any other repository it deploys pure
+develop and your change is never exercised: use Mode 2 instead.
 
 ```yaml
 jobs:
@@ -109,7 +113,9 @@ jobs:
 
 **Mode 2 — you want to run your own tests against a live cluster**
 (nothing of yours is inside the cluster; you test your integration with
-it):
+it). Add your own `actions/checkout` for your repository's test content
+— setup-test-environment only checks out the Shaken Fist component
+repositories:
 
 ```yaml
 jobs:

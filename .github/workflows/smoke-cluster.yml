@@ -17,9 +17,10 @@
 #
 # Component selection: setup-test-environment checks out shakenfist,
 # client-python and agent-python; the checkout of the repository that
-# TRIGGERED the workflow defaults to the PR head sha and the others to
-# their default branches, and the collection deploy builds the server and
-# client wheels from those checkouts. So a client-python PR is deployed
+# TRIGGERED the workflow is at the triggering ref (for a pull request,
+# the PR merge ref) and the others are at their default branches, and
+# the collection deploy builds the server and client wheels from those
+# checkouts. So a client-python PR is deployed
 # into the cluster against a develop server, and vice versa. The
 # component / component_ref inputs are used for logging and concurrency
 # grouping, not checkout control; cross-repo changes land in dependency
@@ -82,6 +83,9 @@ on:
         # workflow several times on the same ref (e.g. a matrix of topologies).
         # Without it every matrix entry shares component+tier+ref and they
         # cancel each other. Callers pass a per-entry slug (their job_name).
+        # The slug is also embedded in the bundle artifact name, which
+        # forbids characters like / \ : " -- keep it to alphanumerics and
+        # dashes.
         type: string
         default: ''
 
