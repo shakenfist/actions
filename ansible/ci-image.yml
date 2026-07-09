@@ -7,6 +7,12 @@
     ssh_private_key: '/srv/github/id_ci'
     base_image: "ubuntu:22.04"
     base_image_user: "ubuntu"
+    # When this playbook runs on a CI runner, the runner shares the
+    # builder instance's virtual network and can ssh to its inner
+    # address. When conductor runs it directly on maui, only floating
+    # IPs are routable, so float_builder=true gives the builder (and
+    # test) instances a floating IP and sshs to that instead.
+    float_builder: false
 
   tasks:
     - name: Create an instance
@@ -17,7 +23,7 @@
         disks:
           - "100@{{base_image}}"
         networkspecs:
-          - "network_uuid={{identifier}}"
+          - "network_uuid={{identifier}}{% if float_builder | bool %},float=true{% endif %}"
         ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
@@ -33,7 +39,7 @@
     - name: Add to ansible (force python3)
       add_host:
         hostname: imagerebuild
-        ansible_ssh_host: "{{imagerebuild_instance['meta']['interfaces'][0]['ipv4']}}"
+        ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
@@ -44,7 +50,7 @@
     - name: Add to ansible (detect system python)
       add_host:
         hostname: imagerebuild
-        ansible_ssh_host: "{{imagerebuild_instance['meta']['interfaces'][0]['ipv4']}}"
+        ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
@@ -279,6 +285,7 @@
     ssh_private_key: '/srv/github/id_ci'
     base_image_user: "ubuntu"
     label: "sfci-image"
+    float_builder: false
 
   tasks:
     - name: Snapshot the instance
@@ -307,7 +314,7 @@
         disks:
           - "100@sf://blob/{{hostvars['localhost']['snapshot_uuid']}}"
         networkspecs:
-          - "network_uuid={{identifier}}"
+          - "network_uuid={{identifier}}{% if float_builder | bool %},float=true{% endif %}"
         ssh_key: "{{ lookup('file', sshkey) }}"
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
@@ -319,7 +326,7 @@
     - name: Add to ansible (force python3)
       add_host:
         hostname: imagetest
-        ansible_ssh_host: "{{imagetest_instance['meta']['interfaces'][0]['ipv4']}}"
+        ansible_ssh_host: "{{ imagetest_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagetest_instance['meta']['interfaces'][0]['ipv4'] }}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
@@ -330,7 +337,7 @@
     - name: Add to ansible (detect system python)
       add_host:
         hostname: imagetest
-        ansible_ssh_host: "{{imagetest_instance['meta']['interfaces'][0]['ipv4']}}"
+        ansible_ssh_host: "{{ imagetest_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagetest_instance['meta']['interfaces'][0]['ipv4'] }}"
         ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
