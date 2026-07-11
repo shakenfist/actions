@@ -194,18 +194,36 @@
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
   tasks:
+    # The debian-gnome snapshot is baked into the cache disk for the
+    # nested desktop CI jobs, but the label only exists once the
+    # debian-gnome-12 image itself has been built. On a fresh cluster
+    # conductor builds this dependencies image first (it gates all
+    # runner provisioning), so a missing gnome label is skipped here
+    # rather than failing the build; conductor rebuilds this image
+    # once debian-gnome-12 exists to bake the snapshot in.
     - name: Look up debian-gnome snapshot artifact
       shell: |
-        download_uuid=$(sf-client --json artifact list | \
-                        jq -r '.[] | select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid')
-        echo "Artifact UUID: ${download_uuid}"
-        sf-client --json artifact show ${download_uuid} | jq '{uuid, source_url, blob_uuid, size}'
-        echo ${download_uuid}
+        sf-client --json artifact list | \
+            jq -r '.[] | select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid'
       register: gnome_artifact
 
-    - name: Log artifact details
+    - name: Record whether the debian-gnome label exists
+      set_fact:
+        gnome_label_exists: "{{ gnome_artifact.stdout_lines | length > 0 }}"
+
+    - name: Note the missing debian-gnome label
       debug:
-        msg: "{{ gnome_artifact.stdout }}"
+        msg: >-
+          The debian-gnome-12 label does not exist yet, so its snapshot
+          will not be cached on this dependencies disk. Rebuild this
+          image after debian-gnome-12 has been built to include it.
+      when: not gnome_label_exists | bool
+
+    - name: Log artifact details
+      shell: |
+        sf-client --json artifact show '{{ gnome_artifact.stdout_lines[-1] }}' | \
+            jq '{uuid, source_url, blob_uuid, size}'
+      when: gnome_label_exists | bool
 
     - name: Check runner resources before download
       shell: |
@@ -213,6 +231,7 @@
         df -h /tmp
         echo "=== Memory ==="
         free -m
+      when: gnome_label_exists | bool
 
     - name: Download debian-gnome snapshot
       shell: |
@@ -220,6 +239,7 @@
         rm -f /tmp/debian-12-gnome-agents
         sf-client artifact download ${download_uuid} /tmp/debian-12-gnome-agents
         ls -lh /tmp/debian-12-gnome-agents
+      when: gnome_label_exists | bool
 
     - name: Check runner resources after download
       shell: |
@@ -227,6 +247,7 @@
         df -h /tmp
         echo "=== Memory ==="
         free -m
+      when: gnome_label_exists | bool
 
     - name: Push debian-gnome snapshot to rebuild instance
       shell: |
@@ -234,6 +255,7 @@
               -o UserKnownHostsFile=/dev/null \
               /tmp/debian-12-gnome-agents \
               debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/debian-12-gnome-agents
+      when: gnome_label_exists | bool
 
 - hosts: allsf
   gather_facts: yes
