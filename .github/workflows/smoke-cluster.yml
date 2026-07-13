@@ -155,6 +155,27 @@ jobs:
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${primary} "sudo mkdir -p /srv/ci/traces; sudo chown -R ${{ inputs.base_image_user }}:${{ inputs.base_image_user }} /srv/ci/traces"
 
+      # The functional suite runs on the primary, but some assertions must
+      # inspect real host state (net namespaces, links, iptables) on *other*
+      # cluster nodes -- e.g. the network node for floating IPs. Drop the CI
+      # key onto the primary so those helpers can ssh across the mesh; every
+      # node already trusts id_ci for this user. See the shakenfist repo's
+      # docs/plans/PLAN-ci-node-exec-assertions.md.
+      - name: Authorise the primary to reach other nodes over the mesh
+        if: inputs.test_kind == 'functional'
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "mkdir -p ~/.ssh"
+          scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              /srv/github/id_ci \
+              ${{ inputs.base_image_user }}@${primary}:.ssh/id_rsa
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              ${{ inputs.base_image_user }}@${primary} "chmod 600 ~/.ssh/id_rsa"
+
       - name: Run functional tests
         if: inputs.test_kind == 'functional'
         timeout-minutes: ${{ inputs.test_timeout_minutes }}
