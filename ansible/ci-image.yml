@@ -45,6 +45,7 @@
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         ansible_python_interpreter: "/usr/bin/python3"
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
+        sf_interface_uuid: "{{imagerebuild_instance['meta']['interfaces'][0]['uuid']}}"
       when: base_image == "debian:11"
 
     - name: Add to ansible (detect system python)
@@ -55,20 +56,17 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
+        sf_interface_uuid: "{{imagerebuild_instance['meta']['interfaces'][0]['uuid']}}"
       when: base_image != "debian:11"
 
     - name: Log instance
       debug:
         msg: "{{hostvars['imagerebuild']}}"
 
-    - name: Wait for instance to present an "OpenSSH" prompt
-      wait_for:
-        port: 22
-        host: "{{hostvars['imagerebuild']['ansible_ssh_host']}}"
-        search_regex: OpenSSH
-        delay: 10
-        sleep: 10
-        state: present
+    - name: Wait for the instance to answer SSH, refloating once on timeout
+      include_tasks: tasks/wait-for-ssh-with-refloat.yml
+      vars:
+        wait_host: imagerebuild
 
 - hosts: localhost
   become: true
@@ -332,6 +330,7 @@
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         ansible_python_interpreter: /usr/bin/python3
         sf_instance_uuid: "{{imagetest_instance['meta']['uuid']}}"
+        sf_interface_uuid: "{{imagetest_instance['meta']['interfaces'][0]['uuid']}}"
       when: base_image == "debian:11"
 
     - name: Add to ansible (detect system python)
@@ -342,20 +341,17 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagetest_instance['meta']['uuid']}}"
+        sf_interface_uuid: "{{imagetest_instance['meta']['interfaces'][0]['uuid']}}"
       when: base_image != "debian:11"
 
     - name: Log instance
       debug:
         msg: "{{imagetest_instance}}"
 
-    - name: Wait for instance to present an "OpenSSH" prompt
-      wait_for:
-        port: 22
-        host: "{{hostvars['imagetest']['ansible_ssh_host']}}"
-        search_regex: OpenSSH
-        delay: 10
-        sleep: 10
-        state: present
+    - name: Wait for the instance to answer SSH, refloating once on timeout
+      include_tasks: tasks/wait-for-ssh-with-refloat.yml
+      vars:
+        wait_host: imagetest
 
 - hosts: localhost
   become: true

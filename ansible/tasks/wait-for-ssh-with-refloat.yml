@@ -1,0 +1,105 @@
+# Wait for a newly created instance to answer SSH, retrying once via a
+# defloat / refloat cycle if it never does.
+#
+# The 2026-07-19 nightly image build investigation found that roughly a
+# fifth of instance creations on the shared ci-images network never
+# become reachable on their floating IP within the wait window, while
+# the guest itself is healthy (the in-guest agent is up and sshd is
+# listening). Removing and re-adding the floating IP rebuilds the veth
+# pair, DNAT rule and ARP state on the network node, which forces the
+# whole floating datapath to be reconstructed.
+#
+# Required vars:
+#   wait_host: the inventory hostname registered via add_host. Its
+#     hostvars must include ansible_ssh_host, sf_instance_uuid and
+#     sf_interface_uuid.
+#
+# Uses the play-level float_builder var: without a floating IP there is
+# nothing to rebuild, so the timeout is simply fatal as before.
+- name: Check whether the in-guest agent reports ready
+  # Diagnostic only: if this fails but SSH works we don't care, and if
+  # SSH then times out the build log now shows whether the guest was
+  # actually up (agent ready means the float datapath is to blame).
+  shell: |
+    timeout 300 sf-client instance await {{ hostvars[wait_host]['sf_instance_uuid'] }}
+  register: agent_ready
+  ignore_errors: true
+
+- name: Wait for {{ wait_host }} to present an "OpenSSH" prompt
+  block:
+    - name: Wait for SSH
+      wait_for:
+        port: 22
+        host: "{{ hostvars[wait_host]['ansible_ssh_host'] }}"
+        search_regex: OpenSSH
+        delay: 10
+        sleep: 10
+        state: present
+
+  rescue:
+    - name: Capture diagnostics for the unreachable instance
+      shell: |
+        sf-client instance show {{ hostvars[wait_host]['sf_instance_uuid'] }}
+        echo "=== console tail ==="
+        sf-client instance consoledata {{ hostvars[wait_host]['sf_instance_uuid'] }} | tail -100
+      register: wait_diagnostics
+      ignore_errors: true
+
+    - name: Log diagnostics
+      debug:
+        msg: "{{ wait_diagnostics.stdout_lines | default([]) }}"
+
+    - name: Fail now when there is no floating IP to rebuild
+      fail:
+        msg: >-
+          {{ wait_host }} never presented SSH on
+          {{ hostvars[wait_host]['ansible_ssh_host'] }}
+      when: not (float_builder | bool)
+
+    - name: Remove the floating IP from the interface
+      shell: |
+        sf-client interface defloat {{ hostvars[wait_host]['sf_interface_uuid'] }}
+
+    - name: Wait for the defloat to complete
+      shell: |
+        sf-client --json interface show {{ hostvars[wait_host]['sf_interface_uuid'] }} | \
+          python3 -c 'import json, sys; print(json.load(sys.stdin)["network_interfaces"][0]["floating"])'
+      register: defloat_state
+      retries: 12
+      delay: 5
+      until: defloat_state.rc == 0 and (defloat_state.stdout | trim) in ['None', 'null', '']
+
+    - name: Add a fresh floating IP to the interface
+      shell: |
+        sf-client interface float {{ hostvars[wait_host]['sf_interface_uuid'] }}
+
+    - name: Fetch the new floating address
+      shell: |
+        sf-client --json interface show {{ hostvars[wait_host]['sf_interface_uuid'] }} | \
+          python3 -c 'import json, sys; print(json.load(sys.stdin)["network_interfaces"][0]["floating"])'
+      register: refloat_address
+      retries: 12
+      delay: 5
+      until: >-
+        refloat_address.rc == 0 and
+        (refloat_address.stdout | trim) not in ['', 'None', 'null']
+
+    - name: Update {{ wait_host }} with the new floating address
+      add_host:
+        hostname: "{{ wait_host }}"
+        ansible_ssh_host: "{{ refloat_address.stdout | trim }}"
+        ansible_ssh_extra_args: "{{ hostvars[wait_host]['ansible_ssh_extra_args'] }}"
+        ansible_ssh_user: "{{ hostvars[wait_host]['ansible_ssh_user'] }}"
+        ansible_ssh_private_key_file: "{{ hostvars[wait_host]['ansible_ssh_private_key_file'] }}"
+        ansible_python_interpreter: "{{ hostvars[wait_host]['ansible_python_interpreter'] | default(omit) }}"
+        sf_instance_uuid: "{{ hostvars[wait_host]['sf_instance_uuid'] }}"
+        sf_interface_uuid: "{{ hostvars[wait_host]['sf_interface_uuid'] }}"
+
+    - name: Wait for SSH on the new floating address
+      wait_for:
+        port: 22
+        host: "{{ refloat_address.stdout | trim }}"
+        search_regex: OpenSSH
+        delay: 10
+        sleep: 10
+        state: present
