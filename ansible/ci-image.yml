@@ -261,6 +261,14 @@
             enabled: yes
             state: started
 
+    # Debian 13 mounts /tmp as a tmpfs sized at half of RAM by default.
+    # CI runners are generally RAM constrained and their disks are on
+    # NVMe, so a disk-backed /tmp is a much better trade-off (kolla
+    # image builds fill a tmpfs /tmp immediately). Masking the unit is
+    # a no-op on distributions which do not enable the tmpfs.
+    - name: Disable tmpfs /tmp so /tmp is backed by disk
+      shell: systemctl mask tmp.mount
+
     - name: Cleanup cloud-init
       shell: cloud-init clean --logs
 
