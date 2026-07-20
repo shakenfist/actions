@@ -8,6 +8,28 @@
     base_image: "https://sfcbr.shakenfist.com/static/ubuntu2004-ci-template.qcow2"
     base_image_user: "ubuntu"
 
+    # DELIBERATELY MISSING NODE -- DO NOT "FIX" THIS BY CREATING IT.
+    #
+    # sf-absent is listed as a hypervisor in the deploy inventory (via
+    # ci-include-common-localhost.yml, which appends absent_deploy_hypervisors
+    # to the topology facts consumed by ci-make-inventory.py), but this topology
+    # creates NO sf_instance for it. Its egress/mesh addresses (10.0.0.29 /
+    # 10.0.1.29) are outside the .10/.20-.24 block the real nodes use, so nothing
+    # answers on them and the node is unreachable for the whole run.
+    #
+    # Its absence IS the test. It is the regression guard for the 2026-07-20
+    # sfcbr deploy, where one dead hypervisor (a failed disk) made the
+    # collection's cross-hypervisor MTU reduction dereference a fact that only
+    # exists on reachable hosts and abort the deploy on EVERY healthy node. The
+    # fix lives in the shakenfist repo (examples/_shared/site.yml, "absent-node
+    # tolerance"); this phantom keeps it honest by proving a real slim-primary
+    # deploy still succeeds with a hypervisor that never comes up. Giving it an
+    # instance, or removing it, silently deletes that coverage.
+    absent_deploy_hypervisors:
+      - name: sf-absent
+        egress_ip: 10.0.0.29
+        mesh_ip: 10.0.1.29
+
   tasks:
     # Derive a short per-run suffix for under-cloud instance names so that
     # under-cloud logs (libvirt, qemu, syslog) can be grepped back to the

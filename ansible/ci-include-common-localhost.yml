@@ -23,7 +23,17 @@
     # "groups['<grp>'] | default([])" form so a topology that omits a group
     # (e.g. no hypervisors) renders cleanly rather than erroring; "| lower"
     # turns Python True/False into JSON true/false.
+    #
+    # After the provisioned nodes we append absent_deploy_hypervisors: nodes a
+    # topology lists in the deploy inventory but deliberately never creates a VM
+    # for (slim-primary sets one -- see its comment). They land in the deploy
+    # inventory as hypervisors, so the collection deploy must tolerate a node
+    # that never answers; every other topology leaves the list empty (via
+    # "default([])") and renders exactly as before. The trailing comma on the
+    # last provisioned node is therefore conditional on whether any absent node
+    # follows it.
     content: |
+      {% set absent = absent_deploy_hypervisors | default([]) %}
       {
         "nodes": [
       {% for h in groups['allsf'] %}
@@ -34,6 +44,16 @@
             "is_hypervisor": {{ (h in (groups['hypervisors'] | default([]))) | lower }},
             "is_network_node": {{ (h in (groups['network_node'] | default([]))) | lower }},
             "is_database_node": {{ (h in ((groups['database_node'] | default([])) + (groups['etcd_master'] | default([])))) | lower }}
+          }{{ "," if not loop.last or absent | length > 0 else "" }}
+      {% endfor %}
+      {% for a in absent %}
+          {
+            "name": "{{ a.name }}",
+            "egress_ip": "{{ a.egress_ip }}",
+            "mesh_ip": "{{ a.mesh_ip | default(a.egress_ip) }}",
+            "is_hypervisor": true,
+            "is_network_node": false,
+            "is_database_node": false
           }{{ "," if not loop.last else "" }}
       {% endfor %}
         ]
