@@ -149,53 +149,51 @@
           dest: "/tmp/fetched-{{ inventory_hostname }}.zip"
           flat: yes
           fail_on_missing: yes
+        register: fetch_result
 
-      - name: List fetched files
-        shell: ls -lrt /tmp | grep fetched
-        register: file_listing
+      # The tasks below run on the CI worker (delegate_to: localhost), so they
+      # execute even for a node that never answered SSH -- delegation bypasses
+      # the per-host unreachable state that ignore_unreachable keeps in the
+      # play. A deliberately-absent hypervisor (the slim-primary topology's
+      # sf-absent) produces no fetched zip, and extracting a file that was
+      # never fetched hard-fails the whole gather. Skip local extraction for
+      # any node the fetch could not reach; reachable nodes are unaffected.
+      - name: Extract gathered logs on the CI worker
         delegate_to: localhost
+        when: not (fetch_result.unreachable | default(false))
+        block:
+        - name: List fetched files
+          shell: ls -lrt /tmp | grep fetched
+          register: file_listing
 
-      - name: Dump fetched file listing
-        debug:
-          msg: "{{ file_listing.stdout }}"
-        delegate_to: localhost
+        - name: Dump fetched file listing
+          debug:
+            msg: "{{ file_listing.stdout }}"
 
-      - name: Ensure the fetched file exists
-        file:
-          path: /tmp/fetched-{{ inventory_hostname }}.zip
-          state: file
-        delegate_to: localhost
+        - name: Stat fetched file
+          stat:
+            path: /tmp/fetched-{{ inventory_hostname }}.zip
+          register: fetched_file_stat
 
-      - name: Stat fetched file
-        stat:
-          path: /tmp/fetched-{{ inventory_hostname }}.zip
-        register: fetched_file_stat
-        delegate_to: localhost
+        - name: Dump state of file
+          debug:
+            msg: "{{ fetched_file_stat }}"
 
-      - name: Dump state of file
-        debug:
-          msg: "{{ fetched_file_stat }}"
-        delegate_to: localhost
+        - name: Ensure bundle directory exists
+          file:
+            path: "/srv/github/bundle/{{ inventory_hostname }}"
+            state: directory
 
-      - name: Ensure bundle directory exists
-        file:
-          path: "/srv/github/bundle/{{ inventory_hostname }}"
-          state: directory
-        delegate_to: localhost
+        - name: Extract node zip file
+          shell: |
+            unzip -q /tmp/fetched-{{ inventory_hostname }}.zip -d /srv/github/bundle/{{ inventory_hostname }}/ || true
+            chmod -R ugo+rw /srv/github/
 
-      - name: Extract node zip file
-        shell: |
-          unzip -q /tmp/fetched-{{ inventory_hostname }}.zip -d /srv/github/bundle/{{ inventory_hostname }}/ || true
-          chmod -R ugo+rw /srv/github/
-        delegate_to: localhost
+        - name: List bundle directory
+          shell: ls -lrt "/srv/github/bundle/{{ inventory_hostname }}"
+          register: file_listing
 
-      - name: List bundle directory
-        shell: ls -lrt "/srv/github/bundle/{{ inventory_hostname }}"
-        register: file_listing
-        delegate_to: localhost
-
-      - name: Dump bundle file listing
-        debug:
-          msg: "{{ file_listing.stdout }}"
-        delegate_to: localhost
+        - name: Dump bundle file listing
+          debug:
+            msg: "{{ file_listing.stdout }}"
       when: inventory_hostname != "localhost"

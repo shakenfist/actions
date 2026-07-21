@@ -393,6 +393,14 @@ jobs:
 
       - name: Gather logs
         if: always()
+        # Log collection is best effort and must never gate a merge: the
+        # functional tests are the gate. A node that is unreachable at gather
+        # time -- a deliberately-absent hypervisor (slim-primary's sf-absent)
+        # or a real node that died mid-run -- is no fault of the code under
+        # test. The playbook already skips unreachable nodes; this is
+        # defense in depth so an unforeseen gather failure still can't fail
+        # the run. Mirrors the node-lifecycle job in shakenfist.
+        continue-on-error: true
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
 
