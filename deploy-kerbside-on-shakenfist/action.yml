@@ -1,0 +1,85 @@
+name: 'Deploy kerbside on Shaken Fist'
+description: >-
+  Provision the Kerbside integration in a running single-node Shaken Fist
+  cluster (the build-smoke-cluster primary) and deploy a kerbside proxy
+  co-located on that primary, pointed at the cluster via a type: shakenfist
+  source. Mirrors deploy-kolla-ansible's shape: SSH into the primary and run
+  a sequence of steps, failing fast. The caller stages a kerbside checkout
+  and a built proxy wheel on the runner first (see kerbside's
+  sf-e2e-functional.yml). Composite-action steps cannot carry timeouts, so
+  put timeout-minutes on the step that uses this action.
+
+inputs:
+  base_user:
+    description: 'SSH user on the SF primary.'
+    required: false
+    default: 'debian'
+  primary:
+    description: 'The egress address of the SF primary node.'
+    required: true
+  system_key:
+    description: 'The SF system namespace key.'
+    required: true
+  kerbside_public_fqdn:
+    description: >-
+      The KERBSIDE_URL set in the SF cluster. It is BOTH the token audience
+      and the exchange-URL base, and must equal kerbside's
+      SF_CONSOLE_TOKEN_AUDIENCE byte-for-byte. Co-located, this is a
+      localhost address.
+    required: false
+    default: 'http://127.0.0.1:13002'
+  token_duration:
+    description: 'KERBSIDE_TOKEN_DURATION (seconds) set in the SF cluster.'
+    required: false
+    default: '300'
+  kerbside_src:
+    description: 'Runner path to the kerbside checkout to deploy.'
+    required: true
+  proxy_wheel:
+    description: 'Runner path/glob to the staged kerbside-proxy wheel.'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Copy the kerbside checkout and proxy wheel to the primary
+      shell: bash
+      run: |
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@${{ inputs.primary }} \
+            'rm -rf /tmp/sf-e2e/kerbside /tmp/sf-e2e/proxy-wheels; mkdir -p /tmp/sf-e2e/proxy-wheels'
+
+        scp -rp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.kerbside_src }} \
+            ${{ inputs.base_user }}@${{ inputs.primary }}:/tmp/sf-e2e/kerbside
+
+        scp -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.proxy_wheel }} \
+            ${{ inputs.base_user }}@${{ inputs.primary }}:/tmp/sf-e2e/proxy-wheels/
+
+    - name: Provision the Kerbside integration in Shaken Fist
+      shell: bash
+      run: |
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@${{ inputs.primary }} \
+            "bash /tmp/sf-e2e/kerbside/tools/sf-e2e/provision-sf.sh '${{ inputs.kerbside_public_fqdn }}' '${{ inputs.token_duration }}'"
+
+    - name: Deploy kerbside on the primary
+      shell: bash
+      # The system key passes through the environment rather than being
+      # interpolated into the workflow YAML, mirroring build-smoke-cluster.
+      env:
+        SYSTEM_KEY: ${{ inputs.system_key }}
+      run: |
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_user }}@${{ inputs.primary }} \
+            "bash /tmp/sf-e2e/kerbside/tools/sf-e2e/deploy-kerbside.sh \
+                --system-key '${SYSTEM_KEY}' \
+                --audience '${{ inputs.kerbside_public_fqdn }}' \
+                --kerbside-src /tmp/sf-e2e/kerbside \
+                --proxy-wheel '/tmp/sf-e2e/proxy-wheels/*.whl'"

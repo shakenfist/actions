@@ -200,6 +200,28 @@ is shared between kerbside and kerbside-patches CI to avoid duplication.
 5. Install patched OpenStack clients
 6. Post install Kolla-Ansible setup
 
+### deploy-kerbside-on-shakenfist
+
+Provisions the Kerbside integration in a running single-node Shaken Fist
+cluster (the `build-smoke-cluster` primary) and deploys a kerbside proxy
+co-located on that primary, pointed at the cluster via a `type: shakenfist`
+source. Used by kerbside's `sf-e2e-functional.yml` end-to-end lane. Mirrors
+`deploy-kolla-ansible`'s shape (SSH into the primary, run a sequence of
+steps, fail fast). The caller stages a kerbside checkout and a built proxy
+wheel on the runner first.
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `base_user` | No | `debian` | SSH user on the SF primary |
+| `primary` | Yes | - | Egress address of the SF primary node |
+| `system_key` | Yes | - | The SF system namespace key |
+| `kerbside_public_fqdn` | No | `http://127.0.0.1:13002` | `KERBSIDE_URL` set in SF; also the token audience and exchange-URL base (must equal kerbside's `SF_CONSOLE_TOKEN_AUDIENCE`) |
+| `token_duration` | No | `300` | `KERBSIDE_TOKEN_DURATION` (seconds) set in SF |
+| `kerbside_src` | Yes | - | Runner path to the kerbside checkout to deploy |
+| `proxy_wheel` | Yes | - | Runner path/glob to the staged kerbside-proxy wheel |
+
 ## Usage in Workflows
 
 These actions are designed to be used in GitHub Actions workflows. Example:
