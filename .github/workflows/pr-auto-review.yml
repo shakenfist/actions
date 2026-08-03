@@ -15,11 +15,16 @@
 #         pull-requests: write
 #         issues: write
 #       uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
-#       secrets: inherit
 #
 # The caller supplies the permissions because a cross-repository reusable
 # workflow cannot grant itself more token scope than its caller has; the
 # block here can only narrow what it is given.
+#
+# Callers must not add "secrets: inherit". Nothing here or in
+# review-pr-with-claude reads a secret -- both authenticate with
+# github.token, which comes from the permissions above -- so inheriting
+# would hand every secret the calling repository has to a workflow in
+# another repository, for no benefit.
 #
 # Callers do not need their own check-bot-commit job. This workflow does
 # that check itself, over the API rather than from a checkout, so
@@ -82,14 +87,24 @@ jobs:
         id: check_bot
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Read the commit list over the API rather than from a
+          # Read the head commit over the API rather than from a
           # checkout, so this runs before the repository is fetched and
           # a bot commit costs nothing but one API call.
+          #
+          # Ask for the head commit by SHA rather than taking the last
+          # element of .../pulls/N/commits. That endpoint pages at 30 by
+          # default and gh does not paginate unless told to, so on a PR
+          # with more than thirty commits the last element is the
+          # thirtieth commit and not the newest one -- and this guard
+          # would then read a stale author and let a bot commit trigger
+          # the review it exists to suppress. Projects whose
+          # "address comments" automation makes one commit per review
+          # item reach thirty commits easily.
           last_author_email=$(gh api \
-            "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits" \
-            --jq '.[-1].commit.author.email')
+            "repos/${{ github.repository }}/commits/${HEAD_SHA}" \
+            --jq '.commit.author.email')
           echo "Last commit author: ${last_author_email}"
 
           # Both addresses matter: the bot pushes as bot@shakenfist.com,
