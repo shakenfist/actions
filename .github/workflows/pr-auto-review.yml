@@ -92,12 +92,19 @@ jobs:
             --jq '.[-1].commit.author.email')
           echo "Last commit author: ${last_author_email}"
 
-          if [ "${last_author_email}" = "bot@shakenfist.com" ]; then
-            echo "is_bot=true" >> $GITHUB_OUTPUT
-            echo "Last commit was from the bot - skipping review"
-          else
-            echo "is_bot=false" >> $GITHUB_OUTPUT
-          fi
+          # Both addresses matter: the bot pushes as bot@shakenfist.com,
+          # but a Claude Code commit made on a runner is authored as
+          # noreply@anthropic.com. Clingwrap already caught both; the
+          # other projects only caught the first.
+          case "${last_author_email}" in
+            bot@shakenfist.com | noreply@anthropic.com)
+              echo "is_bot=true" >> $GITHUB_OUTPUT
+              echo "Last commit was from the bot - skipping review"
+              ;;
+            *)
+              echo "is_bot=false" >> $GITHUB_OUTPUT
+              ;;
+          esac
 
       - name: Checkout code
         if: steps.check_bot.outputs.is_bot != 'true'
