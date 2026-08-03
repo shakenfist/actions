@@ -1,0 +1,114 @@
+# Reusable automated PR review workflow.
+#
+# Runs a Claude Code review on a pull request. Callers add a small job to
+# their own CI workflow, which is where the "review only after the tests
+# pass" gate lives -- the caller's needs: list names that project's test
+# jobs, and a job which is skipped because a dependency failed never
+# starts this workflow:
+#
+#   jobs:
+#     automated_reviewer:
+#       name: "Automated reviewer"
+#       needs: [sanity_checks, smoke_collection]
+#       permissions:
+#         contents: read
+#         pull-requests: write
+#         issues: write
+#       uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
+#       secrets: inherit
+#
+# The caller supplies the permissions because a cross-repository reusable
+# workflow cannot grant itself more token scope than its caller has; the
+# block here can only narrow what it is given.
+#
+# Callers do not need their own check-bot-commit job. This workflow does
+# that check itself, over the API rather than from a checkout, so
+# adopting it removes a job and a runner from the calling project.
+#
+# A review is gated three ways. The caller's needs: list is the first
+# gate; the other two are here:
+#
+#   1. CI passed -- the caller's needs: list.
+#   2. The last commit is not the bot's, so a bot commit cannot trigger
+#      a review which triggers another bot commit.
+#   3. The bot has not already reviewed this PR. That check lives inside
+#      the review-pr-with-claude action, which skips when it finds an
+#      existing shakenfist-bot review unless its "force" input is set.
+#      This workflow deliberately does not pass force, and
+#      pr-re-review.yml does, so a human asking for a re-review is the
+#      only way to get a second review on a PR.
+#
+# SECURITY: the reviewer runs Claude Code with
+# --dangerously-skip-permissions on a runner holding a token with
+# pull-requests: write and issues: write, and the PR diff it is fed is
+# untrusted input. A prompt injection in a diff from an untrusted fork
+# could therefore reach a write-capable token, so this reviews
+# same-repository pull requests only. Reviewing forks would mean
+# sandboxing the reviewer or dropping its token to read-only first.
+#
+# The checkout is the merge ref of a same-repository PR, which the
+# reviewer needs for AGENTS.md, ARCHITECTURE.md and README.md context.
+# The diff itself arrives through "gh pr diff" inside the action.
+
+name: Automated PR review
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  review:
+    name: "Automated reviewer"
+    # Fork PRs are excluded here rather than in each caller, so the
+    # restriction cannot be lost when a project edits its CI workflow.
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, claude-code]
+    # A review normally finishes in three to six minutes. Without this
+    # the job inherits the six hour GitHub default, so a wedged Claude
+    # run would hold a scarce claude-code runner for the rest of the day.
+    timeout-minutes: 60
+    concurrency:
+      group: pr-auto-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Check if last commit was from bot
+        id: check_bot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Read the commit list over the API rather than from a
+          # checkout, so this runs before the repository is fetched and
+          # a bot commit costs nothing but one API call.
+          last_author_email=$(gh api \
+            "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits" \
+            --jq '.[-1].commit.author.email')
+          echo "Last commit author: ${last_author_email}"
+
+          if [ "${last_author_email}" = "bot@shakenfist.com" ]; then
+            echo "is_bot=true" >> $GITHUB_OUTPUT
+            echo "Last commit was from the bot - skipping review"
+          else
+            echo "is_bot=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout code
+        if: steps.check_bot.outputs.is_bot != 'true'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run automated reviewer
+        if: steps.check_bot.outputs.is_bot != 'true'
+        # No "force" here, so the action skips a PR the bot has already
+        # reviewed. pr-re-review.yml passes force to override that.
+        uses: shakenfist/actions/review-pr-with-claude@main
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
