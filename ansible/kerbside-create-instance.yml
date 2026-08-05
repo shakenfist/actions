@@ -14,8 +14,12 @@
     side_channels:
       - sf-agent2
     metadata:
-      affinity:
-        "{{ tag }}": -50
+      # Ansible templates dict values but not dict keys, so the tag must
+      # be folded into the affinity dict inside an expression. As a bare
+      # key, "{{ tag }}" reached the scheduler as a literal string that
+      # matched no instance tags, silently disabling anti-affinity (seen
+      # in the sf-6 OOM incidents of 2026-08-04/05).
+      affinity: "{{ {tag: -50} }}"
       tags:
        - "{{ tag }}"
     user_data: ""
