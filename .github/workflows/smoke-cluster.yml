@@ -176,6 +176,33 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${primary} "chmod 600 ~/.ssh/id_rsa"
 
+      # The federated exchange can only be tested end to end if the cluster
+      # will fetch a JWKS from the test process, and jwks_uri must be https --
+      # which the API enforces and should keep enforcing. This mints a
+      # throwaway CA, points every node's FEDERATION_JWKS_CA_BUNDLE at it, and
+      # leaves the signing key on the primary so the test can issue itself a
+      # leaf. Without it five tests in cluster_ci_tests/test_federation.py skip
+      # rather than fail. See shakenfist#3639.
+      #
+      # cluster-ci only: no other suite exercises the exchange, and the script
+      # restarts sf-api, which is not worth doing for a suite that will not use
+      # it. The script tolerates being absent from older component refs.
+      - name: Trust a throwaway JWKS certificate authority
+        if: >-
+          inputs.test_kind == 'functional'
+          && inputs.stestr_config == 'cluster-ci.conf'
+        timeout-minutes: 10
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          script="${GITHUB_WORKSPACE}/shakenfist/tools/ci-jwks-ca.sh"
+          if [ ! -f "${script}" ]; then
+              echo "${script} is not in this checkout, skipping. The"
+              echo "federation exchange tests will skip too."
+              exit 0
+          fi
+          bash "${script}" ${{ inputs.base_image_user }}
+
       - name: Run functional tests
         if: inputs.test_kind == 'functional'
         timeout-minutes: ${{ inputs.test_timeout_minutes }}
