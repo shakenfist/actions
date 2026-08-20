@@ -60,6 +60,11 @@ jobs:
           . /tmp/venv-lint/bin/activate
           pip install --quiet pre-commit
 
+      # This is also where skillsaw (https://github.com/stbenjam/skillsaw)
+      # runs, as a pre-commit hook: it lints AGENTS.md and any agent
+      # context added later for malformed frontmatter, embedded
+      # credentials and invisible-unicode smuggling.
+      #
       # SKIP=unit-tests because the unit-tests job below owns that
       # check. Running it here as well would report the same failure
       # under two names and hold a second runner to do it.
