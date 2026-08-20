@@ -57,6 +57,16 @@ repos:
       - id: shellcheck
         args: [--severity=error]
 
+  # skillsaw lints agent context -- AGENTS.md here, plus any skills,
+  # hooks or MCP configuration added later -- for malformed frontmatter,
+  # embedded credentials and invisible-unicode smuggling. Agent context
+  # is code an agent executes against, and it is the material a secret
+  # scanner is least likely to be pointed at.
+  - repo: https://github.com/stbenjam/skillsaw
+    rev: v0.18.0
+    hooks:
+      - id: skillsaw
+
   # flake8 over the Python helpers, at the fleet's 120 column limit.
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.1
