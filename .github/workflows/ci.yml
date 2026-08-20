@@ -32,6 +32,20 @@ permissions:
 jobs:
   lint:
     name: Lint
+    # SECURITY: fork pull requests do not run this job. It executes
+    # the pull request's own code on a self-hosted runner --
+    # pre-commit clones and runs whatever repos .pre-commit-config.yaml
+    # names, the unit-tests job imports the branch's test files, and
+    # gitleaks-scan.sh is the branch's own shell script. These runners
+    # hold /srv/github/id_ci, the key smoke-cluster.yml and
+    # tools/run_remote use to reach every node in the CI mesh, so code
+    # execution here reaches the whole cluster estate.
+    # pr-auto-review.yml carries the same condition for the same
+    # reason. A skipped job still satisfies branch protection, so this
+    # does not wedge a required check. See docs/ci.md.
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 15
     concurrency:
@@ -58,6 +72,11 @@ jobs:
 
   unit-tests:
     name: Unit tests
+    # SECURITY: fork pull requests do not run this job, for the
+    # reason set out on the lint job above.
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 15
     concurrency:
@@ -66,16 +85,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Plain unittest, run from the repository root. There is no
-      # package to install first and no test dependencies to fetch --
-      # deliberately, because this repository is not a Python project
-      # and growing a pyproject.toml just to run tests would make it
-      # one.
+      # PyYAML is the suite's one dependency: the inventory tests parse
+      # the generated inventory to check its group structure, and every
+      # other assertion in that file is substring matching which would
+      # pass on malformed YAML. It is installed explicitly rather than
+      # assumed present, because the test used to skip itself when the
+      # import failed -- and a skip is not a failure, so nobody would
+      # have noticed the one test that validates the output stop
+      # running. It is imported at module scope now, so a missing
+      # PyYAML is a hard error here and locally.
+      #
+      # From apt rather than pip: there is no package to install first
+      # and no requirements file, deliberately, because this repository
+      # is not a Python project and growing a pyproject.toml just to
+      # run tests would make it one.
+      - name: Install test dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-yaml
+
+      # Plain unittest, run from the repository root.
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -t . --verbose
 
   gitleaks:
     name: gitleaks
+    # SECURITY: fork pull requests do not run this job, for the
+    # reason set out on the lint job above.
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, vm, debian-13, s]
     timeout-minutes: 15
     concurrency:

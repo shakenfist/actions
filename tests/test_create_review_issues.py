@@ -8,6 +8,7 @@ once it has outlived the pull request that produced it.
 """
 
 import unittest
+from unittest import mock
 
 from tests.helpers import load_script
 
@@ -119,11 +120,17 @@ class IssueBodyTest(unittest.TestCase):
 class CreateIssueTest(unittest.TestCase):
     """create_issue shells out to gh, so drive it with a fake subprocess."""
 
-    def setUp(self):
-        self.real_run = issues.subprocess.run
-        self.addCleanup(setattr, issues.subprocess, 'run', self.real_run)
-
     def fake_run(self, result=None, exception=None):
+        """Replace subprocess.run for the duration of one test.
+
+        issues.subprocess is the real subprocess module object rather
+        than a per-module copy, so assigning to its `run` attribute
+        rebinds subprocess.run for every importer in the interpreter.
+        patch.object scopes the restore to the individual test, which
+        the manual save-and-restore this replaced did not: it left the
+        rebinding live for anything else that shelled out while the
+        test ran, and would not have survived a parallel runner.
+        """
         calls = []
 
         def _run(cmd, **kwargs):
@@ -132,7 +139,9 @@ class CreateIssueTest(unittest.TestCase):
                 raise exception
             return result
 
-        issues.subprocess.run = _run
+        patcher = mock.patch.object(issues.subprocess, 'run', new=_run)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         return calls
 
     def test_issue_number_is_parsed_from_the_returned_url(self):

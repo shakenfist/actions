@@ -9,9 +9,13 @@ syntactically valid inventory with a node in the wrong group, and the
 deploy then fails somewhere much further along.
 """
 
+import os
+import re
 import unittest
 
-from tests.helpers import load_script
+import yaml
+
+from tests.helpers import REPO_ROOT, load_script
 
 
 inventory = load_script('tools/ci-make-inventory.py', 'ci_make_inventory')
@@ -63,12 +67,22 @@ class BuildNodeTest(unittest.TestCase):
         self.assertEqual(node['mesh_ip'], '10.0.0.5')
 
     def test_capability_flags_are_coerced_to_bool(self):
-        # The playbook writes these out of jinja, so they can arrive as
-        # strings or integers rather than real booleans.
+        # ansible/ci-include-common-localhost.yml emits these through
+        # jinja's `| lower` filter, unquoted, so json.load hands
+        # build_node real booleans and bool() is a no-op. The integers
+        # below are the only other shape that has ever reached it. This
+        # test deliberately does not assert anything about the string
+        # 'false': bool() of any non-empty string is True, so a node
+        # marked "false" would land in the group anyway. That would be
+        # exactly the silent misplacement this module's docstring warns
+        # about, and the defence against it is the producer emitting
+        # real booleans -- checked by
+        # test_the_producer_template_emits_unquoted_booleans below --
+        # not a coercion here.
         node = inventory.build_node(
             {'name': 'sf-1', 'egress_ip': '10.0.0.5', 'mesh_ip': None,
-             'is_hypervisor': 1, 'is_network_node': 0,
-             'is_database_node': 'yes'},
+             'is_hypervisor': True, 'is_network_node': False,
+             'is_database_node': 1},
             'debian', '/srv/github/id_ci')
         self.assertIs(node['is_hypervisor'], True)
         self.assertIs(node['is_network_node'], False)
@@ -154,10 +168,12 @@ class RenderInventoryTest(unittest.TestCase):
         self.assertNotIn('node_egress_ip', after_groups)
 
     def test_output_is_parseable_yaml_with_the_expected_shape(self):
-        try:
-            import yaml
-        except ImportError:
-            self.skipTest('PyYAML not installed')
+        # PyYAML is imported at module scope, so this fails rather than
+        # skips when it is absent. Every other assertion in this class
+        # is substring matching against hand-rendered text and would
+        # pass happily on malformed YAML, which makes this the one test
+        # here that must never quietly stop running. The CI job installs
+        # python3-yaml for the same reason.
         text = self.render([
             spec('sf-1', '10.0.0.1', mesh_ip='192.168.1.1', network=True,
                  database=True),
@@ -177,6 +193,59 @@ class RenderInventoryTest(unittest.TestCase):
     def test_output_ends_with_a_newline(self):
         text = self.render([spec('sf-1', '10.0.0.5')])
         self.assertTrue(text.endswith('\n'))
+
+
+class ProducerContractTest(unittest.TestCase):
+    """The facts file build_node reads is written by an ansible template.
+
+    build_node's bool() is a no-op only for as long as that template
+    emits real JSON booleans. If quotes ever appear around them,
+    bool('false') is True and a node silently joins a group it does not
+    belong to -- a valid inventory that fails much further along. That is
+    cheaper to pin here, at the producer, than to defend against at the
+    consumer.
+    """
+
+    FLAGS = ('is_hypervisor', 'is_network_node', 'is_database_node')
+    FACTS_TEMPLATE = os.path.join(
+        REPO_ROOT, 'ansible', 'ci-include-common-localhost.yml')
+
+    def setUp(self):
+        with open(self.FACTS_TEMPLATE) as f:
+            self.template = f.read()
+
+    def emitted_values(self, flag):
+        values = [v.rstrip().rstrip(',') for v in re.findall(
+            r'"%s":\s*(.*)$' % flag, self.template, re.MULTILINE)]
+        self.assertTrue(
+            values, '%s is not emitted by the facts template at all' % flag)
+        return values
+
+    def test_the_producer_template_emits_unquoted_booleans(self):
+        for flag in self.FLAGS:
+            for value in self.emitted_values(flag):
+                with self.subTest(flag=flag, value=value):
+                    self.assertNotIn(
+                        '"', value,
+                        '%s is emitted as a quoted string, so json.load hands '
+                        'build_node a str and bool("false") is True' % flag)
+
+    def test_every_jinja_flag_expression_ends_in_the_lower_filter(self):
+        # `| lower` is what turns python's True into json's true. Without
+        # it the template emits the literal `True`, which is not valid
+        # JSON and fails the load outright -- loud, but worth pinning
+        # next to the quoting rule it sits beside.
+        for flag in self.FLAGS:
+            for value in self.emitted_values(flag):
+                if '{{' not in value:
+                    self.assertIn(value, ('true', 'false'))
+                    continue
+                with self.subTest(flag=flag, value=value):
+                    self.assertTrue(
+                        value.endswith('| lower }}'),
+                        '%s is emitted from jinja without `| lower`, so the '
+                        'facts file will carry python True/False rather than '
+                        'json true/false' % flag)
 
 
 if __name__ == '__main__':

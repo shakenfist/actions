@@ -80,6 +80,14 @@ printf 'GITHUB_TOKEN = "ghp_%s"\n' "$body" > "$CONTROL/planted.py"
 ssh-keygen -q -t rsa -b 2048 -N '' -C control@example.com \
     -f "$CONTROL/id_rsa"
 
+# `detect` rather than the newer `gitleaks dir` / `gitleaks git`
+# subcommands. Upstream deprecated detect in 8.19, but Debian 13 -- the
+# first Debian release to package gitleaks, and where the CI job installs
+# it from -- ships 8.16.0, where the newer subcommands do not exist. The
+# Debian build does not stamp a version either ("gitleaks
+# version" prints "version is set by build process"), so pinning the apt
+# install is not a workable alternative. Revisit if this ever fetches an
+# upstream release instead.
 echo
 echo "Positive control: two credentials planted in a scratch directory."
 set +e
