@@ -182,7 +182,7 @@ def main() -> None:
             issues_created += 1
             print(f'  Created issue #{issue_number}: {issue_url}')
         else:
-            print(f'  Failed to create issue')
+            print('  Failed to create issue')
 
     # Save updated JSON
     with open(output_path, 'w') as f:

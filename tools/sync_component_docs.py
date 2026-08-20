@@ -82,7 +82,7 @@ def parse_order_file(order_path: Path) -> list[tuple[str, str]] | None:
 
         data = yaml.safe_load(filtered_content)
         if not isinstance(data, list):
-            print(f'Warning: order.yml is not a list, ignoring')
+            print('Warning: order.yml is not a list, ignoring')
             return None
 
         result = []
