@@ -89,6 +89,14 @@ on:
         type: string
         default: ''
 
+# The workflow checks out repositories and uploads a log bundle, and
+# neither it nor the composite actions it calls make an authenticated
+# API call, so read access to contents is the whole requirement. As a
+# reusable workflow this can only narrow what a caller granted, never
+# widen it.
+permissions:
+  contents: read
+
 jobs:
   smoke_cluster:
     name: "Smoke tests (collection)"

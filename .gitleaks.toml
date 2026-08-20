@@ -1,0 +1,26 @@
+# gitleaks configuration for shakenfist/actions.
+#
+# The default ruleset is the whole ruleset here. Unlike the server
+# repositories, nothing in this project mints its own credentials, so
+# there is no project-specific token format to teach the scanner about.
+# What this file exists for is to pin the "extend the defaults" decision
+# so a future rule addition does not accidentally replace them, and to
+# document where an accepted finding goes when there is one.
+#
+# Accepted findings that recur -- documentation placeholders, test
+# fixtures, an upstream default -- belong in an [allowlist] block here,
+# keyed on the text via `regexes`, with a comment saying what the
+# credential is and why it is safe. Note that gitleaks rejects an
+# allowlist with no checks in it, so the block is added along with its
+# first entry rather than sitting here empty.
+#
+# Prefer regexes over paths: blinding a whole file also blinds a real
+# credential added to it later. A one-off historical event belongs in
+# .gitleaksignore as a commit:path:rule-id:line fingerprint instead.
+#
+# Never suppress a finding for a credential that still authorises
+# something. Rotate it first; an allowlist entry is a claim that the
+# credential has been dealt with, not that it has been tidied away.
+
+[extend]
+useDefault = true

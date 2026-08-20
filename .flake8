@@ -1,0 +1,7 @@
+[flake8]
+# 120 columns, matching the rest of the Shaken Fist projects.
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    .ansible

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+
+# Ansible's local fact and collection cache, created by running the
+# playbooks in ansible/ from a checkout.
+.ansible/
+
+# Scratch directory used by tools/gitleaks-scan.sh for its positive
+# control. Removed on a clean exit, so this only matters after a crash.
+.gitleaks-positive-control/

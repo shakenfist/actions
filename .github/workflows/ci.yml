@@ -1,0 +1,127 @@
+# CI for shakenfist/actions itself.
+#
+# This repository ships composite actions and reusable workflows that
+# every other project in the fleet consumes at @main, so a bad merge
+# here reaches everything at once. It had no CI of its own until this
+# workflow: the three other files in this directory are all
+# workflow_call-only, invoked by downstream projects, and nothing ran
+# on a pull request against this repository.
+#
+# What can and cannot be tested here is worth being explicit about,
+# because the gap is structural rather than an oversight. `uses:` does
+# not accept an expression, so the composite action references inside
+# smoke-cluster.yml are pinned to @main and cannot be repointed at a
+# pull request's ref. A downstream functional-test run against a branch
+# of this repository therefore still pulls build-smoke-cluster@main --
+# it exercises the old version, not the change under review. Composite
+# action changes are only integration-tested after they have landed,
+# which is what canary.yml exists to bound.
+#
+# So this workflow covers what is checkable without a cluster: the
+# workflow and action YAML, the ~2300 lines of shell, the ~2400 lines
+# of Python, and the repository's history. See docs/ci.md.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: [self-hosted, vm, debian-12, s]
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pre-commit
+        run: |
+          python3 -m venv /tmp/venv-lint
+          . /tmp/venv-lint/bin/activate
+          pip install --quiet pre-commit
+
+      # SKIP=unit-tests because the unit-tests job below owns that
+      # check. Running it here as well would report the same failure
+      # under two names and hold a second runner to do it.
+      - name: Run pre-commit hooks
+        env:
+          SKIP: unit-tests
+        run: |
+          . /tmp/venv-lint/bin/activate
+          pre-commit run --all-files --show-diff-on-failure
+
+  unit-tests:
+    name: Unit tests
+    runs-on: [self-hosted, vm, debian-12, s]
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-unit-tests
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      # Plain unittest, run from the repository root. There is no
+      # package to install first and no test dependencies to fetch --
+      # deliberately, because this repository is not a Python project
+      # and growing a pyproject.toml just to run tests would make it
+      # one.
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -t . --verbose
+
+  gitleaks:
+    name: gitleaks
+    runs-on: [self-hosted, vm, debian-13, s]
+    timeout-minutes: 15
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-gitleaks
+      cancel-in-progress: true
+    steps:
+      # fetch-depth: 0 matters. A secret committed and then reverted is
+      # still in the history and still needs rotating, and a shallow
+      # clone would make this job report a clean history it never
+      # looked at.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # gitleaks-action@v2 refuses to run on organization repositories
+      # without a paid licence, so the upstream binary is invoked
+      # directly. gitleaks is only packaged from Debian 13 (trixie)
+      # onward, which is why this job wants a debian-13 runner.
+      - name: Install gitleaks
+        run: sudo apt-get update && sudo apt-get install -y gitleaks
+
+      # The scan proper lives in a script so it runs the same way
+      # locally as it does here -- including its positive control,
+      # which is the part that distinguishes "scanned and found
+      # nothing" from "scanner is broken".
+      - name: Run gitleaks
+        run: tools/gitleaks-scan.sh
+
+  automated_reviewer:
+    name: "Automated reviewer"
+    # The needs: list is the "review only once CI has passed" gate. A
+    # job skipped because a dependency failed never starts the
+    # reusable workflow.
+    needs: [lint, unit-tests, gitleaks]
+    # A reusable workflow cannot grant itself more token scope than its
+    # caller has, so the permissions go here.
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    # Called by relative path rather than @main, so a pull request
+    # which changes the reviewer workflow is reviewed by its own
+    # version. Note this only reaches one level: the workflow's inner
+    # reference to review-pr-with-claude is still @main, because that
+    # is an action reference and `uses:` takes no expression there.
+    #
+    # No "secrets: inherit" -- nothing in the reviewer reads a secret,
+    # it authenticates with github.token from the permissions above.
+    uses: ./.github/workflows/pr-auto-review.yml

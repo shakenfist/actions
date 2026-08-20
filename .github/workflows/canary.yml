@@ -1,0 +1,110 @@
+# Post-merge canary for shakenfist/actions.
+#
+# Every project in the fleet consumes this repository at @main, so a
+# merge here is a deploy: there is no staging step between landing a
+# change and every downstream CI run picking it up. Pre-merge testing
+# cannot close that gap, because `uses:` does not accept an expression
+# and the composite action references inside smoke-cluster.yml are
+# therefore pinned to @main. A downstream run against a branch of this
+# repository still pulls build-smoke-cluster@main -- the old version.
+#
+# This workflow does not prevent a bad merge, it bounds how long one
+# goes unnoticed. It calls smoke-cluster.yml by relative path, so
+# immediately after a merge every piece involved -- the reusable
+# workflow, the composite actions it names at @main, and the scripts
+# under tools/ -- is the just-merged code, deployed against the
+# development branches of shakenfist, client-python and agent-python.
+# That is the same combination the next downstream CI run will get.
+#
+# The alternative considered was dispatching a run in
+# shakenfist/shakenfist. That needs a cross-repository token and tests
+# the same thing less directly, since the checkout that matters is
+# still actions@main either way.
+name: Post-merge canary
+
+on:
+  push:
+    branches: [main]
+    # Documentation cannot change what the actions do, and a smoke
+    # cluster is an expensive way to find that out.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke cluster
+    # component is used for concurrency grouping, logging and the
+    # bundle artifact name, not for checkout control:
+    # setup-test-environment always takes actions from its default
+    # branch, which post-merge is the commit that triggered this run.
+    uses: ./.github/workflows/smoke-cluster.yml
+    secrets: inherit
+    with:
+      component: actions
+      component_ref: ${{ github.sha }}
+      tier: smoke
+
+  # A canary nobody looks at is not a canary. A failed run on main
+  # emails whoever pushed, which is easy to miss when the push was a
+  # merge; this puts it somewhere the whole fleet can see, because a
+  # broken actions@main is everyone's problem rather than the author's.
+  report-failure:
+    name: Report canary failure
+    needs: [smoke]
+    if: failure()
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # One issue per outage, not one per merge. A canary that stays
+      # red for a day should not file a day's worth of issues, so an
+      # existing open report is commented on instead.
+      # gh issue create fails outright if the label does not exist, so
+      # the report would be lost at exactly the moment it is wanted.
+      # --force makes this idempotent.
+      - name: Ensure the canary label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create canary \
+              --repo "${GITHUB_REPOSITORY}" \
+              --description "Post-merge canary failure on main" \
+              --color d73a4a --force
+
+      - name: File or update the canary failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -e
+          existing=$(gh issue list --repo "${GITHUB_REPOSITORY}" \
+              --label canary --state open --limit 1 --json number \
+              --jq '.[0].number // empty')
+
+          body="The post-merge canary failed for ${SHA}.
+
+          Run: ${RUN_URL}
+
+          actions@main is what every downstream project resolves at
+          runtime, so their CI is likely to be failing too until this
+          is fixed or reverted."
+
+          if [ -n "${existing}" ]; then
+              echo "Commenting on existing canary issue #${existing}."
+              gh issue comment "${existing}" --repo "${GITHUB_REPOSITORY}" \
+                  --body "${body}"
+          else
+              echo "Filing a new canary issue."
+              gh issue create --repo "${GITHUB_REPOSITORY}" \
+                  --title "Post-merge canary failing on main" \
+                  --label canary \
+                  --body "${body}"
+          fi
