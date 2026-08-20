@@ -78,9 +78,15 @@ there and executed over ssh by `tools/run_remote`. They cannot be
 exercised locally or in CI, so changes to them are effectively untested
 until the canary runs. Be correspondingly careful.
 
-**A few files are inherited from the `shakenfist` repository and are
-called from nowhere here** -- `flake8wrap.sh` and `ci_code_formatting.sh`
-among them. Check for callers before assuming a script is live.
+**A script with no caller in this repository is usually still live.**
+Consumers check this repository out as `actions/` and run scripts
+straight out of it -- `shakenfist`'s `code-formatting.yml` calls
+`${GITHUB_WORKSPACE}/actions/tools/ci_code_formatting.sh`, its
+`sync-external-docs.yml` calls `ci_sync_docs.sh`, and kerbside's
+functional tests copy the `ovirt-*.sh` scripts to a node and run them
+there. Grepping this repository alone will tell you those are dead.
+Grep the fleet before deleting or changing the interface of anything
+under `tools/`.
 
 ## Conventions
 
