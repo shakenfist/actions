@@ -17,6 +17,23 @@ name: Export repository configuration
 on:
   workflow_call:
 
+# contents: write for the branch push, pull-requests: write for the
+# gh pr list / gh pr create pair. This is not a narrowing: it is what
+# the callers already grant, written down where the requirement is.
+#
+# The rulesets export (gh api repos/OWNER/REPO/rulesets) looks like it
+# should need more, because GitHub documents that endpoint as requiring
+# the "Administration" repository permission at read. It does not need
+# a wider block here, for two reasons. GITHUB_TOKEN cannot be granted
+# that scope at all -- "administration" is not one of the keys a
+# permissions: block accepts -- and the export demonstrably works
+# without it: shakenfist's caller has granted exactly these two
+# permissions all along, and its .github/exported-config/ ruleset JSON
+# is populated and current.
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   export-config:
     runs-on: [self-hosted, static]

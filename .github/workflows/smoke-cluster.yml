@@ -89,6 +89,14 @@ on:
         type: string
         default: ''
 
+# The workflow checks out repositories and uploads a log bundle, and
+# neither it nor the composite actions it calls make an authenticated
+# API call, so read access to contents is the whole requirement. As a
+# reusable workflow this can only narrow what a caller granted, never
+# widen it.
+permissions:
+  contents: read
+
 jobs:
   smoke_cluster:
     name: "Smoke tests (collection)"
@@ -159,8 +167,8 @@ jobs:
       # inspect real host state (net namespaces, links, iptables) on *other*
       # cluster nodes -- e.g. the network node for floating IPs. Drop the CI
       # key onto the primary so those helpers can ssh across the mesh; every
-      # node already trusts id_ci for this user. See the shakenfist repo's
-      # docs/plans/PLAN-ci-node-exec-assertions.md.
+      # node already trusts id_ci for this user. See
+      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-node-exec-assertions.md
       - name: Authorise the primary to reach other nodes over the mesh
         if: inputs.test_kind == 'functional'
         run: |

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+
+# Ansible's local fact and collection cache, created by running the
+# playbooks in ansible/ from a checkout.
+.ansible/

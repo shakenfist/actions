@@ -3,6 +3,12 @@
 This repository contains reusable GitHub Actions used across Shaken Fist
 projects.
 
+Every consumer pins `@main`, so a merge here is a deploy: there is no
+staging step between landing a change and every downstream CI run
+picking it up. [docs/ci.md](docs/ci.md) explains what that means for
+testing, what this repository's own CI does and does not cover, and how
+to run the checks locally.
+
 ## Available Actions
 
 ### pr-bot-trigger
@@ -296,6 +302,17 @@ When adding new actions:
 2. Add `action.yml` with the action definition
 3. Add any supporting scripts
 4. Update this README with documentation
+
+Before opening a pull request, run the checks CI will run:
+
+```bash
+pip install pre-commit
+pre-commit run --all-files
+python3 -m unittest discover -s tests -t . --verbose
+```
+
+See [docs/ci.md](docs/ci.md) for the rest, including the secret scan and
+which linters are deliberately not enabled yet.
 
 ## Projects Using These Actions
 

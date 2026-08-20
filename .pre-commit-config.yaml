@@ -1,0 +1,77 @@
+# Pre-commit hooks for shakenfist/actions.
+#
+# Install with: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# This repository holds no packaged Python, so there is no tox and no
+# pyproject.toml to hang test configuration off. Hooks therefore either
+# come from upstream (which pre-commit installs into its own cached
+# environments) or run a script from the tree directly.
+#
+# Two linters are deliberately absent, and are tracked as follow-up work
+# rather than silently dropped:
+#
+#   * yamllint reports 191 problems on ansible/ even with a 120 column
+#     limit, mostly `truthy` on ansible's idiomatic yes/no values.
+#   * ansible-lint reports 732 failures, 334 of which are `fqcn` asking
+#     for ansible.builtin. prefixes on every task.
+#
+# Both are real backlogs, but gating on them today would mean either a
+# large mechanical rewrite of the CI playbooks or a configuration that
+# disables so much it asserts nothing. See docs/ci.md.
+
+repos:
+  # Standard hygiene. These rewrite files rather than only reporting.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-executables-have-shebangs
+
+  # GitHub Actions workflow linter. This repository is a library of
+  # composite actions and reusable workflows, so this is the hook that
+  # covers most of what it actually ships. It reads .github/actionlint.yaml
+  # for the self-hosted runner labels.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+        name: Lint GitHub Actions workflows
+
+  # shellcheck over the ~2300 lines of shell in tools/ and
+  # review-pr-with-claude/.
+  #
+  # Gated at error severity rather than the default. The tree currently
+  # carries 31 warning-level findings (SC2046 unquoted command
+  # substitution, SC2034 unused variables, SC2164 unchecked cd) spread
+  # across seventeen scripts which run on remote CI nodes and cannot be
+  # exercised locally. Fixing them blind, in one change that is also
+  # standing CI up for the first time, trades one risk for a larger one.
+  # Raise this to warning once they have been worked through.
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: [--severity=error]
+
+  # flake8 over the Python helpers, at the fleet's 120 column limit.
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+
+  # Unit tests for the Python helpers. These are plain unittest, run
+  # directly, matching how shakenfist/development tests its own audit
+  # scripts -- there is no package here to install first.
+  - repo: local
+    hooks:
+      - id: unit-tests
+        name: Run unit tests
+        description: Unit tests for the Python helper scripts in tools/ and review-pr-with-claude/
+        entry: python3 -m unittest discover -s tests -t .
+        language: system
+        pass_filenames: false
+        files: \.py$
