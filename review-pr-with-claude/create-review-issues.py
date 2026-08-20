@@ -89,12 +89,14 @@ def build_issue_body(item: dict[str, Any], pr_number: int) -> str:
         lines.append(item['suggestion'])
         lines.append('')
 
-    # Add link to close issue when PR merges
+    # Point back at the pull request this came from. The closing link
+    # itself is not written here: "Closes #N" only closes anything when
+    # it appears in a pull request, so the working reference is the one
+    # render-review.py puts in the review comment on the PR, pointing at
+    # this issue. A "Closes #<pr>" line in an issue body is inert.
     lines.append('---')
-    lines.append(f'*This issue will be automatically closed when PR #{pr_number} '
-                 'is merged.*')
-    lines.append('')
-    lines.append(f'Closes #{pr_number} addresses this issue.')
+    lines.append(f'*Filed from the automated review of PR #{pr_number}, and '
+                 'closed by that pull request when it merges.*')
 
     return '\n'.join(lines)
 

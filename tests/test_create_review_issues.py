@@ -96,6 +96,20 @@ class IssueBodyTest(unittest.TestCase):
         self.assertNotIn('## Suggestion', body)
         self.assertNotIn('**Location:**', body)
 
+    def test_body_carries_no_inert_closes_line(self):
+        # "Closes #N" only closes anything when it appears in a pull
+        # request. The working reference is the one render-review.py
+        # puts in the review comment on the PR, pointing at this issue;
+        # the reverse direction in an issue body does nothing, and used
+        # to be emitted here as "Closes #42 addresses this issue."
+        body = issues.build_issue_body({'title': 'T'}, 42)
+        self.assertNotIn('Closes #', body)
+
+    def test_body_still_points_back_at_the_pull_request(self):
+        body = issues.build_issue_body({'title': 'T'}, 42)
+        self.assertIn('PR #42', body)
+        self.assertIn('closed by that pull request when it merges', body)
+
     def test_an_item_with_nothing_but_a_title_still_produces_a_body(self):
         body = issues.build_issue_body({'title': 'Bare'}, 7)
         self.assertTrue(body.strip())
