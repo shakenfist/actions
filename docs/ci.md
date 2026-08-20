@@ -124,6 +124,21 @@ integration-tested pre-merge either, so the repository's primary product
 has both its weakest test story and its weakest lint story. It goes on
 the backlog beside yamllint and ansible-lint.
 
+Widening the hook's `files:` pattern is not the fix, though it looks
+like one. actionlint has no notion of an action file: pointed at one
+explicitly it parses it as a workflow and reports the differences as
+errors --
+
+```
+review-pr-with-claude/action.yml:1:1: "jobs" section is missing in workflow
+review-pr-with-claude/action.yml:1:1: "on" section is missing in workflow
+review-pr-with-claude/action.yml:22:1: unexpected key "runs" for "workflow" section
+```
+
+-- so broadening the pattern fails the lint job on every composite
+action at once rather than producing findings to work through. Covering
+these files needs a different tool, not a wider glob.
+
 **`tools/gitleaks-scan.sh`'s own argument handling and shallow-clone
 guard are untested.** The positive control checks the scanner, not the
 script wrapping it.
