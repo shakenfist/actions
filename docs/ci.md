@@ -77,9 +77,15 @@ discovering:
   The `!cancelled()` term in each lane's condition overrides that: only
   a filter that positively answered "no code changed" skips a lane.
 * **A documentation-only pull request skips the hygiene hooks too.**
-  `check-merge-conflict`, `trailing-whitespace` and `end-of-file-fixer`
-  ride in the lint job, and their subject matter is precisely markdown,
-  so a stray conflict marker in `docs/` would now merge unremarked.
+  `check-merge-conflict`, `trailing-whitespace`, `end-of-file-fixer`
+  and `check-json` ride in the lint job, and their subject matter is
+  precisely markdown and generated JSON, so a stray conflict marker in
+  `docs/` would now merge unremarked. `check-json` is the sharp one:
+  a review-stamp-only pull request touches nothing *but* the excluded
+  paths, so the lint job skips and the generated
+  `.weaudit-shas.json` is validated only by the contributor's local
+  `pre-commit run`. `gitleaks` still reads all of it, so what is lost
+  is validation, not scanning.
   That is an accepted trade: running them on the static runner instead
   would mean executing the branch's pre-commit configuration there,
   which is the one thing `check_paths` is careful not to do.

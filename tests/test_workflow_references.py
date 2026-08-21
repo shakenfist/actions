@@ -504,6 +504,49 @@ class LaneConditionTest(unittest.TestCase):
                     'without the fork guard' % name)
         self.assertTrue(found, 'no self-hosted VM lanes found')
 
+    def test_the_secret_scanner_does_not_consume_the_path_filter(self):
+        # The rule this whole design rests on, stated in ci.yml's
+        # comment, canary.yml's comment and docs/ci.md, and enforced
+        # until now by nothing: a scanner exists to read the
+        # human-written text a filter skips. Wiring gitleaks to
+        # check_paths would make the secret scan skip exactly the
+        # documentation and review notes it is there to read -- which
+        # is the bug the fleet's other copy of this pattern has today,
+        # and not repeating it is the point.
+        gitleaks = self.ci['jobs']['gitleaks']
+        self.assertNotIn(
+            'check_paths', gitleaks.get('needs') or [],
+            'gitleaks must not depend on check_paths: prose is where a '
+            'secret or a smuggled character lands, so the scanner has to '
+            'read what the filter skips')
+        self.assertNotIn(
+            'code_changed', gitleaks.get('if', ''),
+            'gitleaks must not consume the path filter output, for the '
+            'reason its needs: list already avoids')
+
+    def test_the_filter_includes_everything_and_subtracts(self):
+        # An "everything except" filter is only correct while it
+        # actually starts from everything. Losing the '**' inclusion,
+        # or reverting the quantifier to the default 'some', turns
+        # every '!' exclusion below into a no-op -- silently, and in
+        # the direction where the lanes simply always run, which
+        # nobody notices.
+        for step in self.ci['jobs']['check_paths']['steps']:
+            spec = step.get('with') or {}
+            if not spec.get('filters'):
+                continue
+            self.assertEqual(
+                spec.get('predicate-quantifier'), 'some-with-excludes',
+                "the filter needs 'some-with-excludes': the default 'some' "
+                "makes '**' match everything and voids every exclusion")
+            patterns = yaml.safe_load(spec['filters'])['code']
+            self.assertIn(
+                '**', patterns,
+                "the code filter must start from '**'; without it the "
+                'exclusions below subtract from nothing')
+            return
+        self.fail('no paths-filter step found in ci.yml')
+
     def test_check_paths_does_not_check_out_the_branch(self):
         # The absence of a fork guard on check_paths is only correct
         # because the job never obtains the branch's content: on a

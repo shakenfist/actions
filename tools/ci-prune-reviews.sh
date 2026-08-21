@@ -44,7 +44,8 @@ Automated commit by the prune-reviews workflow.'
 # window: without it the run goes red for a reason unrelated to
 # correctness, which is how a workflow trains people to stop reading
 # it.
-for attempt in 1 2 3; do
+attempts=3
+for attempt in $(seq ${attempts}); do
     if git pull --rebase origin main && git push origin main; then
         exit 0
     fi
@@ -52,9 +53,14 @@ for attempt in 1 2 3; do
     # attempt would fail on that rather than on the race we are
     # retrying for.
     git rebase --abort 2> /dev/null || true
-    echo "Landing attempt ${attempt} was rejected; retrying."
-    sleep 5
+    # Only claim a retry that is actually coming. Whoever reads this
+    # log is reading it because something went wrong, which is the
+    # worst moment for the narration to be off by one.
+    if [ "${attempt}" -lt "${attempts}" ]; then
+        echo "Landing attempt ${attempt} of ${attempts} was rejected; retrying."
+        sleep 5
+    fi
 done
 
-echo "Could not land the pruned review state after three attempts." >&2
+echo "Could not land the pruned review state after ${attempts} attempts." >&2
 exit 1
