@@ -31,9 +31,17 @@ on:
     # weAudit file and its sidecar, which are neither markdown nor
     # under docs/, and with 80-odd files to work through one at a time
     # a stamping merge is the routine commit type this repository now
-    # creates. ('**.md' already covers REVIEWS.md.) These are the same
-    # exclusions ci.yml's path filter names, and they have to stay in
-    # step -- tests/test_workflow_references.py checks that they do.
+    # creates. ('**.md' already covers REVIEWS.md.) This list has to
+    # stay ahead of ci.yml's path filter, and
+    # tests/test_workflow_references.py checks that it does: every
+    # pattern that filter excludes must be named or subsumed here.
+    #
+    # The two are not identical, deliberately. '**.md' reaches further
+    # than the filter's '!docs/**' and '!REVIEWS.md', so a change to
+    # README.md or AGENTS.md is still linted but does not book a
+    # cluster -- markdown cannot alter an action. review-scope.toml is
+    # ignored here for the same reason, while the filter does not
+    # exclude it, because the unit tests read it.
     #
     # Content scanners get no such exemption anywhere: a filter skips
     # prose, and prose is where a secret or a smuggled character

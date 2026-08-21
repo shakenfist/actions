@@ -101,6 +101,14 @@ jobs:
           # inclusion would silently turn this into an intersection
           # matching almost nothing.)
           predicate-quantifier: 'some-with-excludes'
+          #
+          # .vscode/review-scope.toml is deliberately NOT excluded,
+          # unlike the two generated files beside it. It is hand
+          # edited, and the unit tests read it -- a typo in a pattern
+          # does not fail anything, it silently shrinks the set of
+          # files under review. canary.yml does ignore it, because
+          # there the criterion is "can this change what an action
+          # does", and it cannot.
           filters: |
             code:
               - '**'
@@ -108,7 +116,6 @@ jobs:
               - '!REVIEWS.md'
               - '!.vscode/*.weaudit'
               - '!.vscode/*.weaudit-shas.json'
-              - '!.vscode/review-scope.toml'
 
   lint:
     name: Lint

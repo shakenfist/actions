@@ -210,10 +210,18 @@ fleet's problem rather than the author's.
 Documentation-only pushes are skipped via `paths-ignore`, and so are
 pushes that only record a review: a merged review stamp writes
 generated files under `.vscode/` which cannot change what any action
-does. Those are the same paths `ci.yml`'s filter excludes, and
-`tests/test_workflow_references.py` checks that the two lists stay in
-step. Content scanners get no such exemption anywhere -- see the
-`gitleaks` note above.
+does. `tests/test_workflow_references.py` checks that every pattern
+`ci.yml`'s filter excludes is named or subsumed here, so the two
+cannot drift apart in the direction that matters.
+
+They are not identical, though. `canary.yml` ignores `**.md`, which
+reaches further than the filter's `docs/**` and `REVIEWS.md`: a change
+to `README.md` is still linted, but does not book a cluster, because
+markdown cannot alter an action. `review-scope.toml` goes the other
+way -- ignored here, *not* excluded from the filter, because the unit
+tests read it and a typo in a pattern silently shrinks the set of
+files under review. Content scanners get no exemption in either place
+-- see the `gitleaks` note above.
 
 ### Post-merge lane -- `prune-reviews.yml`
 
@@ -238,6 +246,18 @@ The `workflow_dispatch` trigger carries an `if: github.ref ==
 'refs/heads/main'` guard. The script pushes to `main` whatever ref is
 checked out, so dispatching it on a feature branch would push that
 branch's unmerged commits to `main`, skipping review entirely.
+
+**This workflow runs `shakenfist/development@main` code with write
+access to this repository.** The job clones that repository at
+whatever its default branch holds when the run starts, with no ref or
+SHA pin, and `tools/review-tracking.sh` then execs
+`scripts/review-tracking.py` out of that clone -- on the long-lived
+static runner, holding a `contents: write` token, with the output
+committed to `main` without review. That is a deliberate trust edge
+between two repositories in the same organisation, recorded here
+because it is invisible from this side and because this repository is
+otherwise explicit about what `@main` pinning costs. Pin the clone to
+a tag or a SHA if that coupling is ever more than is wanted.
 
 ### What is still not covered
 
@@ -358,14 +378,27 @@ one.
 The workflows get one test file too, `tests/test_workflow_references.py`.
 It checks that everything a workflow names actually exists: dispatch
 targets, relative `uses:` references, the scripts under `tools/` that
-`run:` steps invoke (including their executable bit, since they are run
-directly rather than through an interpreter), the agreement between
+`run:` steps invoke (including the executable bit, but only where the
+script is the command word -- a path handed to `run_remote` names a
+file on a cluster node, not on the runner), the agreement between
 `pr-address-comments.yml`'s sparse checkout and the directories it then
 reads tools from, and the agreement between the review-tracking
 exclusions in `ci.yml`, `canary.yml` and `.pre-commit-config.yaml`.
-Those are all cross-file references nothing else validates -- actionlint
-checks a workflow's syntax, not whether the file it dispatches is there
--- and each one fails only when somebody is depending on it.
+
+It also pins the conditions whose loss is silent: that every lane
+gated on `check_paths` keeps `!cancelled()` and tests `!= 'false'`
+rather than `== 'true'`, that every self-hosted VM lane keeps its fork
+guard, that `check_paths` acquires no checkout (the only reason its
+missing guard is correct), and that the prune job refuses to run on
+any ref but `main`. `.vscode/review-scope.toml` is checked too --
+every pattern in it must match a tracked file, and the four files its
+header argues are out of scope must stay out -- because a typo there
+fails nothing and silently shrinks what gets reviewed.
+
+Those are all cross-file references or silent-failure guards nothing
+else validates -- actionlint checks a workflow's syntax, not whether
+the file it dispatches is there -- and each one fails only when
+somebody is depending on it.
 
 `tools/clone_with_depends.py` is not covered: it needs a real
 `GitPython` repository and CI environment variables, and its

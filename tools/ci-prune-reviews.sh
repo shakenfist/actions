@@ -9,7 +9,12 @@
 # section of
 # https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md
 
-./tools/review-tracking.sh prune
+# Everything below uses relative paths and relative git pathspecs, so
+# anchor to the repository root rather than trusting the caller's cwd,
+# the way review-tracking.sh beside it already does.
+cd "$(git rev-parse --show-toplevel)"
+
+tools/review-tracking.sh prune
 
 # git status --porcelain rather than git diff --quiet: the latter
 # compares the working tree against the index for tracked paths only,
