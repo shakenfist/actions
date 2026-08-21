@@ -18,6 +18,19 @@ jobs:
   renovate:
     runs-on: [self-hosted, static]
     timeout-minutes: 30
+    # timeout-minutes does not cover queue time -- docs/ci.md records
+    # the gitleaks job sitting queued for ninety minutes -- so an
+    # hourly cron can fire while the previous run is still waiting for
+    # a static runner, and workflow_dispatch can collide with either.
+    # Two Renovate instances autodiscovering the same repository race
+    # on branch creation and produce duplicate or half-written pull
+    # requests.
+    #
+    # Not cancel-in-progress: killing Renovate mid-push is worse than
+    # skipping an hour, and the next cron is an hour away.
+    concurrency:
+      group: renovate
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v7

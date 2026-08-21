@@ -41,8 +41,31 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # SECURITY: fork pull requests do not run this job, the same
+    # condition ci.yml's lanes and pr-auto-review.yml carry. These
+    # runners hold /srv/github/id_ci, the key smoke-cluster.yml and
+    # tools/run_remote use to reach every node in the CI mesh. The
+    # actions and python extractors parse rather than build, and there
+    # is no autobuild step, so this is not an obvious execution path --
+    # but the Python extractor's dependency handling has varied across
+    # codeql-action versions and nothing here pins that behaviour off,
+    # so it is not a safety property this workflow establishes.
+    #
+    # There is nothing to lose by refusing: a fork pull request's token
+    # cannot hold security-events: write, so the analysis has no
+    # results to upload either way. A skipped job still satisfies
+    # branch protection. See docs/ci.md.
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, static]
     timeout-minutes: 30
+    # Successive pushes to a branch each start a fresh two-language
+    # matrix on scarce static runners; the superseded run has nothing
+    # to say. Grouped per language so the two do not cancel each other.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.language }}
+      cancel-in-progress: true
     permissions:
       # actions: read is required for workflow run telemetry.
       actions: read

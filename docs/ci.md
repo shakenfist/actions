@@ -41,8 +41,9 @@ switching to them would break every consumer.
 
 ## What CI does about it
 
-Three lanes, covering what is checkable without a cluster plus a
-post-merge check on what is not.
+Five lanes: what is checkable without a cluster, a post-merge check on
+what is not, static analysis over the workflows themselves, and a
+dependency updater keeping the pins they all rest on current.
 
 ### Pull request lane -- `ci.yml`
 
@@ -294,6 +295,22 @@ here *specifically* because CodeQL is not a required status check on
 this repository -- a `paths-ignore` on a required check leaves a gate
 waiting forever on a run that never starts.
 
+**Fork pull requests do not run it**, the same condition `ci.yml`'s
+lanes carry and for the same reason: this is a `static` runner holding
+`/srv/github/id_ci`. The extractors parse rather than build and there
+is no autobuild step, so no fork code obviously executes -- but the
+Python extractor's dependency handling has varied between
+`codeql-action` releases and this workflow pins none of that off, so
+"safe" is not a property the file establishes. Refusing costs nothing
+either way: a fork pull request's `GITHUB_TOKEN` cannot hold
+`security-events: write`, so there is nowhere for the analysis to
+upload results.
+
+Successive pushes to a branch each start a fresh two-language matrix on
+scarce static runners, so the job takes a concurrency group keyed on the
+ref *and* the language -- per language, or the two would cancel each
+other.
+
 The repository-settings half of the same audit -- secret scanning, push
 protection and Dependabot security updates -- is enabled through the
 API rather than from a file in the tree, so it appears in no diff and no
@@ -316,7 +333,12 @@ Renovate runs hourly on a `static` runner, autodiscovering only
 * **github-actions** -- the third-party action pins in
   `.github/workflows/` and in the composite `action.yml` files. Those
   had drifted apart before renovate arrived: `actions/checkout` was
-  pinned at `@v4` in some files and `@v6` in others.
+  pinned at `@v4` in some files and `@v6` in others. The two workflows
+  added alongside it use `@v7`, which is what the fleet template
+  specifies and what upstream currently ships, so the tree briefly
+  carries three majors. Renovate's first sweep converges them; pinning
+  the new files to a version already known to be stale, purely to make
+  the spread look smaller, would not.
 * **pre-commit** -- the hook revisions in `.pre-commit-config.yaml`.
   This manager is opt-in and ships disabled, so `renovate.json` turns it
   on explicitly. It matters more here than the version numbers suggest:
@@ -334,6 +356,34 @@ to every consumer at once, with no staging step between.
 Renovate pushes its branches to this repository rather than to a fork,
 so its pull requests are *not* skipped by the fork guard on `ci.yml` and
 get the full lint, unit test and gitleaks lane.
+
+That is worth following through, because it is the one place third-party
+code reaches a self-hosted runner on a trusted branch. A Renovate pull
+request bumping the `actionlint`, `shellcheck`, `flake8` or `skillsaw`
+rev makes `pre-commit run --all-files` clone and execute that new
+upstream revision on the runner holding `/srv/github/id_ci`, before
+anyone has read what changed upstream. `minimumReleaseAge: 3 days` and
+the no-automerge default are what stand between a compromised hook
+release and that runner. Neither is a substitute for looking at the
+upstream diff: a hook rev bump is the one dependency update here that
+should not be rubber-stamped.
+
+**The hourly cron is a wake-up, not the schedule.** `renovate.json`
+sets `"schedule": ["after 9pm"]`, so most of the 24 hourly runs find
+themselves outside that window and do nothing; updates arrive in one
+batch rather than through the day. No `timezone` is set, so "after 9pm"
+means 21:00 **UTC**, which is early morning in Australian hours rather
+than the evening the phrasing suggests. Both the schedule and the
+missing timezone come from `templates/renovate/` in
+`shakenfist/development` and are the same in every repository running
+this lane, so changing either is a fleet decision rather than a local
+one. If a Renovate pull request seems slow to appear, this is why.
+
+The job takes a `renovate` concurrency group. `timeout-minutes` does not
+cover queue time, so an hourly cron can fire while the previous run is
+still waiting for a static runner; two instances autodiscovering the
+same repository race on branch creation. It does not cancel in progress
+-- killing Renovate mid-push is worse than skipping an hour.
 
 One thing renovate cannot help with: the `shakenfist/actions/...@main`
 references, both the ones downstream and the ones this repository makes
@@ -456,6 +506,16 @@ one.
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that `@shakenfist-bot please address comments` reads back out |
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
+
+The documentation gets `tests/test_documentation_links.py`, which
+checks that every relative link resolves and that the two link
+conventions hold: the top-level `README.md` absolute throughout, and no
+relative link inside `docs/` escaping `docs/`. Both mirror consistency
+audits in `shakenfist/development` that would otherwise report the
+breakage a day later and against the repository rather than the change
+that caused it. The reshuffle that moved most of `README.md` into
+`docs/` rewrote every link pointing at the moved sections by hand,
+which is the kind of edit this catches.
 
 The workflows get one test file too, `tests/test_workflow_references.py`.
 It checks that everything a workflow names actually exists: dispatch
