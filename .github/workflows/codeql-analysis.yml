@@ -1,0 +1,68 @@
+# CodeQL analysis for shakenfist/actions.
+#
+# Two languages, and the first is the interesting one. GitHub Actions
+# workflows are what this repository mostly *is*, and CodeQL's actions
+# queries look for the things that go wrong in them: untrusted input
+# reaching a run: block, over-broad token permissions, unpinned
+# third-party actions. That is a better fit here than anywhere else in
+# the fleet, because a finding in these files is a finding in every
+# consumer's CI.
+#
+# Python is the second, covering the helper scripts under tools/ and
+# review-pr-with-claude/.
+#
+# There is no autobuild step. Both languages are analysed without one --
+# nothing here compiles -- and running autobuild against an interpreted
+# tree only adds a step that can fail for reasons unrelated to the
+# analysis.
+name: CodeQL
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    # Documentation cannot change what the analysis finds. CodeQL is
+    # not a required status check here, so a trigger-level filter is
+    # safe: there is no gate waiting on a run that never starts.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    # Weekly, so a newly published query reaches this repository without
+    # waiting for someone to open a pull request against it.
+    - cron: '0 17 * * 2'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: [self-hosted, static]
+    timeout-minutes: 30
+    permissions:
+      # actions: read is required for workflow run telemetry.
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, python]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

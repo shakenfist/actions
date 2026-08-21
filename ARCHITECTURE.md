@@ -70,6 +70,7 @@ runner and permissions.
 | `pr-address-comments.yml` | Works through the review's actionable items on a bot comment |
 | `prune-reviews.yml` | Drops review marks made stale by a push to main and commits the regenerated state back |
 | `renovate.yml` | Hourly dependency updater for this repository's own pins |
+| `codeql-analysis.yml` | CodeQL over the workflows and the Python helpers |
 
 The last seven are the exception to "nothing here runs for itself" --
 they exist only for this repository and are not consumed downstream. The

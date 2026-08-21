@@ -265,6 +265,49 @@ because it is invisible from this side and because this repository is
 otherwise explicit about what `@main` pinning costs. Pin the clone to
 a tag or a SHA if that coupling is ever more than is wanted.
 
+### Security lane -- `codeql-analysis.yml`
+
+CodeQL runs on pushes to `main`, on pull requests, and weekly on a
+schedule, analysing two languages.
+
+`actions` is the one that matters here. GitHub Actions workflows are
+most of what this repository *is*, and CodeQL's actions queries look for
+exactly what goes wrong in them: untrusted input reaching a `run:`
+block, over-broad token permissions, unpinned third-party actions. A
+finding in these files is a finding in every consumer's CI, because they
+all resolve them at `@main`. `python` is the second, covering the helper
+scripts under `tools/` and `review-pr-with-claude/`.
+
+Two deliberate differences from `templates/codeql/` in
+`shakenfist/development`:
+
+* It triggers on `main` rather than `develop`. This repository keeps
+  `main` as its default branch so that consumers pinning `@main` keep
+  working.
+* There is no autobuild step. Nothing here compiles, both languages are
+  analysed without one, and running autobuild against an interpreted
+  tree only adds a step that can fail for reasons unrelated to the
+  analysis.
+
+Documentation-only changes are filtered out at the trigger. That is safe
+here *specifically* because CodeQL is not a required status check on
+this repository -- a `paths-ignore` on a required check leaves a gate
+waiting forever on a run that never starts.
+
+The repository-settings half of the same audit -- secret scanning, push
+protection and Dependabot security updates -- is enabled through the
+API rather than from a file in the tree, so it appears in no diff and no
+commit. Nothing here would notice it being turned back off. This
+repository ships `export-repo-config.yml` but does not call it on
+itself, and that workflow would not catch it anyway -- its
+`gh api repos/...` field list stops at the merge and feature toggles and
+never reads `security_and_analysis`. The daily consistency audit in
+`shakenfist/development` is the only thing watching, and it would report
+a regression as a fresh audit failure rather than as configuration
+drift. Widening the export is the obvious fix, but that workflow is
+consumed by the whole fleet at `@main`, so it is a change to make
+deliberately rather than in passing.
+
 ### Dependency lane -- `renovate.yml`
 
 Renovate runs hourly on a `static` runner, autodiscovering only
