@@ -265,6 +265,39 @@ because it is invisible from this side and because this repository is
 otherwise explicit about what `@main` pinning costs. Pin the clone to
 a tag or a SHA if that coupling is ever more than is wanted.
 
+### Dependency lane -- `renovate.yml`
+
+Renovate runs hourly on a `static` runner, autodiscovering only
+`shakenfist/actions`, and opens pull requests for two managers:
+
+* **github-actions** -- the third-party action pins in
+  `.github/workflows/` and in the composite `action.yml` files. Those
+  had drifted apart before renovate arrived: `actions/checkout` was
+  pinned at `@v4` in some files and `@v6` in others.
+* **pre-commit** -- the hook revisions in `.pre-commit-config.yaml`.
+  This manager is opt-in and ships disabled, so `renovate.json` turns it
+  on explicitly. It matters more here than the version numbers suggest:
+  those hooks are the *only* automated gate this repository has over the
+  workflows and actions the whole fleet consumes, so an unwatched pin
+  means the thing judging everything else is itself unjudged. `instar`
+  found this the hard way, four months behind on `actionlint` while its
+  other dependencies stayed current.
+
+Nothing is automerged. `minimumReleaseAge` is three days and every
+update type is left for a human, which is the right default here for the
+reason the top of this document gives -- a merge to `main` is a deploy
+to every consumer at once, with no staging step between.
+
+Renovate pushes its branches to this repository rather than to a fork,
+so its pull requests are *not* skipped by the fork guard on `ci.yml` and
+get the full lint, unit test and gitleaks lane.
+
+One thing renovate cannot help with: the `shakenfist/actions/...@main`
+references, both the ones downstream and the ones this repository makes
+of itself. A branch ref carries no version, so there is nothing for a
+dependency updater to bump. Those stay a manual concern, and are why
+`canary.yml` exists.
+
 ### What is still not covered
 
 Composite action changes are integration-tested only *after* they land.
