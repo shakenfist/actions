@@ -28,9 +28,25 @@ candidates=(
     "${HOME}/src/shakenfist/development"
 )
 
+# Discovery tests for the file, not for the executable bit. A clone
+# sitting exactly where expected but with the bit dropped -- a zip
+# export, a copy across filesystems, a restrictive umask -- would
+# otherwise fall through to "cannot find a clone", sending somebody
+# who has already done both of the things that message asks for
+# looking in the wrong place entirely.
+searched=()
 for candidate in "${candidates[@]}"; do
+    if [ -z "${candidate}" ]; then
+        continue
+    fi
     script="${candidate}/scripts/review-tracking.py"
-    if [ -n "${candidate}" ] && [ -x "${script}" ]; then
+    searched+=("${script}")
+    if [ -f "${script}" ]; then
+        if [ ! -x "${script}" ]; then
+            echo "Found ${script} but it is not executable." >&2
+            echo "Run: chmod +x ${script}" >&2
+            exit 1
+        fi
         cd "${repo_root}"
         exec "${script}" "$@"
     fi
@@ -39,4 +55,8 @@ done
 echo 'Cannot find a shakenfist/development clone providing' >&2
 echo 'scripts/review-tracking.py. Clone it next to this repository or' >&2
 echo 'set SHAKENFIST_DEVELOPMENT to the path of an existing clone.' >&2
+echo 'Searched:' >&2
+for path in "${searched[@]}"; do
+    echo "  ${path}" >&2
+done
 exit 1

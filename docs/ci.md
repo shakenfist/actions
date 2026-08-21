@@ -48,21 +48,47 @@ post-merge check on what is not.
 
 | Job | What it covers |
 |-----|----------------|
+| Check paths | Decides whether this pull request touches anything but documentation and review marks. Runs on a static runner; the three jobs below are each an ephemeral VM |
 | Lint | `pre-commit run --all-files`: actionlint over the reusable workflows, shellcheck over `tools/`, flake8 over the Python, plus hygiene hooks |
 | Unit tests | `python3 -m unittest discover -s tests -t .` |
 | gitleaks | `tools/gitleaks-scan.sh` over all history reachable from `HEAD` |
-| Automated reviewer | The shared Claude Code review, gated on the three above |
+| Automated reviewer | The shared Claude Code review, gated on lint, unit tests and gitleaks |
 
 The reviewer is called by relative path rather than `@main`, so a pull
 request which changes the reviewer workflow is reviewed by its own
 version. That only reaches one level: the workflow's inner reference to
 `review-pr-with-claude` is an action reference, so it stays `@main`.
 
-**Fork pull requests do not run any of it.** Each of the three checking
-jobs executes the pull request's own code -- pre-commit clones and runs
-whatever repositories `.pre-commit-config.yaml` names, the unit tests
-import the branch's test files, and `gitleaks-scan.sh` is the branch's
-own shell script -- on a self-hosted runner that holds
+**Only lint and unit tests consume the path filter.** `gitleaks`
+deliberately does not, and that is the important half of the design. A
+scanner exists to read the human-written text a filter skips;
+documentation and review notes are prose, and prose is where a secret
+or an invisible-unicode smuggle lands. `automated_reviewer` needs lint
+and unit tests, so it skips when they do without a condition of its
+own -- LLM credits are the other thing not worth spending on a typo.
+
+Two consequences of that filter are worth stating rather than
+discovering:
+
+* **The filter fails open.** By default a job whose dependency did not
+  succeed is skipped, and a skipped job satisfies branch protection --
+  so a broken `check_paths` would read as "the required checks are
+  green" on a repository where a merge to `main` deploys to ten others.
+  The `!cancelled()` term in each lane's condition overrides that: only
+  a filter that positively answered "no code changed" skips a lane.
+* **A documentation-only pull request skips the hygiene hooks too.**
+  `check-merge-conflict`, `trailing-whitespace` and `end-of-file-fixer`
+  ride in the lint job, and their subject matter is precisely markdown,
+  so a stray conflict marker in `docs/` would now merge unremarked.
+  That is an accepted trade: running them on the static runner instead
+  would mean executing the branch's pre-commit configuration there,
+  which is the one thing `check_paths` is careful not to do.
+
+**Fork pull requests do not run any of the checking lanes.** Each of
+the three executes the pull request's own code -- pre-commit clones and
+runs whatever repositories `.pre-commit-config.yaml` names, the unit
+tests import the branch's test files, and `gitleaks-scan.sh` is the
+branch's own shell script -- on a self-hosted runner that holds
 `/srv/github/id_ci`, the key `smoke-cluster.yml` and `tools/run_remote`
 use to reach every node in the CI mesh. Code execution in any of those
 jobs therefore reaches the whole cluster estate. `pr-auto-review.yml`
@@ -71,6 +97,15 @@ reason; the three jobs in `ci.yml` now carry it too. GitHub's default
 approval prompt is not a substitute: for a public repository it only
 covers *first-time* contributors, so one merged trivial pull request
 clears it thereafter.
+
+`check_paths` is the exception, and carries no fork guard. It has no
+checkout step: on a `pull_request` event `dorny/paths-filter` reads the
+changed-file list from the `pulls.listFiles` API and never looks at the
+working tree, so a fork's file content never reaches the static runner
+at all. That API call is why the job grants itself
+`pull-requests: read` -- specifying `permissions` sets every unlisted
+scope to none, and this repository being public is not a reason to rely
+on the call succeeding without it.
 
 A skipped job still satisfies branch protection, so this does not wedge
 a required check -- but it does mean a fork pull request arrives
@@ -172,7 +207,37 @@ unnoticed, from "until somebody opens a pull request downstream" to
 a `canary`-labelled issue, because a broken `actions@main` is the whole
 fleet's problem rather than the author's.
 
-Documentation-only pushes are skipped via `paths-ignore`.
+Documentation-only pushes are skipped via `paths-ignore`, and so are
+pushes that only record a review: a merged review stamp writes
+generated files under `.vscode/` which cannot change what any action
+does. Those are the same paths `ci.yml`'s filter excludes, and
+`tests/test_workflow_references.py` checks that the two lists stay in
+step. Content scanners get no such exemption anywhere -- see the
+`gitleaks` note above.
+
+### Post-merge lane -- `prune-reviews.yml`
+
+A review mark attests to exact file content, so any push to `main` can
+make some of them stale. This workflow runs `tools/ci-prune-reviews.sh`
+on every push to `main`, which drops the marks for files that have
+changed, regenerates `REVIEWS.md`, and commits the result straight back
+as `shakenfist-bot`.
+
+That commit is unsigned and does not need to be: pruning only ever
+*removes* marks, and the attestations themselves live in the signed
+commits that recorded them. The push uses the built-in `GITHUB_TOKEN`
+rather than a personal access token, which works here because this
+repository's ruleset blocks force-pushes and deletion only. (Ryll's
+copy of the same workflow needs `DEPENDENCIES_TOKEN`, because its
+`develop` ruleset requires a pull request and the Actions app cannot be
+a bypass actor.) A push made with `GITHUB_TOKEN` does not trigger
+workflows, so the bot's commits fire neither `canary.yml` nor this
+workflow again.
+
+The `workflow_dispatch` trigger carries an `if: github.ref ==
+'refs/heads/main'` guard. The script pushes to `main` whatever ref is
+checked out, so dispatching it on a feature branch would push that
+branch's unmerged commits to `main`, skipping review entirely.
 
 ### What is still not covered
 
@@ -292,14 +357,49 @@ one.
 
 The workflows get one test file too, `tests/test_workflow_references.py`.
 It checks that everything a workflow names actually exists: dispatch
-targets, relative `uses:` references, and the agreement between
+targets, relative `uses:` references, the scripts under `tools/` that
+`run:` steps invoke (including their executable bit, since they are run
+directly rather than through an interpreter), the agreement between
 `pr-address-comments.yml`'s sparse checkout and the directories it then
-reads tools from. Those are all cross-file references nothing else
-validates -- actionlint checks a workflow's syntax, not whether the file
-it dispatches is there -- and each one fails only when somebody is
-depending on it.
+reads tools from, and the agreement between the review-tracking
+exclusions in `ci.yml`, `canary.yml` and `.pre-commit-config.yaml`.
+Those are all cross-file references nothing else validates -- actionlint
+checks a workflow's syntax, not whether the file it dispatches is there
+-- and each one fails only when somebody is depending on it.
 
 `tools/clone_with_depends.py` is not covered: it needs a real
 `GitPython` repository and CI environment variables, and its
 `Depends on` parsing is the only pure part. It is also no longer called
 from the deploy path.
+
+## Whole-file human review
+
+Separately from pull request review, the files in this repository are
+worked through one at a time and reviewed whole, looking for the
+inconsistencies that accumulate where no single change is wrong.
+`REVIEWS.md` reports the current coverage and `.vscode/review-scope.toml`
+decides what is in scope -- close to everything here, because this
+repository's product *is* the YAML and the shell, and there is no
+release to stage a mistake behind. The scope file records why each
+exclusion is an exclusion.
+
+`REVIEWS.md` and the files under `.vscode/` are generated. Do not edit
+them by hand; run the tooling instead:
+
+```bash
+tools/review-tracking.sh status   # coverage against HEAD, read only
+tools/review-tracking.sh next     # open a random unreviewed file
+tools/review-tracking.sh stamp    # record the files just reviewed
+tools/review-tracking.sh prune    # drop marks made stale by a pull
+```
+
+In practice a contributor runs two of those: `prune` after a pull, and
+`stamp` before committing review marks. The implementation is not in
+this repository -- the wrapper execs
+`scripts/review-tracking.py` from a `shakenfist/development` clone,
+found next to this one, at `~/src/shakenfist/development`, or wherever
+`SHAKENFIST_DEVELOPMENT` points. On `main` nobody runs `prune` by hand:
+`prune-reviews.yml` does it after every push, as described above.
+
+[shakenfist/development's `docs/code-review-tracking.md`](https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md)
+is the canonical description, including how to verify the attestations.

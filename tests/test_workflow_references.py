@@ -272,6 +272,152 @@ class ForkGuardTest(unittest.TestCase):
         self.assertIn('Post fork-not-supported message', names)
 
 
+class ToolScriptReferenceTest(unittest.TestCase):
+    """A `run:` step naming a script under tools/ must find it there.
+
+    This is the same class of cross-file reference as the dispatch
+    targets above, and it fails the same way: renaming or deleting a
+    script leaves a workflow that only breaks the next time somebody
+    depends on it. prune-reviews.yml invoking tools/ci-prune-reviews.sh
+    directly -- not through an interpreter -- also means the executable
+    bit is load bearing, and check-executables-have-shebangs tests only
+    the converse.
+
+    Only bare `tools/...` references are checked. Paths reached through
+    another checkout, like ${GITHUB_WORKSPACE}/shakenfist/tools/..., are
+    another repository's files and are not ours to assert about.
+    """
+
+    # Not preceded by a word character, dot, slash or hyphen, so
+    # trusted-tools/ and .../shakenfist/tools/ do not match. The name
+    # must start with a word character, so prose ending in "tools/."
+    # does not either.
+    REFERENCE = re.compile(r'(?<![\w./-])tools/(\w[\w.-]*)')
+
+    def run_blocks(self):
+        for name, text in workflows():
+            parsed = yaml.safe_load(text)
+            for job_name, job in parsed.get('jobs', {}).items():
+                for step in job.get('steps') or []:
+                    if not step.get('run'):
+                        continue
+                    # Shell comments inside a run: block are prose, and
+                    # prose mentions paths it does not execute.
+                    lines = [line for line in step['run'].splitlines()
+                             if not line.lstrip().startswith('#')]
+                    yield name, job_name, '\n'.join(lines)
+
+    def test_every_referenced_tools_script_exists_and_is_executable(self):
+        found = False
+        for name, job_name, block in self.run_blocks():
+            for script in set(s.rstrip('.,')
+                              for s in self.REFERENCE.findall(block)):
+                found = True
+                path = os.path.join(REPO_ROOT, 'tools', script)
+                with self.subTest(workflow=name, job=job_name, script=script):
+                    self.assertTrue(
+                        os.path.isfile(path),
+                        '%s (job %s) runs tools/%s, which does not exist'
+                        % (name, job_name, script))
+                    self.assertTrue(
+                        os.access(path, os.X_OK),
+                        '%s (job %s) runs tools/%s directly, but it is not '
+                        'executable' % (name, job_name, script))
+        self.assertTrue(found, 'no tools/ references found to check')
+
+
+class ReviewTrackingExclusionTest(unittest.TestCase):
+    """The review-tracking exclusions have to agree across three files.
+
+    Recording a review writes generated files under .vscode/. Those are
+    named in ci.yml's path filter so a review-only pull request does not
+    book four ephemeral VMs, in canary.yml's paths-ignore so a merged
+    stamp does not book a smoke cluster, and in two pre-commit hook
+    excludes because the generator emits them without a trailing
+    newline. The lists are written in three different syntaxes in three
+    different files, and nothing else notices one of them going stale --
+    which is how canary.yml came to be missing them in the first place.
+    """
+
+    def ci_vscode_exclusions(self):
+        with open(os.path.join(WORKFLOW_DIR, 'ci.yml')) as f:
+            parsed = yaml.safe_load(f)
+        for step in parsed['jobs']['check_paths']['steps']:
+            filters = (step.get('with') or {}).get('filters')
+            if filters:
+                patterns = yaml.safe_load(filters)['code']
+                found = [p[1:] for p in patterns
+                         if p.startswith('!.vscode/')]
+                self.assertTrue(
+                    found, "ci.yml's filter excludes no .vscode/ paths")
+                return found
+        self.fail('no paths-filter step found in ci.yml')
+
+    def test_canary_ignores_what_the_ci_filter_excludes(self):
+        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
+            canary = yaml.safe_load(f)
+        # 'on' is parsed as the boolean True by YAML 1.1.
+        ignored = canary[True]['push']['paths-ignore']
+        for pattern in self.ci_vscode_exclusions():
+            with self.subTest(pattern=pattern):
+                self.assertIn(
+                    pattern, ignored,
+                    "ci.yml's path filter excludes %s but canary.yml's "
+                    'paths-ignore does not, so a merged review stamp books '
+                    'a smoke cluster' % pattern)
+
+    def test_the_generated_review_files_skip_the_rewriting_hooks(self):
+        # trailing-whitespace and end-of-file-fixer rewrite the weAudit
+        # file and its sidecar on every run and then fail, because the
+        # generator emits them without a trailing newline and committing
+        # one only means the next regen drops it again. The exclude is
+        # scoped to those two hooks rather than set at the top level, so
+        # gitleaks and check-json still read the review notes -- prose is
+        # where a secret lands.
+        with open(os.path.join(REPO_ROOT, '.pre-commit-config.yaml')) as f:
+            config = yaml.safe_load(f)
+        excludes = {}
+        for repo in config['repos']:
+            for hook in repo['hooks']:
+                if hook.get('exclude'):
+                    excludes[hook['id']] = hook['exclude']
+
+        generated = ['.vscode/example.weaudit',
+                     '.vscode/example.weaudit-shas.json']
+        for hook_id in ('trailing-whitespace', 'end-of-file-fixer'):
+            with self.subTest(hook=hook_id):
+                self.assertIn(
+                    hook_id, excludes,
+                    '%s has no exclude, so it will rewrite the generated '
+                    'review files and then fail on them' % hook_id)
+                pattern = re.compile(excludes[hook_id])
+                for path in generated:
+                    self.assertIsNotNone(
+                        pattern.search(path),
+                        "%s's exclude %r does not cover %s"
+                        % (hook_id, excludes[hook_id], path))
+
+    def test_the_exclude_does_not_reach_beyond_the_generated_files(self):
+        # review-scope.toml is hand edited and should keep getting the
+        # hygiene fixes; only the generated pair is exempt.
+        with open(os.path.join(REPO_ROOT, '.pre-commit-config.yaml')) as f:
+            config = yaml.safe_load(f)
+        for repo in config['repos']:
+            for hook in repo['hooks']:
+                if hook['id'] not in ('trailing-whitespace',
+                                      'end-of-file-fixer'):
+                    continue
+                if not hook.get('exclude'):
+                    # A missing exclude is the other test's failure.
+                    continue
+                with self.subTest(hook=hook['id']):
+                    self.assertIsNone(
+                        re.compile(hook['exclude']).search(
+                            '.vscode/review-scope.toml'),
+                        "%s's exclude also covers review-scope.toml, which "
+                        'is hand edited' % hook['id'])
+
+
 class WorkflowPermissionsTest(unittest.TestCase):
     def test_every_workflow_declares_top_level_permissions(self):
         # AGENTS.md lists this as a hard convention: without it a
