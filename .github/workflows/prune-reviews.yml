@@ -1,0 +1,54 @@
+name: Prune stale review marks
+
+# Review marks attest to exact file content, so any push to main can
+# make some of them stale. Prune those marks and commit the
+# regenerated review state straight back as the bot: prune only ever
+# removes marks, so the commit does not need to be signed -- the
+# attestations live in the signed commits that introduced the stamps.
+#
+# The push uses the built-in GITHUB_TOKEN rather than a PAT. Ryll's
+# copy of this workflow needs DEPENDENCIES_TOKEN because ryll's
+# develop ruleset requires a pull request before merging and the
+# Actions app cannot be a bypass actor. This repository's ruleset
+# blocks force-pushes and deletion only, so an ordinary push lands.
+# See
+# https://github.com/shakenfist/development/blob/main/docs/code-review-tracking.md
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# Serialise runs so overlapping merges cannot race the push.
+concurrency:
+  group: prune-reviews
+
+jobs:
+  prune:
+    name: Prune stale review marks
+    # ci-prune-reviews.sh rebases onto main and pushes to main
+    # unconditionally, whatever ref was checked out. Dispatched on a
+    # branch it would therefore try to push that branch's unmerged
+    # commits straight to main, skipping review entirely. The push
+    # trigger already only fires on main; this guard makes
+    # workflow_dispatch match.
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone the development repository
+        run: |
+          rm -rf "${RUNNER_TEMP}/development"
+          git clone --depth 1 https://github.com/shakenfist/development \
+              "${RUNNER_TEMP}/development"
+
+      - name: Prune stale review marks
+        run: tools/ci-prune-reviews.sh
+        env:
+          SHAKENFIST_DEVELOPMENT: ${{ runner.temp }}/development
