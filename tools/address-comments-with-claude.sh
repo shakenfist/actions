@@ -164,8 +164,22 @@ sanitize_input() {
 # path from the per-item loop must do this: staged or unstaged edits left
 # behind by an abandoned item would otherwise be swept into the next
 # item's commit, mis-attributed to that item's title.
+#
+# `git reset --hard` alone does not do that. It deletes files that were
+# staged but are absent from HEAD, and leaves *untracked* files entirely
+# alone -- so a Claude run that writes a new file and then errors,
+# declines, or hits --max-turns before running `git add` leaves that file
+# in the tree for the rest of the run. A later item whose Claude reaches
+# for `git add -A` then commits the orphan under the wrong item's title,
+# which is exactly what this function exists to prevent.
+#
+# `git clean -fd` is safe here because output_dir is outside the work
+# tree in both supported configurations: ${{ github.workspace }}/
+# address-output in CI, and mktemp -d locally. The argument parser
+# refuses an --output-dir inside work_dir so that stays true.
 reset_worktree() {
     git reset --hard HEAD >/dev/null 2>&1 || true
+    git clean -fd >/dev/null 2>&1 || true
 }
 
 # Sanitize for use in commit message first line (stricter: single line, short)
@@ -190,6 +204,25 @@ else
     mkdir -p "${output_dir}"
     cleanup_output=false
 fi
+
+# reset_worktree runs `git clean -fd` between review items, which would
+# delete this script's own state files if they sat inside the work tree
+# -- review.json, the per-item prompts, and summary.md, which the
+# workflow reads back out to build its pull request comment. Both
+# supported configurations keep output_dir outside work_dir already; this
+# refuses the third case rather than discovering it as an empty summary.
+output_dir_abs=$(cd "${output_dir}" && pwd)
+work_dir_abs=$(cd "${work_dir}" && pwd)
+case "${output_dir_abs}/" in
+    "${work_dir_abs}/"*)
+        echo "Error: --output-dir must be outside the work tree." >&2
+        echo "  work tree:  ${work_dir_abs}" >&2
+        echo "  output dir: ${output_dir_abs}" >&2
+        echo "State files there would be deleted by the git clean that" >&2
+        echo "runs between review items." >&2
+        exit 1
+        ;;
+esac
 
 cleanup() {
     if [ "${cleanup_output}" = true ]; then
@@ -414,23 +447,71 @@ for i in $(seq 1 "${item_count}"); do
     item_category=$(jq -r '.category' "${item_file}")
     item_severity=$(jq -r '.severity // "N/A"' "${item_file}")
     item_description_raw=$(jq -r '.description // ""' "${item_file}")
-    item_location=$(jq -r '.location // ""' "${item_file}")
+    item_location_raw=$(jq -r '.location // ""' "${item_file}")
     item_suggestion_raw=$(jq -r '.suggestion // ""' "${item_file}")
 
-    # Sanitize user-controlled content
+    # Sanitize user-controlled content. All of this is model output
+    # derived from a pull request diff, and it ends up in a prompt for a
+    # Claude run holding GH_TOKEN with --dangerously-skip-permissions.
+    #
+    # location goes through the sanitizer for the same reason the others
+    # do. It is not a shell injection -- bash does not re-scan the result
+    # of a parameter expansion, so a $(...) inside it reaches the prompt
+    # file as literal text -- but review-schema.json puts no pattern and
+    # no length bound on it, which makes it an unbounded unsanitized
+    # channel into that run.
     item_title=$(sanitize_input "${item_title_raw}" 100)
     item_description=$(sanitize_input "${item_description_raw}" 500)
     item_suggestion=$(sanitize_input "${item_suggestion_raw}" 500)
+    item_location=$(sanitize_input "${item_location_raw}" 200)
 
-    # Validate item_id is numeric
+    # Validate item_id is numeric. Every skip path in this loop appends
+    # a summary row and increments skipped_count, so that items_found
+    # equals addressed + skipped and the requester can see what happened
+    # to each item. These two guards used to `continue` without doing
+    # either, which dropped a malformed item without a trace anywhere
+    # but the raw log -- the one case where the input was bad is the
+    # worst one to be silent about.
     if ! [[ "${item_id}" =~ ^[0-9]+$ ]]; then
         echo -e "${RED}Warning: Invalid item ID, skipping${NC}"
+        row="| ? | ${item_title} | Skipped | - |"
+        row+=" Malformed review item: non-numeric id |"
+        echo "${row}" >> "${summary_file}"
+        skipped_count=$((skipped_count + 1))
         continue
     fi
 
     # Validate action is one of the expected values
     if [[ ! "${item_action}" =~ ^(fix|document|consider|none)$ ]]; then
         echo -e "${RED}Warning: Invalid action '${item_action}', skipping${NC}"
+        row="| ${item_id} | ${item_title} | Skipped | - |"
+        row+=" Malformed review item: unknown action |"
+        echo "${row}" >> "${summary_file}"
+        skipped_count=$((skipped_count + 1))
+        continue
+    fi
+
+    # category and severity have enums in review-schema.json exactly as
+    # action does, and reach the prompt the same way. The schema is only
+    # enforced when jsonschema is importable on the runner, so validate
+    # them here too rather than trusting that it was.
+    if [[ ! "${item_category}" =~ ^(security|bug|performance|documentation|style|testing|other)$ ]]; then
+        echo -e "${RED}Warning: Invalid category '${item_category}', skipping${NC}"
+        row="| ${item_id} | ${item_title} | Skipped | - |"
+        row+=" Malformed review item: unknown category |"
+        echo "${row}" >> "${summary_file}"
+        skipped_count=$((skipped_count + 1))
+        continue
+    fi
+
+    # critical is in the schema's enum and N/A is this script's own
+    # default for an item that omitted the field; both are legitimate.
+    if [[ ! "${item_severity}" =~ ^(critical|high|medium|low|N/A)$ ]]; then
+        echo -e "${RED}Warning: Invalid severity '${item_severity}', skipping${NC}"
+        row="| ${item_id} | ${item_title} | Skipped | - |"
+        row+=" Malformed review item: unknown severity |"
+        echo "${row}" >> "${summary_file}"
+        skipped_count=$((skipped_count + 1))
         continue
     fi
 

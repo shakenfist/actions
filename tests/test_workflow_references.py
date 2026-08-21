@@ -15,6 +15,8 @@ syntax.
 
 import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -117,10 +119,12 @@ class AddressCommentsCheckoutTest(unittest.TestCase):
         # render-review.py resolves SCHEMA_PATH as
         # Path(__file__).parent / 'review-schema.json'. Point TOOLS_DIR at
         # a directory holding the script but not the schema and
-        # load_schema() returns None, validate_review() silently drops to
-        # structural checks, and every review validates -- including ones
-        # the schema would reject. That is the failure this repository
-        # avoids by not copying the script into tools/.
+        # load_schema() returns None, at which point validate_review()
+        # returns success without checking anything -- every review
+        # validates, including ones the schema would reject. (Its
+        # structural fallback is a separate branch, reached only when
+        # jsonschema is not importable at all.) That is the failure this
+        # repository avoids by not copying the script into tools/.
         tools_dir = re.search(
             r'TOOLS_DIR:.*?/trusted-tools/(\S+)', self.text).group(1)
         for filename in ('render-review.py', 'review-schema.json'):
@@ -130,6 +134,154 @@ class AddressCommentsCheckoutTest(unittest.TestCase):
                         os.path.join(REPO_ROOT, tools_dir, filename)),
                     'TOOLS_DIR points at %s, which has no %s'
                     % (tools_dir, filename))
+
+
+class TriggerPhraseTest(unittest.TestCase):
+    """The phrase a workflow matches must be the one it then acts on.
+
+    Each bot workflow names its phrase twice: once in the job's
+    `contains()` condition and once as pr-bot-trigger's `trigger-phrase`
+    input. A mismatch is a silent no-op -- the workflow starts, the
+    action reports triggered=false, the downstream job is skipped on an
+    empty authorized output, and nothing is posted or reacted to, so the
+    requester sees no response and no error.
+    """
+
+    def bot_workflows(self):
+        found = {}
+        for name, text in workflows():
+            phrase = re.search(
+                r"trigger-phrase:\s*'([^']+)'", text)
+            if phrase:
+                found[name] = (phrase.group(1), text)
+        self.assertTrue(found, 'no workflows use pr-bot-trigger')
+        return found
+
+    def test_the_matched_phrase_is_the_phrase_passed_to_the_action(self):
+        for name, (phrase, text) in self.bot_workflows().items():
+            with self.subTest(workflow=name):
+                self.assertIn(
+                    "contains(github.event.comment.body, "
+                    "'@shakenfist-bot %s')" % phrase, text,
+                    '%s passes trigger-phrase %r to pr-bot-trigger but '
+                    'does not gate on that same phrase, so it fires and '
+                    'then does nothing' % (name, phrase))
+
+    def test_no_phrase_is_a_prefix_of_another(self):
+        # contains() is a substring match, so a phrase that is a prefix
+        # of another would fire both lanes from one comment -- and two
+        # of the three push commits.
+        phrases = [p for p, _ in self.bot_workflows().values()]
+        for phrase in phrases:
+            for other in phrases:
+                if phrase is other:
+                    continue
+                with self.subTest(phrase=phrase, other=other):
+                    self.assertNotIn(phrase, other)
+
+    def test_the_documented_phrases_match_the_workflows(self):
+        # AGENTS.md points readers at the docs/ci.md table as the list of
+        # phrases not to write in a comment. A phrase missing from it is
+        # a trap that reads as safe.
+        with open(os.path.join(REPO_ROOT, 'docs', 'ci.md')) as f:
+            docs = f.read()
+        for phrase in [p for p, _ in self.bot_workflows().values()]:
+            with self.subTest(phrase=phrase):
+                self.assertIn(
+                    '@shakenfist-bot %s' % phrase, docs,
+                    '@shakenfist-bot %s fires a workflow but is not in '
+                    'docs/ci.md, which AGENTS.md cites as the list of '
+                    'phrases to avoid writing in a comment' % phrase)
+
+
+class ForkGuardTest(unittest.TestCase):
+    """Bot commands must not act on a fork pull request's head branch.
+
+    pr-bot-trigger's pr-ref output is .head.ref, the branch name in the
+    *head* repository. Callers hand it to actions/checkout and to
+    `git push origin HEAD:refs/heads/<ref>` against this repository. A
+    fork pull request opened from the fork's default branch makes that
+    name `main`, so the checkout succeeds against this repository's main
+    and the push lands bot commits on the branch the whole fleet pins.
+
+    The guard lives in the action so it cannot be dropped by a caller,
+    and so the fix reaches every repository consuming it at @main.
+    """
+
+    ACTION = os.path.join(REPO_ROOT, 'pr-bot-trigger', 'action.yml')
+
+    def setUp(self):
+        with open(self.ACTION) as f:
+            self.text = f.read()
+        self.parsed = yaml.safe_load(self.text)
+
+    def steps_by_id(self):
+        return {s.get('id'): s for s in self.parsed['runs']['steps']}
+
+    def test_the_action_compares_the_head_repository(self):
+        self.assertIn('.head.repo.full_name', self.text)
+
+    def test_authorized_requires_both_permission_and_same_repo(self):
+        # Callers gate only on `authorized`, so the fork check has to be
+        # folded into it -- otherwise every caller needs its own edit and
+        # the guard is lost the moment one is forgotten.
+        value = self.parsed['outputs']['authorized']['value']
+        gate_id = re.search(r'steps\.(\w+)\.outputs\.authorized', value)
+        self.assertIsNotNone(gate_id, 'authorized output is not a step output')
+        gate = self.steps_by_id()[gate_id.group(1)]
+        self.assertIn('PERMITTED', gate['run'])
+        self.assertIn('SAME_REPO', gate['run'])
+
+    def test_the_gate_only_authorizes_permitted_and_same_repo(self):
+        """Run the shipped gate script over the whole truth table."""
+        gate = self.steps_by_id()['gate']
+        expected = {
+            ('true', 'true'): 'true',
+            ('true', 'false'): 'false',
+            ('false', 'true'): 'false',
+            ('false', 'false'): 'false',
+            # An empty value is what a skipped step yields.
+            ('', ''): 'false',
+            ('true', ''): 'false',
+        }
+        for (permitted, same_repo), want in expected.items():
+            with self.subTest(permitted=permitted, same_repo=same_repo):
+                with tempfile.TemporaryDirectory() as tmp:
+                    output = os.path.join(tmp, 'gh-output')
+                    open(output, 'w').close()
+                    env = dict(os.environ,
+                               PERMITTED=permitted, SAME_REPO=same_repo,
+                               GITHUB_OUTPUT=output)
+                    result = subprocess.run(
+                        ['bash', '-c', gate['run']], env=env, check=False,
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    with open(output) as f:
+                        written = f.read()
+                self.assertIn(
+                    'authorized=%s' % want, written,
+                    'PERMITTED=%r SAME_REPO=%r should authorize %s'
+                    % (permitted, same_repo, want))
+
+    def test_a_fork_gets_its_own_message_not_a_permissions_one(self):
+        # Telling a maintainer they lack write access when the real
+        # reason is that the pull request is from a fork sends them to
+        # the wrong place entirely.
+        names = [s.get('name', '') for s in self.parsed['runs']['steps']]
+        self.assertIn('Post fork-not-supported message', names)
+
+
+class WorkflowPermissionsTest(unittest.TestCase):
+    def test_every_workflow_declares_top_level_permissions(self):
+        # AGENTS.md lists this as a hard convention: without it a
+        # workflow inherits the default GITHUB_TOKEN scope.
+        for name, text in workflows():
+            with self.subTest(workflow=name):
+                parsed = yaml.safe_load(text)
+                self.assertIn(
+                    'permissions', parsed,
+                    '%s has no top-level permissions block' % name)
 
 
 if __name__ == '__main__':

@@ -102,7 +102,19 @@ get a second look without pushing a commit:
 All three match their phrase with `contains()` on the whole comment
 body, so writing one of them inside a sentence about it -- or inside a
 quote -- fires it. The two that push commits are the ones to be careful
-of.
+of. They ignore comments posted by a bot, so the summaries
+`pr-address-comments.yml` quotes back onto a pull request cannot
+re-trigger the lane.
+
+**Fork pull requests are refused**, by `pr-bot-trigger` rather than by
+each workflow. Its `pr-ref` output is `.head.ref`, a branch name in the
+*head* repository with nothing to say which repository that is; callers
+check that name out and push to it here. A fork pull request opened from
+the fork's default branch names `main`, so the checkout would succeed
+against this repository's `main` and the push would land bot commits on
+the branch the whole fleet pins. Putting the refusal in the action means
+every repository consuming it at `@main` gets the guard without editing
+anything.
 
 The re-review one matters more than it looks. `review-pr-with-claude`
 skips a pull request the bot has already reviewed unless `force` is set,
@@ -122,10 +134,28 @@ in the headers of the files themselves:
 * `pr-address-comments.yml` points `TOOLS_DIR` at `review-pr-with-claude/`
   rather than copying `render-review.py` into `tools/`. This repository is
   where that script comes from, and it needs `review-schema.json` beside
-  it: `SCHEMA_PATH` is `Path(__file__).parent / 'review-schema.json'`, so
-  a copy without the schema silently falls back to structural checks and
-  validates anything. Keeping the canonical pair together avoids both the
-  fork and the trap.
+  it. `SCHEMA_PATH` is `Path(__file__).parent / 'review-schema.json'`, and
+  when that file is absent `load_schema()` returns `None` and
+  `validate_review()` returns success **without checking anything at
+  all** -- not weakened validation, none. (The structural fallback in
+  that function is a different branch, taken only when `jsonschema` is
+  not importable, and it runs whether or not the schema file is there. On
+  a runner with `jsonschema` installed, which is the normal case, a
+  missing schema means every review validates.) Keeping the canonical
+  pair together avoids both the fork and the trap.
+
+One convention is knowingly not met. AGENTS.md says not to write more
+than about five lines of shell inline in a workflow step -- put it in a
+script under `tools/` so it can be run and tested outside CI. These
+three files carry several blocks well past that: the address invocation,
+the push guard, the log scraping and the two comment steps. They are the
+fleet's shared templates, and every line this repository rewrites is a
+line that stops matching the nine other repositories running the same
+workflows, which costs more than it saves while the templates are still
+the source of truth. Recorded here rather than left as a silent conflict
+between the convention and the files. If the log scraping or the push
+guard grows any further, lift it into `tools/` and accept the
+divergence.
 
 ### Post-merge lane -- `canary.yml`
 

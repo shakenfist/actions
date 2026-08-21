@@ -33,8 +33,13 @@ jobs:
   trigger-retest:
     name: "Trigger retest"
     # Only run on PR comments (not issue comments)
+    # Never on a comment the bot itself posted. pr-address-comments.yml
+    # quotes model-generated summaries back into the pull request, and a
+    # summary mentioning a trigger phrase would re-fire the lane --
+    # contains() does not care that the phrase sits inside a quote.
     if: |
       github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
       contains(github.event.comment.body, '@shakenfist-bot please retest')
     runs-on: [self-hosted, static]
     # Just a few gh API calls, so anything beyond this is a hang.

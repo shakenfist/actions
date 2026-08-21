@@ -17,8 +17,9 @@ Handles `@shakenfist-bot` trigger comments on pull requests. This action:
 
 - Validates that the comment matches the specified trigger phrase
 - Checks if the commenter has write/admin permissions
+- Refuses pull requests from forks
 - Adds a reaction to the triggering comment
-- Posts status messages (starting, unauthorized)
+- Posts status messages (starting, unauthorized, fork-not-supported)
 - Outputs PR details for downstream jobs
 
 **Usage:**
@@ -52,10 +53,21 @@ Handles `@shakenfist-bot` trigger comments on pull requests. This action:
 
 | Name | Description |
 |------|-------------|
-| `authorized` | `true` if user has write/admin permission, `false` otherwise |
+| `authorized` | `true` if the request may proceed: write/admin commenter **and** a non-fork pull request |
 | `triggered` | `true` if trigger phrase matched, `false` otherwise |
+| `same-repo` | `true` if the PR head is a branch in this repository |
+| `head-repo` | Full name of the repository the PR head lives in, empty if the fork was deleted |
 | `pr-number` | The PR number |
-| `pr-ref` | The PR branch name |
+| `pr-ref` | The PR branch name, in the head repository |
+
+`pr-ref` is `.head.ref`, which for a fork pull request is a branch name
+in the *fork* and carries no indication of that. Callers hand it to
+`actions/checkout` and `git push` against their own repository, so a fork
+PR opened from the fork's default branch would name `main` and act on the
+wrong branch entirely. That is why fork pull requests are refused here
+rather than in each caller: the guard cannot be lost when a project edits
+its workflows, and every consumer inherits it at `@main` without changing
+anything, because it is folded into `authorized`.
 
 ### review-pr-with-claude
 

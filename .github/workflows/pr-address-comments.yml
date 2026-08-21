@@ -52,8 +52,13 @@ jobs:
   trigger-address:
     name: "Trigger comment addressing"
     # Only run on PR comments (not issue comments)
+    # Never on a comment the bot itself posted. pr-address-comments.yml
+    # quotes model-generated summaries back into the pull request, and a
+    # summary mentioning a trigger phrase would re-fire the lane --
+    # contains() does not care that the phrase sits inside a quote.
     if: |
       github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
       contains(github.event.comment.body, '@shakenfist-bot please address comments')
     runs-on: [self-hosted, static]
     # Just a few gh API calls, so anything beyond this is a hang.
@@ -221,7 +226,7 @@ jobs:
 
           gh pr comment ${{ env.PR_NUMBER }} \
             --body "$(cat <<EOF
-          Addressed automated review comments and pushed ${{ steps.push.outputs.commit_count }} commit(s).
+          Addressed ${{ steps.address.outputs.addressed }} review item(s) and skipped ${{ steps.address.outputs.skipped }}, pushed ${{ steps.push.outputs.commit_count }} commit(s).
 
           ${summary}
 
@@ -242,7 +247,7 @@ jobs:
 
           gh pr comment ${{ env.PR_NUMBER }} \
             --body "$(cat <<EOF
-          No changes were made after reviewing automated comments.
+          No changes were made after reviewing automated comments (${{ steps.address.outputs.skipped }} item(s) skipped).
 
           ${summary}
 
@@ -250,9 +255,35 @@ jobs:
           EOF
           )"
 
+      # Without this, a failure anywhere before the push leaves the pull
+      # request holding only pr-bot-trigger's "Starting to address
+      # automated review comments..." and silence. The likeliest failure
+      # is also the likeliest user error -- asking the bot to address
+      # comments on a pull request that was never reviewed, where the
+      # script exits 1 with "Could not find automated review comment
+      # with embedded JSON". The 120 minute timeout is the other one,
+      # and it fires after commits exist locally but before the push, so
+      # the work dies with the runner workspace.
+      - name: Report failure on the pull request
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh pr comment "${PR_NUMBER}" \
+            --repo "${{ github.repository }}" \
+            --body "$(printf '%s\n' \
+              "Could not address the review comments on this pull request." \
+              "" \
+              "Run: ${RUN_URL}" \
+              "" \
+              "If this pull request has not been reviewed yet, or its review predates the embedded review data, ask for a review first -- this lane reads the actionable items out of the reviewer's comment." \
+              "" \
+              "Any commits made before the failure were not pushed.")"
+
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: address-comments-logs-${{ env.PR_NUMBER }}
           path: |

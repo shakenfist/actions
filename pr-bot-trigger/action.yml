@@ -1,8 +1,9 @@
 name: 'PR Bot Trigger Handler'
 description: >
   Handle @shakenfist-bot trigger comments on pull requests. Validates user
-  permissions, adds a reaction to the comment, posts status messages, and
-  outputs PR details for downstream jobs.
+  permissions and that the pull request is not from a fork, adds a reaction
+  to the comment, posts status messages, and outputs PR details for
+  downstream jobs.
 
 inputs:
   trigger-phrase:
@@ -29,8 +30,23 @@ inputs:
 
 outputs:
   authorized:
-    description: 'Whether the user is authorized (true/false)'
-    value: ${{ steps.check_permission.outputs.authorized }}
+    description: >
+      Whether this request may proceed (true/false). True only when the
+      commenter has write access AND the pull request comes from a branch
+      in this repository. Callers gate their work on this single output,
+      so a fork pull request skips their jobs without them changing.
+    value: ${{ steps.gate.outputs.authorized }}
+  same-repo:
+    description: >
+      Whether the pull request head is a branch in this repository
+      (true/false). Callers do not normally need this -- it is already
+      folded into `authorized` -- but it distinguishes the two refusals.
+    value: ${{ steps.check_origin.outputs.same_repo }}
+  head-repo:
+    description: >
+      The full name of the repository the pull request head lives in, or
+      empty when the fork has been deleted.
+    value: ${{ steps.check_origin.outputs.head_repo }}
   pr-number:
     description: 'The PR number'
     value: ${{ github.event.issue.number }}
@@ -75,17 +91,77 @@ runs:
         echo "User ${COMMENTER} has permission: ${permission}"
 
         if [[ "${permission}" == "admin" || "${permission}" == "write" ]]; then
-          echo "authorized=true" >> $GITHUB_OUTPUT
+          echo "permitted=true" >> $GITHUB_OUTPUT
           echo "User is authorized"
         else
-          echo "authorized=false" >> $GITHUB_OUTPUT
+          echo "permitted=false" >> $GITHUB_OUTPUT
           echo "User is not authorized"
+        fi
+
+    # SECURITY: bot commands are refused on fork pull requests.
+    #
+    # pr_ref below is .head.ref, the branch name *in the head
+    # repository*, and it carries no indication of which repository that
+    # is. Callers hand it to actions/checkout and to `git push origin
+    # HEAD:refs/heads/<ref>` against *this* repository. Fork pull
+    # requests are very commonly opened from the fork's own default
+    # branch, so .head.ref is literally "main" -- and then the checkout
+    # silently succeeds against this repository's main, the bot commits
+    # to it, and the push lands unreviewed commits on the branch every
+    # consumer in the fleet pins at @main. No malice is required: a
+    # maintainer typing the trigger phrase on a fork pull request is
+    # enough.
+    #
+    # This is refused here rather than in each caller so the guard
+    # cannot be lost when a project edits its workflows, which is the
+    # same reasoning pr-auto-review.yml gives for owning its own fork
+    # restriction. Every caller of this action either pushes to the head
+    # branch or dispatches a workflow against it, so none of them has a
+    # meaningful fork behaviour to lose.
+    - name: Check the pull request is not from a fork
+      id: check_origin
+      if: steps.check_trigger.outputs.triggered == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # `// empty` because .head.repo is null when the fork has been
+        # deleted, and an empty head repository is not this one.
+        head_repo=$(gh api \
+          "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
+          --jq '.head.repo.full_name // empty')
+
+        echo "head_repo=${head_repo}" >> $GITHUB_OUTPUT
+        echo "Pull request head lives in: ${head_repo:-<deleted fork>}"
+
+        if [ "${head_repo}" = "${{ github.repository }}" ]; then
+          echo "same_repo=true" >> $GITHUB_OUTPUT
+        else
+          echo "same_repo=false" >> $GITHUB_OUTPUT
+          echo "Refusing: bot commands are not supported on fork pull requests."
+        fi
+
+    # The single verdict callers gate on. Both conditions have to hold,
+    # and folding them together here is what lets an existing caller
+    # inherit the fork guard without editing its `if:` expressions.
+    - name: Decide whether this request may proceed
+      id: gate
+      if: steps.check_trigger.outputs.triggered == 'true'
+      shell: bash
+      env:
+        PERMITTED: ${{ steps.check_permission.outputs.permitted }}
+        SAME_REPO: ${{ steps.check_origin.outputs.same_repo }}
+      run: |
+        if [ "${PERMITTED}" = "true" ] && [ "${SAME_REPO}" = "true" ]; then
+          echo "authorized=true" >> $GITHUB_OUTPUT
+        else
+          echo "authorized=false" >> $GITHUB_OUTPUT
         fi
 
     - name: React to comment
       if: >
         steps.check_trigger.outputs.triggered == 'true' &&
-        steps.check_permission.outputs.authorized == 'true'
+        steps.gate.outputs.authorized == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -99,7 +175,7 @@ runs:
     - name: Post unauthorized message
       if: >
         steps.check_trigger.outputs.triggered == 'true' &&
-        steps.check_permission.outputs.authorized == 'false'
+        steps.check_permission.outputs.permitted == 'false'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -117,11 +193,30 @@ runs:
           --repo "${{ github.repository }}" \
           --body "${message}"
 
+    - name: Post fork-not-supported message
+      if: >
+        steps.check_trigger.outputs.triggered == 'true' &&
+        steps.check_permission.outputs.permitted == 'true' &&
+        steps.check_origin.outputs.same_repo == 'false'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        HEAD_REPO: ${{ steps.check_origin.outputs.head_repo }}
+      run: |
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "$(printf '%s\n' \
+            "Bot commands are not supported on pull requests from forks." \
+            "" \
+            "This pull request's head branch lives in \`${HEAD_REPO:-a deleted fork}\`, not in this repository. The bot workflows check out and push to a branch *here* by the head branch's name, which would act on the wrong branch entirely -- and a fork pull request opened from the fork's default branch would name \`main\`." \
+            "" \
+            "Push the branch to this repository and open a pull request from it if you need the bot lane.")"
+
     - name: Get PR details
       id: pr_details
       if: >
         steps.check_trigger.outputs.triggered == 'true' &&
-        steps.check_permission.outputs.authorized == 'true'
+        steps.gate.outputs.authorized == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -147,7 +242,7 @@ runs:
     - name: Post starting message
       if: >
         steps.check_trigger.outputs.triggered == 'true' &&
-        steps.check_permission.outputs.authorized == 'true' &&
+        steps.gate.outputs.authorized == 'true' &&
         inputs.starting-message != ''
       shell: bash
       env:
