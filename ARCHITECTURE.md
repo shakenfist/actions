@@ -43,7 +43,10 @@ land.
 Two kinds of thing, distinguished by how a consumer invokes them.
 
 **Composite actions** are single steps dropped into a consumer's job.
-They inherit that job's runner, environment and token.
+They inherit that job's runner, environment and token. Their inputs and
+outputs are documented in [docs/actions.md](docs/actions.md), and
+[docs/consuming.md](docs/consuming.md) covers wiring a repository up to
+them.
 
 | Action | Purpose |
 |---|---|
@@ -192,7 +195,7 @@ workflow step, not imported.
 Composite actions cannot carry `timeout-minutes` on their own steps, so
 every consumer is expected to put a timeout on the step that uses them.
 This is a GitHub limitation rather than a choice, and it is why the
-README examples all carry timeouts.
+examples in [docs/actions.md](docs/actions.md) all carry timeouts.
 
 The split between `build-smoke-cluster` (a composite action) and
 `smoke-cluster.yml` (a reusable workflow wrapping it) exists so that a

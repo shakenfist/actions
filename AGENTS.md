@@ -73,8 +73,8 @@ run only for this repository, so `./` resolves here. That is the point:
 it lets this repository's own CI test the pull request's version.
 
 **Composite action steps cannot carry `timeout-minutes`.** Put the
-timeout on the consumer's step that uses the action, as the README
-examples do.
+timeout on the consumer's step that uses the action, as the examples in
+[docs/actions.md](docs/actions.md) do.
 
 **Every runner label must be listed in `.github/actionlint.yaml`,** or
 actionlint fails the lint job. Static runners are `[self-hosted, static]`
@@ -146,7 +146,8 @@ edit them by hand -- the next regeneration discards the edit.
 | How does this repository's own CI work, and what is deliberately not linted? | [docs/ci.md](docs/ci.md) |
 | What is `REVIEWS.md`, and how do I record a review? | [docs/ci.md](docs/ci.md) |
 | What are the components and how does a run flow? | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| How do I consume these actions from my repository? | `README.md` |
+| How do I consume these actions from my repository? | [docs/consuming.md](docs/consuming.md) |
+| What inputs and outputs does an action have? | [docs/actions.md](docs/actions.md) |
 | What shape must a review JSON take? | `review-pr-with-claude/review-schema.json` |
 
 Fleet-wide conventions, and the consistency audits that check them, live
