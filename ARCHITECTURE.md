@@ -65,10 +65,16 @@ runner and permissions.
 | `export-repo-config.yml` | Exports repository settings and rulesets, opens a PR on drift |
 | `ci.yml` | This repository's own pull request checks |
 | `canary.yml` | This repository's post-merge integration check |
+| `pr-retest.yml` | Re-runs `ci.yml` on a bot comment |
+| `pr-re-review.yml` | Re-runs the reviewer, with `force`, on a bot comment |
+| `pr-address-comments.yml` | Works through the review's actionable items on a bot comment |
 
-`ci.yml` and `canary.yml` are the exception to "nothing here runs for
-itself" -- they exist only for this repository and are not consumed
-downstream.
+The last five are the exception to "nothing here runs for itself" --
+they exist only for this repository and are not consumed downstream. The
+three bot-triggered ones are the shared templates from
+`shakenfist/development`, deployed here late: this repository ships the
+review automation the fleet runs and did not run it on itself until
+after #20 and #21 had both merged with their review fixes unlooked-at.
 
 ## How a smoke run flows
 
@@ -128,7 +134,9 @@ A review is gated three ways: the caller's `needs:` list (tests passed),
 a check that the last commit is not the bot's, and a check inside
 `review-pr-with-claude` that the bot has not already reviewed this pull
 request. Only the bot-triggered path sets `force`, so a human asking is
-the sole way to get a second review.
+the sole way to get a second review -- which is why a repository without
+`pr-re-review.yml` deployed reviews each pull request exactly once and
+never sees the fixes.
 
 The reviewer runs Claude Code with `--dangerously-skip-permissions`
 while holding a write-capable token, and a pull request diff is

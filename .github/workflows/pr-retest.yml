@@ -1,0 +1,94 @@
+# Triggers a re-run of this repository's CI when an authorized user
+# comments "@shakenfist-bot please retest"
+#
+# This is useful after bot commits (which don't trigger CI) or when you
+# want to re-run checks without pushing a new commit.
+#
+# Template source: shakenfist/development/templates/ci-review-automation/
+#
+# DEVIATION FROM THE TEMPLATE: the template dispatches
+# functional-tests.yml, which does not exist here. This repository has
+# no functional tests of its own and cannot have them -- `uses:` takes
+# no expression, so the composite actions inside smoke-cluster.yml are
+# pinned at @main and a run against a branch would exercise the old
+# code. See docs/ci.md. Its pre-merge lane is ci.yml, which carries a
+# workflow_dispatch trigger for exactly this, so that is what a retest
+# re-runs. canary.yml is deliberately not dispatchable from here: it
+# builds a real smoke cluster and is a post-merge check on main, not
+# something to re-run against a pull request branch.
+
+name: PR Retest
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  trigger-retest:
+    name: "Trigger retest"
+    # Only run on PR comments (not issue comments)
+    # Never on a comment the bot itself posted. pr-address-comments.yml
+    # quotes model-generated summaries back into the pull request, and a
+    # summary mentioning a trigger phrase would re-fire the lane --
+    # contains() does not care that the phrase sits inside a quote.
+    if: |
+      github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(github.event.comment.body, '@shakenfist-bot please retest')
+    runs-on: [self-hosted, static]
+    # Just a few gh API calls, so anything beyond this is a hang.
+    timeout-minutes: 10
+
+    steps:
+      - name: Handle trigger
+        id: trigger
+        uses: shakenfist/actions/pr-bot-trigger@main
+        with:
+          trigger-phrase: 'please retest'
+          reaction: 'rocket'
+
+      - name: Trigger CI
+        id: dispatch
+        if: steps.trigger.outputs.authorized == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_REF: ${{ steps.trigger.outputs.pr-ref }}
+        run: |
+          echo "Triggering CI on branch: ${PR_REF}"
+
+          # A fork PR's head branch does not exist in this repository,
+          # so the dispatch fails with "no ref found". Report that to
+          # the requester rather than claiming success.
+          if gh workflow run ci.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${PR_REF}"; then
+            echo "dispatched=true" >> $GITHUB_OUTPUT
+            echo "CI triggered successfully"
+          else
+            echo "dispatched=false" >> $GITHUB_OUTPUT
+            echo "CI dispatch failed"
+          fi
+
+      - name: Post confirmation
+        if: steps.trigger.outputs.authorized == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_REF: ${{ steps.trigger.outputs.pr-ref }}
+        run: |
+          if [ "${{ steps.dispatch.outputs.dispatched }}" = "true" ]; then
+            gh pr comment "${{ github.event.issue.number }}" \
+              --repo "${{ github.repository }}" \
+              --body "Triggered CI on branch \`${PR_REF}\`.
+
+          [View workflow runs](https://github.com/${{ github.repository }}/actions/workflows/ci.yml)"
+          else
+            gh pr comment "${{ github.event.issue.number }}" \
+              --repo "${{ github.repository }}" \
+              --body "Unable to trigger CI on \`${PR_REF}\`. This usually means the PR is from a fork, whose branch does not exist in this repository -- please re-run the failed workflow from the Actions tab instead. Note that fork pull requests do not run this repository's CI at all; see docs/ci.md."
+          fi
