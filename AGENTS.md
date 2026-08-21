@@ -35,8 +35,8 @@ GitHub limitation, not an oversight, and it is written up in
 
 What you can do:
 
-* `pre-commit run --all-files` -- actionlint, shellcheck, flake8 and
-  hygiene hooks. Run this before proposing a commit.
+* `pre-commit run --all-files` -- actionlint, shellcheck, flake8,
+  skillsaw and hygiene hooks. Run this before proposing a commit.
 * `python3 -m unittest discover -s tests -t .` -- the Python helpers.
 * `tools/gitleaks-scan.sh` -- needs `gitleaks` and a full clone.
 
@@ -46,6 +46,21 @@ land something that breaks the deploy, that is where it surfaces, and it
 is the whole fleet's problem until it is fixed or reverted.
 
 ## Traps
+
+**Never write a bot trigger phrase in a comment you are posting.**
+`pr-retest.yml`, `pr-re-review.yml` and `pr-address-comments.yml` all
+match with `contains()` over the whole comment body, so the phrase fires
+from inside backticks, inside a quote, or inside a sentence explaining
+what not to do. Two of the three push commits to the pull request
+branch, which is how they collide with work you are about to push
+yourself. Describe them or break them up instead. The phrases are listed
+in [docs/ci.md](docs/ci.md).
+
+**A pull request is reviewed once unless somebody asks again.** The
+automatic review in `ci.yml` does not set `force`, and
+`review-pr-with-claude` skips a pull request the bot has already
+reviewed. After you push a round of fixes, comment asking the bot to
+re-review, or nothing looks at them.
 
 **Do not "fix" the `@main` pins inside `smoke-cluster.yml`.** They look
 wrong -- the composite actions are right there in the same repository --

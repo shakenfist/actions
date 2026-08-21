@@ -87,6 +87,46 @@ does not cover queue time. So a gitleaks check that has been pending for
 a long while is waiting for a runner rather than broken, and if this
 ever becomes a required check that distinction matters.
 
+### Bot-triggered lane
+
+Three `issue_comment` workflows let a collaborator with write access
+re-run something from a pull request comment, which is the only way to
+get a second look without pushing a commit:
+
+| Comment | Workflow | What it does |
+|---------|----------|--------------|
+| `@shakenfist-bot please retest` | `pr-retest.yml` | Dispatches `ci.yml` against the pull request branch |
+| `@shakenfist-bot please re-review` | `pr-re-review.yml` | Runs the reviewer again, with `force` set |
+| `@shakenfist-bot please address comments` | `pr-address-comments.yml` | Has Claude Code work through the review's `fix` and `document` items and pushes a commit per item |
+
+All three match their phrase with `contains()` on the whole comment
+body, so writing one of them inside a sentence about it -- or inside a
+quote -- fires it. The two that push commits are the ones to be careful
+of.
+
+The re-review one matters more than it looks. `review-pr-with-claude`
+skips a pull request the bot has already reviewed unless `force` is set,
+and the automatic review in `ci.yml` deliberately does not set it. So
+without `pr-re-review.yml` a pull request is reviewed exactly once in its
+life, normally on the first push, and every round of fixes after that
+lands unlooked-at. This repository ran that way until these workflows
+landed: pull requests #20 and #21 both merged with their review fixes
+unreviewed.
+
+Two deviations from the shared template in
+`shakenfist/development/templates/ci-review-automation/`, both recorded
+in the headers of the files themselves:
+
+* `pr-retest.yml` dispatches `ci.yml` rather than `functional-tests.yml`,
+  which does not exist here and cannot -- see above.
+* `pr-address-comments.yml` points `TOOLS_DIR` at `review-pr-with-claude/`
+  rather than copying `render-review.py` into `tools/`. This repository is
+  where that script comes from, and it needs `review-schema.json` beside
+  it: `SCHEMA_PATH` is `Path(__file__).parent / 'review-schema.json'`, so
+  a copy without the schema silently falls back to structural checks and
+  validates anything. Keeping the canonical pair together avoids both the
+  fork and the trap.
+
 ### Post-merge lane -- `canary.yml`
 
 `canary.yml` calls `smoke-cluster.yml` by relative path on every push to
@@ -218,6 +258,16 @@ one.
 | `tools/ci-make-inventory.py` | Writes the ansible inventory every CI cluster deploy is driven from. A mistake produces a valid inventory with a node in the wrong group, and the deploy then fails much further along |
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that `@shakenfist-bot please address comments` reads back out |
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
+| `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
+
+The workflows get one test file too, `tests/test_workflow_references.py`.
+It checks that everything a workflow names actually exists: dispatch
+targets, relative `uses:` references, and the agreement between
+`pr-address-comments.yml`'s sparse checkout and the directories it then
+reads tools from. Those are all cross-file references nothing else
+validates -- actionlint checks a workflow's syntax, not whether the file
+it dispatches is there -- and each one fails only when somebody is
+depending on it.
 
 `tools/clone_with_depends.py` is not covered: it needs a real
 `GitPython` repository and CI environment variables, and its
