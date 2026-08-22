@@ -16,6 +16,48 @@ the main caller.
 `tools/ci-make-inventory.py` turns into the deploy inventory, so one
 code path covers every node count.
 
+## Instance readiness
+
+Every playbook that creates instances waits for them before using them,
+and that wait is in two parts.
+
+The cheap part is the familiar `wait_for` on port 22 with
+`search_regex: OpenSSH`. It only proves sshd is listening and has emitted
+a banner, which is enough to fail fast on a guest that never booted, and
+nothing more than that. sshd answers early in boot; cloud-init then
+regenerates the host keys and restarts sshd, so a connection landing in
+that window is dropped with "connection refused". On a busy hypervisor
+that window is wide enough to be hit regularly.
+
+The real gate is `ansible/tasks/wait-for-cloud-init.yml`, imported by a
+short play targeting the freshly created hosts:
+
+```yaml
+- name: Wait for instances to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+```
+
+It establishes a real authenticated connection with
+`wait_for_connection` (which retries through the sshd restart) and then
+runs `cloud-init status --wait`, which blocks until cloud-init reaches a
+terminal state. Both steps absorb a slow hypervisor without a magic
+sleep. The exit code is deliberately ignored -- the gate exists to wait
+out the cloud-init window, not to assert cloud-init succeeded, and a
+genuinely broken guest produces a better error in the tasks that follow.
+`--wait` has no timeout of its own, so it is capped with `timeout 600`
+rather than being allowed to consume the whole workflow budget.
+
+The gate matters even where nothing SSHes in directly afterwards: on the
+image build and topology playbooks it stops Ansible's package tasks from
+fighting cloud-init for the dpkg lock.
+
+New playbooks that create instances should follow the same pattern. Put
+the readiness play immediately after the provisioning play, before the
+first play that does real work on the new hosts.
+
 ## CI caching
 
 The playbooks configure remote VMs to use local caches:

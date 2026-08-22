@@ -136,20 +136,4 @@
   hosts: allsf
   gather_facts: false
   tasks:
-    - name: Wait for SSH to accept an authenticated connection
-      ansible.builtin.wait_for_connection:
-        delay: 0
-        timeout: 300
-
-    # `--wait` blocks until cloud-init reaches a terminal state, then
-    # exits non-zero if that state is "error" or "degraded". This gate
-    # exists to wait out the cloud-init window (so sshd has stopped
-    # bouncing), not to assert cloud-init succeeded -- a genuinely broken
-    # guest surfaces with a clearer error in the real SSH steps that
-    # follow. So tolerate the exit code: we only care that --wait
-    # returned, meaning cloud-init is done.
-    - name: Wait for cloud-init to finish
-      become: true
-      ansible.builtin.command: cloud-init status --wait
-      changed_when: false
-      failed_when: false
+    - import_tasks: tasks/wait-for-cloud-init.yml

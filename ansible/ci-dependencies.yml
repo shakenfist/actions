@@ -64,12 +64,29 @@
       debug:
         msg: "{{hostvars['imagerebuild']}}"
 
+    # Cheap early gate: confirms sshd is listening and presenting a
+    # banner. This is NOT sufficient on its own - sshd presents a banner
+    # before cloud-init has finished, and cloud-init's host-key
+    # regeneration restarts sshd afterwards, which drops the next real
+    # SSH connection with "connection refused". The readiness play below
+    # closes that window; this task just gives a fast failure if the
+    # guest never boots at all.
     - name: Wait for instance to present an "OpenSSH" prompt
       wait_for:
         port: 22
         host: "{{hostvars['imagerebuild']['ansible_ssh_host']}}"
         search_regex: OpenSSH
         delay: 10
+
+# Readiness gate: wait for an authenticated SSH connection (which retries
+# through sshd's cloud-init restart) and then block until cloud-init has
+# finished, so the play below does not race the host-key-regen restart or
+# fight cloud-init for the dpkg lock while it installs packages.
+- name: Wait for the instance to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
 
 - hosts: allsf
   gather_facts: yes

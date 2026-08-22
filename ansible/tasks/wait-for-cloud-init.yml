@@ -1,0 +1,47 @@
+# Readiness gate for a freshly provisioned instance.
+#
+# A "wait_for" on port 22 with search_regex: OpenSSH only proves that sshd
+# is listening and has emitted a banner. It neither authenticates nor waits
+# for cloud-init to finish: sshd presents a banner early in boot, the wait
+# passes, and then cloud-init regenerates the host keys and restarts sshd.
+# Anything connecting in that window is dropped with "connection refused",
+# which is a load-dependent CI flake (shakenfist/actions issue #2).
+#
+# Include these tasks from a play targeting the provisioned hosts
+# themselves, after the cheap banner wait_for -- that wait is still worth
+# keeping as an early fast failure for a guest that never booted at all.
+#
+# There are no required vars: the play's hosts supply the connection
+# details established by the provisioning play's add_host.
+- name: Wait for SSH to accept an authenticated connection
+  ansible.builtin.wait_for_connection:
+    delay: 0
+    timeout: 300
+
+# `--wait` blocks until cloud-init reaches a terminal state, then exits
+# non-zero if that state is "error" or "degraded". This gate exists to wait
+# out the cloud-init window (so sshd has stopped bouncing), not to assert
+# that cloud-init succeeded -- a genuinely broken guest surfaces with a
+# clearer error in the real tasks that follow. So tolerate the exit code:
+# we only care that --wait returned, meaning cloud-init is done. The same
+# tolerance covers an image with no cloud-init installed at all.
+#
+# --wait has no timeout of its own and will block forever on a guest whose
+# cloud-init never reaches a terminal state, which in CI means burning the
+# whole workflow timeout rather than failing the job. Cap it with
+# coreutils timeout so that case costs ten minutes and then proceeds to
+# the real tasks, which fail with something diagnosable.
+- name: Wait for cloud-init to finish
+  become: true
+  ansible.builtin.command: timeout 600 cloud-init status --wait
+  changed_when: false
+  failed_when: false
+  register: cloud_init_status
+
+- name: Log the cloud-init state
+  ansible.builtin.debug:
+    msg: >-
+      cloud-init on {{ inventory_hostname }}:
+      rc={{ cloud_init_status.rc }}
+      {{ cloud_init_status.stdout | default('') | trim }}
+      {{ cloud_init_status.stderr | default('') | trim }}

@@ -223,6 +223,18 @@
 
     - include_tasks: ci-include-common-localhost.yml
 
+# Readiness gate: the banner wait at the end of
+# ci-include-common-localhost.yml only proves port 22 is open, not that
+# the instances are fully provisioned. Wait for an authenticated SSH
+# connection (which retries through sshd's cloud-init restart) and then
+# block until cloud-init has actually finished, so the plays below do not
+# race the host-key-regen restart or fight cloud-init for the dpkg lock.
+- name: Wait for instances to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+
 - hosts: allsf
   gather_facts: yes
   become: true

@@ -75,6 +75,16 @@
       register: result
       until: result.rc == 0
 
+# Readiness gate: the waits above prove sshd answers, but not that
+# cloud-init has finished. Block until it has, so the package operations
+# below do not fight cloud-init for the dpkg lock or land in the window
+# where its host-key regeneration restarts sshd.
+- name: Wait for imagerebuild to finish cloud-init
+  hosts: imagerebuild
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+
 - hosts: imagerebuild
   gather_facts: yes
   become: true
@@ -216,6 +226,16 @@
       delay: 30
       register: result
       until: result.rc == 0
+
+# Readiness gate: the waits above prove sshd answers, but not that
+# cloud-init has finished. Block until it has, so the package operations
+# below do not fight cloud-init for the dpkg lock or land in the window
+# where its host-key regeneration restarts sshd.
+- name: Wait for imagetest to finish cloud-init
+  hosts: imagetest
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
 
 - hosts: imagetest
   gather_facts: yes
