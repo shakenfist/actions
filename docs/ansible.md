@@ -62,12 +62,21 @@ return code rather than printing a bare "unknown" -- that case means the
 gate returned without waiting for anything.
 
 Budget for the slow path when reading a timeout. One gate can spend
-about twenty minutes -- 300s waiting for a connection, an unreachable
-attempt, 300s waiting for the replacement sshd, then the 600s cap in the
-retry -- and `ci-image.yml` and `ci-image-desktop.yml` import it twice
-each. That is against the 90 minute budget on the build step in
-`smoke-cluster.yml`. On the normal path, where cloud-init has already
-finished by the time SSH answers, the gate costs seconds.
+about twenty minutes on one host -- 300s waiting for a connection, an
+unreachable attempt, 300s waiting for the replacement sshd, then the
+600s cap in the retry. That figure is per fork batch rather than per
+play: nothing here sets `forks`, so Ansible's default of five applies,
+and the largest topology puts six hosts in `allsf`, which is two
+batches.
+
+The topology playbooks are the ones that run under a GitHub timeout.
+`build-smoke-cluster` invokes `ci-topology-<topology>.yml`, which
+imports the gate once, under the 90 minute `timeout-minutes` on that
+step in `smoke-cluster.yml`. `ci-image.yml` and `ci-image-desktop.yml`
+import the gate twice each, but nothing in this repository invokes
+them -- they are driven by conductor, with no GitHub timeout over them.
+On the normal path, where cloud-init has already finished by the time
+SSH answers, the gate costs seconds either way.
 
 The gate matters even where nothing SSHes in directly afterwards: on the
 image build and topology playbooks it stops Ansible's package tasks from

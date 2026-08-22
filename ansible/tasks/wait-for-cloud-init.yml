@@ -54,8 +54,8 @@
 # ssh key are both written by cloud-init's init stage, so a host which
 # has authenticated us can also sudo. If become did somehow fail,
 # failed_when: false would swallow it and this gate would wait for
-# nothing, so the log task at the bottom names that case rather than
-# reporting it as an unremarkable unknown.
+# nothing, so the tasks at the bottom of this file call that case out on
+# a line of its own rather than reporting it as an unremarkable unknown.
 #
 # ignore_unreachable is the other half of the sshd bounce, handled below.
 - name: Wait for cloud-init to finish
@@ -88,6 +88,21 @@
       failed_when: false
       ignore_unreachable: true
       register: cloud_init_status
+
+# Every path through this gate is tolerant -- failed_when: false,
+# ignore_unreachable on both attempts, and the timeout cap -- which is
+# right for the exit code but means a broken gate and a satisfied one
+# look alike at a glance. rc 124 is the cap firing, so cloud-init never
+# reached a terminal state; a missing rc means the command never ran.
+# Both put the run back in the window this file exists to close, so they
+# get a line of their own rather than one interpolated field below.
+- name: Warn when the gate did not actually wait
+  when: cloud_init_status.rc is not defined or cloud_init_status.rc == 124
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: the cloud-init readiness gate did not complete on
+      {{ inventory_hostname }}, so this host may still be inside the
+      sshd restart window. See ansible/tasks/wait-for-cloud-init.yml.
 
 # rc is defaulted because the tasks above are deliberately failure
 # tolerant: a result which never produced an rc at all (an unreachable

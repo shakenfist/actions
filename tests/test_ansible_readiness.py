@@ -39,7 +39,11 @@ def documents():
     """
     for root, _, names in os.walk(ANSIBLE_DIR):
         for name in sorted(names):
-            if not name.endswith('.yml'):
+            # Ansible is equally happy with either spelling, and a
+            # provisioning playbook added as .yaml would otherwise be
+            # invisible to every check in this file without tripping any
+            # of the vacuity guards.
+            if not name.endswith(('.yml', '.yaml')):
                 continue
             path = os.path.join(root, name)
             with open(path) as f:
@@ -90,7 +94,14 @@ def creates_instance(task):
     for key, value in task.items():
         if key.split('.')[-1] != 'sf_instance':
             continue
-        if isinstance(value, dict) and value.get('state', 'present') == 'present':
+        if not isinstance(value, dict):
+            continue
+        state = value.get('state', 'present')
+        # A templated state is neither missing nor 'present', and reading
+        # it as "not creating" would drop the playbook out of every check
+        # here -- the same fail-open this function exists to avoid. Only
+        # a literal state: absent excludes a task.
+        if not isinstance(state, str) or '{{' in state or state == 'present':
             return True
     return False
 
@@ -128,6 +139,11 @@ def gate_covers(hosts, targets):
     """
     if not targets:
         return True
+    # hosts: [allsf] is as valid as hosts: allsf. Rejecting the list form
+    # would report a missing gate for a playbook whose gate is sitting
+    # right there, which is the worst thing this check could say.
+    if isinstance(hosts, list):
+        hosts = ','.join(h for h in hosts if isinstance(h, str))
     if not isinstance(hosts, str):
         return False
     # A pattern can combine names with commas, colons and the
@@ -220,6 +236,14 @@ class ReadinessGateTest(unittest.TestCase):
             any('cloud-init status --wait' in c for c in commands),
             '%s no longer waits for cloud-init, which is the whole point '
             'of it; commands found were %s' % (GATE, commands))
+        # The first attempt and the retry spell the command out
+        # separately, so changing the timeout in one and not the other
+        # would otherwise leave this file green.
+        self.assertEqual(
+            1, len(set(commands)),
+            '%s runs more than one distinct command; the retry is meant '
+            'to be the same wait as the first attempt, and these have '
+            'drifted: %s' % (GATE, sorted(set(commands))))
 
     def test_every_creating_play_is_followed_by_the_gate(self):
         # Ordering matters as much as presence: a gate play before the
@@ -300,11 +324,20 @@ class ReadinessGateTest(unittest.TestCase):
                 if not included or '{{' in included:
                     continue
                 found += 1
+                # Ansible resolves a relative include against the
+                # directory of the file doing the including, so check
+                # that first. Everything in the tree today is a playbook
+                # at the ansible/ root, where the two are the same, but
+                # this change creates ansible/tasks/ as a place task
+                # files live next to each other.
+                base = os.path.dirname(os.path.join(ANSIBLE_DIR, name))
+                candidates = [os.path.join(base, included),
+                              os.path.join(ANSIBLE_DIR, included)]
                 with self.subTest(playbook=name, included=included):
                     self.assertTrue(
-                        os.path.exists(os.path.join(ANSIBLE_DIR, included)),
-                        '%s includes %s, which does not exist under ansible/'
-                        % (name, included))
+                        any(os.path.exists(c) for c in candidates),
+                        '%s includes %s, which does not exist beside it or '
+                        'under ansible/' % (name, included))
         self.assertGreater(found, 10, 'no includes found to check')
 
 
