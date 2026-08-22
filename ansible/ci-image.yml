@@ -401,10 +401,19 @@
       until: apt_action is success
       when: ansible_pkg_mgr == "apt"
 
+    # nobest for the same reason tools/ovirt-install-base.sh passes
+    # --nobest: a "*" update aborts outright when a mirror is mid-sync and
+    # the best candidate for some package needs a dependency which has not
+    # landed yet. That is upstream skew rather than anything wrong with the
+    # image being built, and failing the build over it just means rebuilding
+    # later. Since ansible-core 2.17 the default follows the distribution's
+    # own dnf configuration, which is best=True on Rocky, so this has to be
+    # said explicitly.
     - name: Do a dnf update to ensure that we can sudo and manage packages
       dnf:
         name: "*"
         state: latest
+        nobest: true
       when: ansible_pkg_mgr == "dnf"
 
 - hosts: localhost
