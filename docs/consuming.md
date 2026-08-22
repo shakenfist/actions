@@ -31,6 +31,26 @@ jobs:
       tier: smoke
 ```
 
+`smoke-cluster.yml` carries its own concurrency group, so callers do not
+need one on the calling job. That group is merge-group aware: the
+workflow inherits your event, and on `merge_group` your `github.ref` is
+the per-attempt queue branch `gh-readonly-queue/<base>/pr-<N>-<SHA>`,
+whose SHA GitHub mints afresh on every rebuild of the group. Keyed on
+that alone, superseded merge groups were never cancelled and ran whole
+clusters against the shared under-cloud
+([shakenfist/kerbside#284](https://github.com/shakenfist/kerbside/issues/284)),
+so the key now uses `github.event.merge_group.base_ref` in the queue.
+That relies on your merge queue being serial — `max_entries_to_build: 1`,
+which the fleet
+[merge-queue-config audit](https://github.com/shakenfist/development/blob/main/audits/merge-queue-config.md)
+requires. If you raise it, several merge groups are live at once and
+this key would cancel one the queue is still waiting on.
+
+In Mode 2 the concurrency group is yours to declare, and the same rule
+applies to it; see the
+[merge-group-cancellation audit](https://github.com/shakenfist/development/blob/main/audits/merge-group-cancellation.md)
+for the pattern.
+
 **Mode 2 — you want to run your own tests against a live cluster**
 (nothing of yours is inside the cluster; you test your integration with
 it). Add your own `actions/checkout` for your repository's test content
