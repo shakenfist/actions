@@ -95,7 +95,7 @@ jobs:
       # pr-bot-trigger refusing fork pull requests above is load
       # bearing rather than tidiness.
       - name: Checkout the pull request
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: refs/pull/${{ needs.trigger-re-review.outputs.pr_number }}/merge
           fetch-depth: 0

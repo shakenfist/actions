@@ -153,7 +153,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-lint
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install pre-commit
         run: |
@@ -194,7 +194,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}-unit-tests
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # PyYAML is the suite's one dependency: the inventory tests parse
       # the generated inventory to check its group structure, and every
@@ -234,7 +234,7 @@ jobs:
       # still in the history and still needs rotating, and a shallow
       # clone would make this job report a clean history it never
       # looked at.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
