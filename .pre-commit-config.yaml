@@ -23,7 +23,7 @@
 repos:
   # Standard hygiene. These rewrite files rather than only reporting.
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       # The weAudit file and its sidecar are generated without a
       # trailing newline, so these two rewrite them on every
