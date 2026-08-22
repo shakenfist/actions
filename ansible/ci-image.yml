@@ -213,6 +213,15 @@
         # pre-caching that doing this saves an hour off the CI job duration.
         #
         # NOTE(mikal): dnsmasq is deliberately not included in this list.
+        #
+        # state is present rather than latest. The bulk update above has
+        # already moved every installed package as far forward as the mirror
+        # allows, so latest would add nothing here except an upgrade of
+        # exactly the packages nobest may have just held back -- python3 and
+        # its friends appear in both lists -- and that upgrade resolves
+        # strictly, which fails the build in the window nobest exists to
+        # survive. A package which is not installed yet is still resolved
+        # strictly, which is the policy for anything this file names by hand.
         - name: Install packages which CI uses, to make CI runs faster
           dnf:
             name:
@@ -243,7 +252,7 @@
               - qemu-kvm
               - unzip
               - zip
-            state: latest
+            state: present
 
     - name: Install tox and dependencies via apt on Ubuntu
       apt:
@@ -264,10 +273,11 @@
     # tags (e.g. "docker", "docker,foo"); each block gates on its tag
     # appearing in that list. We use a regex rather than the `split`
     # filter because older ansible (2.10 on bookworm/bullseye) does
-    # not ship it. The regex is kept because it costs nothing, but note
-    # that the `nobest` parameter used above already requires
-    # ansible-core >= 2.11, so 2.10 is no longer a controller this
-    # playbook runs on.
+    # not ship it. The `nobest` parameter used above does require
+    # ansible-core >= 2.11, but that only rules 2.10 out for the dnf
+    # path: a 2.10 controller building a Debian image never sends
+    # `nobest` anywhere, and this block gates on `extras` for both
+    # package managers. So the regex stays.
     - when: extras is match('(^|,)docker(,|$)')
       block:
         - name: Install docker (apt)
