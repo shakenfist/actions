@@ -68,13 +68,22 @@ runner and permissions.
 | `pr-retest.yml` | Re-runs `ci.yml` on a bot comment |
 | `pr-re-review.yml` | Re-runs the reviewer, with `force`, on a bot comment |
 | `pr-address-comments.yml` | Works through the review's actionable items on a bot comment |
+| `prune-reviews.yml` | Drops review marks made stale by a push to main and commits the regenerated state back |
 
-The last five are the exception to "nothing here runs for itself" --
+The last six are the exception to "nothing here runs for itself" --
 they exist only for this repository and are not consumed downstream. The
 three bot-triggered ones are the shared templates from
 `shakenfist/development`, deployed here late: this repository ships the
 review automation the fleet runs and did not run it on itself until
 after #20 and #21 had both merged with their review fixes unlooked-at.
+
+`prune-reviews.yml` is unlike the rest and worth singling out. It is
+the only workflow here that holds a `contents: write` token, commits to
+`main` without review, and runs code cloned from another repository --
+`shakenfist/development`, at whatever its default branch holds when the
+run starts. That trust edge is deliberate and is described in
+[docs/ci.md](docs/ci.md), but it is invisible from this side, which is
+why it is named here rather than only there.
 
 ## How a smoke run flows
 

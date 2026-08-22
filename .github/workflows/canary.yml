@@ -26,10 +26,34 @@ on:
   push:
     branches: [main]
     # Documentation cannot change what the actions do, and a smoke
-    # cluster is an expensive way to find that out.
+    # cluster is an expensive way to find that out. The same goes for
+    # the review-tracking artifacts: recording a review writes a
+    # weAudit file and its sidecar, which are neither markdown nor
+    # under docs/, and with 80-odd files to work through one at a time
+    # a stamping merge is the routine commit type this repository now
+    # creates. ('**.md' already covers REVIEWS.md.) This list has to
+    # stay ahead of ci.yml's path filter, and
+    # tests/test_workflow_references.py checks that it does: every
+    # pattern that filter excludes must be named or subsumed here.
+    #
+    # The two are not identical, deliberately. '**.md' reaches further
+    # than the filter's '!docs/**' and '!REVIEWS.md', so a change to
+    # README.md or AGENTS.md is still linted but does not book a
+    # cluster -- markdown cannot alter an action. review-scope.toml is
+    # ignored here for the same reason, while the filter does not
+    # exclude it, because the unit tests read it.
+    #
+    # Content scanners get no such exemption anywhere: a filter skips
+    # prose, and prose is where a secret or a smuggled character
+    # lands. That is why ci.yml's gitleaks job does not consume its
+    # path filter, and it is why nothing here is a reason to widen
+    # this list to documentation the scanner should still read.
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - '.vscode/*.weaudit'
+      - '.vscode/*.weaudit-shas.json'
+      - '.vscode/review-scope.toml'
   workflow_dispatch:
 
 permissions:

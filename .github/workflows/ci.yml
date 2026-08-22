@@ -30,6 +30,93 @@ permissions:
   contents: read
 
 jobs:
+  # Which of the lanes below are worth paying for on this pull
+  # request. Every job in this workflow runs on an ephemeral VM, so a
+  # documentation typo used to book four of them; this job runs on a
+  # static runner and costs nothing by comparison.
+  #
+  # The gitleaks job deliberately does not consume this output. A
+  # scanner exists to read the human-written text a filter skips --
+  # docs and review notes are prose, and prose is where a secret or a
+  # smuggled character lands -- so filtering it would defeat the point
+  # of running it. That is the same rule the consistency audit's
+  # expensive-lane-path-filter check applies, and the same reason
+  # content scanners stay out of paths-ignore in the review-tracking
+  # adoption procedure.
+  #
+  # The hygiene hooks are not similarly exempt, and that is an
+  # accepted loss rather than an oversight: skipping lint on a
+  # documentation-only pull request also skips check-merge-conflict,
+  # trailing-whitespace and end-of-file-fixer, whose subject matter is
+  # precisely markdown. A stray conflict marker in docs/ would merge
+  # unremarked. Running them here instead would mean executing the
+  # branch's pre-commit configuration on a static runner, which is the
+  # one thing this job is careful not to do. gitleaks still reads
+  # every one of those files, so what escapes is formatting, not
+  # content.
+  #
+  # automated_reviewer needs lint and unit-tests, so it skips when
+  # they do, without a condition of its own: a job whose dependency
+  # was skipped is skipped. That is intended -- LLM credits are the
+  # other thing worth not spending on a typo.
+  check_paths:
+    name: "Check paths"
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    # paths-filter calls pulls.listFiles rather than reading the
+    # working tree (see below), and the top-level permissions block
+    # sets every scope it does not name to none. This repository is
+    # public, so the call would most likely succeed on public-data
+    # read alone -- which is exactly why the omission would sit here
+    # until it did not.
+    permissions:
+      pull-requests: read
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code || 'true' }}
+    steps:
+      # There is deliberately no checkout step. On a pull_request
+      # event paths-filter takes its `if (token)` branch and reads the
+      # changed-file list from pulls.listFiles, so it never looks at
+      # the working tree -- upstream says as much: "For pull requests
+      # it's not necessary to checkout the code". That is why this job
+      # carries no fork guard while every lane below does: without a
+      # checkout, a fork's file content never reaches this long-lived
+      # static runner at all.
+      #
+      # The step is still skipped on workflow_dispatch, which has no
+      # pull request payload for the action to read.
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          # By default a file matches if it matches at least one
+          # listed pattern, which makes '**' match everything and
+          # silently defeats every '!' exclusion below.
+          # 'some-with-excludes' means a file is code if it matches
+          # any inclusion and no exclusion, which is both what is
+          # meant here and what stays correct if a second inclusion is
+          # ever added. ('every' also behaves correctly today, but
+          # only because there is exactly one positive pattern: it
+          # requires a file to match ALL of them, so adding a second
+          # inclusion would silently turn this into an intersection
+          # matching almost nothing.)
+          predicate-quantifier: 'some-with-excludes'
+          #
+          # .vscode/review-scope.toml is deliberately NOT excluded,
+          # unlike the two generated files beside it. It is hand
+          # edited, and the unit tests read it -- a typo in a pattern
+          # does not fail anything, it silently shrinks the set of
+          # files under review. canary.yml does ignore it, because
+          # there the criterion is "can this change what an action
+          # does", and it cannot.
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!REVIEWS.md'
+              - '!.vscode/*.weaudit'
+              - '!.vscode/*.weaudit-shas.json'
+
   lint:
     name: Lint
     # SECURITY: fork pull requests do not run this job. It executes
@@ -43,9 +130,23 @@ jobs:
     # pr-auto-review.yml carries the same condition for the same
     # reason. A skipped job still satisfies branch protection, so this
     # does not wedge a required check. See docs/ci.md.
+    #
+    # That last property is also why the filter has to fail open. By
+    # default a job whose dependency did not succeed is skipped, so
+    # without !cancelled() any failure of check_paths -- a transient
+    # action-resolution error, a listFiles 403, a malformed filter
+    # block -- would read as "lint never ran and the required checks
+    # are green" on a repository where a merge to main deploys to ten
+    # others. !cancelled() overrides that default; a failed
+    # check_paths yields no output, and an empty output is != 'false',
+    # so the lane runs. Only a filter that positively said 'false'
+    # skips it.
+    needs: [check_paths]
     if: |
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      !cancelled()
+      && (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+      && needs.check_paths.outputs.code_changed != 'false'
     runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 15
     concurrency:
@@ -78,10 +179,15 @@ jobs:
   unit-tests:
     name: Unit tests
     # SECURITY: fork pull requests do not run this job, for the
-    # reason set out on the lint job above.
+    # reason set out on the lint job above. The !cancelled() term
+    # makes the path filter fail open, also for the reason set out
+    # there.
+    needs: [check_paths]
     if: |
-      github.event_name != 'pull_request' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      !cancelled()
+      && (github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository)
+      && needs.check_paths.outputs.code_changed != 'false'
     runs-on: [self-hosted, vm, debian-12, s]
     timeout-minutes: 15
     concurrency:

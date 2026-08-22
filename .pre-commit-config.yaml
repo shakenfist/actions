@@ -25,8 +25,23 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
+      # The weAudit file and its sidecar are generated without a
+      # trailing newline, so these two rewrite them on every
+      # `pre-commit run --all-files` and then report a failure that
+      # cannot usefully be fixed -- committing the newline only means
+      # the next regen drops it again. Scoped to these two hooks
+      # rather than set at the top level: a blanket exclude would
+      # also hide review notes from gitleaks and check-json, and
+      # review notes are prose, which is exactly where a secret could
+      # land. Note that holds for a local run; in CI a stamp-only
+      # pull request skips the whole lint job on the path filter, so
+      # check-json sees the sidecar only locally. gitleaks does not
+      # consume that filter and still reads everything. See
+      # docs/ci.md.
       - id: trailing-whitespace
+        exclude: ^\.vscode/.*\.weaudit
       - id: end-of-file-fixer
+        exclude: ^\.vscode/.*\.weaudit
       - id: check-merge-conflict
       - id: check-json
       - id: check-executables-have-shebangs

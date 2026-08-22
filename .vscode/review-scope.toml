@@ -1,0 +1,36 @@
+# Which files are subject to whole-file review (see
+# shakenfist/development docs/code-review-tracking.md). Patterns are
+# fnmatch-style against repo-relative paths; '*' matches across
+# directory separators. An empty include list would mean all tracked
+# files.
+#
+# Nearly everything here is in scope, and deliberately so: this
+# repository is composite actions and reusable workflows that ten
+# other repositories call at @main. There is no release to stage a
+# mistake behind, so a bad line here is live in the whole fleet on
+# the next run, and the YAML is the executable artifact rather than
+# configuration around one. The Ansible templates provision the CI
+# clusters, review-schema.json is what constrains the automated
+# reviewer's output, and .gitleaks.toml decides what the secret scan
+# will not look at -- all three are security-relevant in a way their
+# file extensions do not advertise. run_remote and user-data have no
+# extension and are named explicitly for that reason.
+include = [
+    '*.py',
+    '*.sh',
+    '*.md',
+    '*.yml',
+    '*.yaml',
+    '*.j2',
+    '*.json',
+    '*.toml',
+    'tools/run_remote',
+    'ansible/files/user-data',
+]
+
+# Left out by not being named above: .flake8 and .gitignore (tool
+# configuration with no behaviour of its own),
+# etc/ovirt-45-rocky-8-repos.patch (a vendored third-party patch --
+# reviewing it would attest to somebody else's diff), and
+# ansible/files/shakenfist-ci-failure-loki.cwd (a saved query blob).
+exclude = []
