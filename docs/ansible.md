@@ -50,6 +50,15 @@ genuinely broken guest produces a better error in the tasks that follow.
 `--wait` has no timeout of its own, so it is capped with `timeout 600`
 rather than being allowed to consume the whole workflow budget.
 
+`wait_for_connection` returns on the first connection that
+authenticates, which is usually the sshd that is about to be restarted,
+so the `cloud-init status` command can itself land in the bounce. It
+runs with `ignore_unreachable` and is retried once behind a second
+`wait_for_connection`, so the gate cannot fail the play with the flake
+it exists to remove. Because both attempts are failure tolerant, the
+result may carry no return code at all, and the log line that reports it
+defaults every field it interpolates.
+
 The gate matters even where nothing SSHes in directly afterwards: on the
 image build and topology playbooks it stops Ansible's package tasks from
 fighting cloud-init for the dpkg lock.
@@ -57,6 +66,13 @@ fighting cloud-init for the dpkg lock.
 New playbooks that create instances should follow the same pattern. Put
 the readiness play immediately after the provisioning play, before the
 first play that does real work on the new hosts.
+`tests/test_ansible_readiness.py` enforces this: it parses every
+playbook under `ansible/`, works out which plays create instances, and
+fails if any of them is not followed by a play importing the gate. That
+check exists because the invariant cannot be tested any other way before
+merge -- the fabric is not available on a dev host -- and because it has
+already been broken once, when only one of twelve provisioning paths
+grew the gate.
 
 ## CI caching
 

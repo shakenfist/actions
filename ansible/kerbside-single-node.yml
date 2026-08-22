@@ -107,13 +107,10 @@
         debug:
           msg: "Environment details written to {{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
 
-    # Cheap early gate: confirms sshd is listening and presenting a
-    # banner. This is NOT sufficient on its own - sshd presents a banner
-    # before cloud-init has finished, and cloud-init's host-key
-    # regeneration restarts sshd afterwards, which drops the next real
-    # SSH connection with "connection refused". The readiness play below
-    # closes that window; this task just gives a fast failure if the
-    # guest never boots at all.
+    # Cheap early gate: a banner means sshd is listening, which is not the
+    # same as the guest being ready -- see tasks/wait-for-cloud-init.yml,
+    # imported by the readiness play below, for what this does not prove.
+    # Keep it anyway as a fast failure for a guest that never booted.
     - name: Wait for all instances to present an "OpenSSH" prompt
       wait_for:
         port: 22
@@ -123,12 +120,11 @@
         timeout: 300
       with_items: "{{ groups['allsf'] }}"
 
-# Readiness gate: the banner wait above only proves port 22 is open, not
-# that the instance is fully provisioned. Wait for an authenticated SSH
-# connection (which retries through sshd's cloud-init restart) and then
-# block until cloud-init has actually finished, so subsequent SSH steps
-# in the calling workflow do not race the host-key-regen restart. This
-# play targets the "allsf" group so it inherits the per-instance
+# Readiness gate -- see tasks/wait-for-cloud-init.yml for why the banner
+# wait above is not enough on its own. Here it also protects the SSH
+# steps the calling workflow runs after this playbook returns.
+#
+# Targets the "allsf" group so it inherits the per-instance
 # ansible_ssh_host / ansible_ssh_user (the base image's default cloud
 # user, e.g. "debian" or "cloud-user") / private key facts set by
 # kerbside-create-instance.yml's add_host.

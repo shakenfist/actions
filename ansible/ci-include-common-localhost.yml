@@ -67,14 +67,15 @@
   debug:
     msg: "Environment details written to {{ lookup('env', 'GITHUB_WORKSPACE') }}/ci-environment.sh"
 
-# Cheap early gate: confirms sshd is listening and presenting a banner.
-# This is NOT sufficient on its own - sshd presents a banner before
-# cloud-init has finished, and cloud-init's host-key regeneration restarts
-# sshd afterwards, which drops the next real SSH connection with
-# "connection refused". Every playbook including these tasks follows the
-# localhost play with a "Wait for instances to finish cloud-init" play
-# that closes that window; this task just gives a fast failure if a guest
-# never boots at all.
+# Cheap early gate: a banner means sshd is listening, which is not the same
+# as the guest being ready -- see tasks/wait-for-cloud-init.yml for what
+# this does not prove. Keep it anyway as a fast failure for a guest that
+# never booted.
+#
+# Callers are expected to follow the play including these tasks with a
+# readiness play importing tasks/wait-for-cloud-init.yml. That is a
+# contract with six other files rather than something this file can
+# enforce, so tests/test_ansible_readiness.py checks it.
 - name: Wait for all instances to present an "OpenSSH" prompt
   wait_for:
     port: 22
