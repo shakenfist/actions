@@ -43,7 +43,10 @@ land.
 Two kinds of thing, distinguished by how a consumer invokes them.
 
 **Composite actions** are single steps dropped into a consumer's job.
-They inherit that job's runner, environment and token.
+They inherit that job's runner, environment and token. Their inputs and
+outputs are documented in [docs/actions.md](docs/actions.md), and
+[docs/consuming.md](docs/consuming.md) covers wiring a repository up to
+them.
 
 | Action | Purpose |
 |---|---|
@@ -69,8 +72,10 @@ runner and permissions.
 | `pr-re-review.yml` | Re-runs the reviewer, with `force`, on a bot comment |
 | `pr-address-comments.yml` | Works through the review's actionable items on a bot comment |
 | `prune-reviews.yml` | Drops review marks made stale by a push to main and commits the regenerated state back |
+| `renovate.yml` | Hourly dependency updater for this repository's own pins |
+| `codeql-analysis.yml` | CodeQL over the workflows and the Python helpers |
 
-The last six are the exception to "nothing here runs for itself" --
+The last seven are the exception to "nothing here runs for itself" --
 they exist only for this repository and are not consumed downstream. The
 three bot-triggered ones are the shared templates from
 `shakenfist/development`, deployed here late: this repository ships the
@@ -190,7 +195,7 @@ workflow step, not imported.
 Composite actions cannot carry `timeout-minutes` on their own steps, so
 every consumer is expected to put a timeout on the step that uses them.
 This is a GitHub limitation rather than a choice, and it is why the
-README examples all carry timeouts.
+examples in [docs/actions.md](docs/actions.md) all carry timeouts.
 
 The split between `build-smoke-cluster` (a composite action) and
 `smoke-cluster.yml` (a reusable workflow wrapping it) exists so that a

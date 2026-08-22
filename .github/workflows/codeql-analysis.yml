@@ -1,0 +1,98 @@
+# CodeQL analysis for shakenfist/actions.
+#
+# Two languages, and the first is the interesting one. GitHub Actions
+# workflows are what this repository mostly *is*, and CodeQL's actions
+# queries look for the things that go wrong in them: untrusted input
+# reaching a run: block, over-broad token permissions, unpinned
+# third-party actions. That is a better fit here than anywhere else in
+# the fleet, because a finding in these files is a finding in every
+# consumer's CI.
+#
+# Python is the second, covering the helper scripts under tools/ and
+# review-pr-with-claude/.
+#
+# There is no autobuild step. Both languages are analysed without one --
+# nothing here compiles -- and running autobuild against an interpreted
+# tree only adds a step that can fail for reasons unrelated to the
+# analysis.
+name: CodeQL
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    # Documentation cannot change what the analysis finds. CodeQL is
+    # not a required status check here, so a trigger-level filter is
+    # safe: there is no gate waiting on a run that never starts.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    # Weekly, so a newly published query reaches this repository without
+    # waiting for someone to open a pull request against it.
+    - cron: '0 17 * * 2'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    # SECURITY: fork pull requests do not run this job, the same
+    # condition ci.yml's lanes and pr-auto-review.yml carry. These
+    # runners hold /srv/github/id_ci, the key smoke-cluster.yml and
+    # tools/run_remote use to reach every node in the CI mesh. The
+    # actions and python extractors parse rather than build, and there
+    # is no autobuild step, so this is not an obvious execution path --
+    # but the Python extractor's dependency handling has varied across
+    # codeql-action versions and nothing here pins that behaviour off,
+    # so it is not a safety property this workflow establishes.
+    #
+    # There is nothing to lose by refusing: a fork pull request's token
+    # cannot hold security-events: write, so the analysis has no
+    # results to upload either way. A skipped job still satisfies
+    # branch protection. See docs/ci.md.
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, static]
+    timeout-minutes: 30
+    # Successive pushes to a pull request each start a fresh
+    # two-language matrix on scarce static runners; the superseded run
+    # has nothing to say. Grouped per language so the two legs of one
+    # run do not cancel each other.
+    #
+    # Only pull request runs are cancelled. A push to main and the
+    # weekly schedule both upload results that become this
+    # repository's standing security posture, and they share a ref --
+    # so cancelling would let a later push discard the analysis of an
+    # earlier one and leave main's findings reflecting neither.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.language }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      # actions: read is required for workflow run telemetry.
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, python]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"

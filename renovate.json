@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "gitAuthor": "shakenfist-bot <bot@shakenfist.com>",
+  "dependencyDashboard": true,
+  "assignees": [
+    "mikalstill"
+  ],
+  "schedule": [
+    "after 9pm"
+  ],
+  "pre-commit": {
+    "description": "Renovate's pre-commit manager is opt-in. Without this the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently, which matters here because those hooks -- actionlint, shellcheck, flake8, skillsaw -- are the only automated gate this repository has over the workflows and actions the whole fleet consumes.",
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "Nothing is automerged. A merge to main here is a deploy to every consumer at once, with no release to stage it behind, so every update type gets a human. automerge already defaults to false; this block states it rather than relying on the default.",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "automerge": false
+    }
+  ],
+  "minimumReleaseAge": "3 days",
+  "rollbackPrs": true
+}

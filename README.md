@@ -1,122 +1,38 @@
 # Shaken Fist Shared GitHub Actions
 
-This repository contains reusable GitHub Actions used across Shaken Fist
-projects.
+The shared CI toolkit for the [Shaken Fist](https://github.com/shakenfist)
+ecosystem: composite actions and reusable workflows that stand up a real
+Shaken Fist cluster, run a test suite against it, gather the logs, and
+run the fleet's automated code reviewer. It ships no product of its own
+— everything here exists to be consumed by another repository's
+workflows.
 
-Every consumer pins `@main`, so a merge here is a deploy: there is no
-staging step between landing a change and every downstream CI run
-picking it up. [docs/ci.md](docs/ci.md) explains what that means for
-testing, what this repository's own CI does and does not cover, and how
-to run the checks locally.
+Shaken Fist's CI tests Shaken Fist by running it inside itself. A
+long-lived cluster hosts the test instances, and a fresh cluster is
+deployed onto those instances and torn down with them. That is what
+`build-smoke-cluster` does, and it is why this repository exists rather
+than each project growing its own copy.
 
-## Available Actions
+**Every consumer pins `@main`, so a merge here is a deploy.** There are
+no version tags and no release process: the next downstream CI run in
+any repository picks up whatever just landed, with no staging step in
+between. If you are about to change something, read
+[docs/ci.md](https://github.com/shakenfist/actions/blob/main/docs/ci.md)
+first — it explains what that means for testing, what this repository's
+own CI does and does not cover, and how to run the checks locally.
 
-### pr-bot-trigger
+## What is published
 
-Handles `@shakenfist-bot` trigger comments on pull requests. This action:
+**Composite actions**, dropped into a consumer's job as a single step:
+`setup-test-environment`, `build-smoke-cluster`, `pr-bot-trigger`,
+`review-pr-with-claude`, `setup-kerbside-environment`,
+`deploy-kolla-ansible` and `deploy-kerbside-on-shakenfist`.
 
-- Validates that the comment matches the specified trigger phrase
-- Checks if the commenter has write/admin permissions
-- Refuses pull requests from forks
-- Adds a reaction to the triggering comment
-- Posts status messages (starting, unauthorized, fork-not-supported)
-- Outputs PR details for downstream jobs
+**Reusable workflows**, invoked as whole jobs: `smoke-cluster.yml` (the
+full deploy-and-test lane), `pr-auto-review.yml` (the automated
+reviewer) and `export-repo-config.yml` (repository settings drift).
 
-**Usage:**
-
-```yaml
-- uses: shakenfist/actions/pr-bot-trigger@main
-  id: trigger
-  with:
-    trigger-phrase: 'please retest'
-    reaction: 'rocket'
-    starting-message: |
-      Starting tests on branch `{pr_ref}`...
-      [View workflow run]({run_url})
-
-- name: Do something if authorized
-  if: steps.trigger.outputs.authorized == 'true'
-  run: |
-    echo "User is authorized, PR branch is ${{ steps.trigger.outputs.pr-ref }}"
-```
-
-**Inputs:**
-
-| Name | Required | Default | Description |
-|------|----------|---------|-------------|
-| `trigger-phrase` | Yes | - | Phrase to look for (without `@shakenfist-bot` prefix) |
-| `reaction` | No | `rocket` | Emoji reaction to add (rocket, +1, eyes, etc.) |
-| `starting-message` | No | - | Message to post when starting. Supports `{pr_ref}` and `{run_url}` placeholders |
-| `unauthorized-message` | No | Default | Message to post when user is unauthorized. Supports `{username}` placeholder |
-
-**Outputs:**
-
-| Name | Description |
-|------|-------------|
-| `authorized` | `true` if the request may proceed: write/admin commenter **and** a non-fork pull request |
-| `triggered` | `true` if trigger phrase matched, `false` otherwise |
-| `same-repo` | `true` if the PR head is a branch in this repository |
-| `head-repo` | Full name of the repository the PR head lives in, empty if the fork was deleted |
-| `pr-number` | The PR number |
-| `pr-ref` | The PR branch name, in the head repository |
-
-`pr-ref` is `.head.ref`, which for a fork pull request is a branch name
-in the *fork* and carries no indication of that. Callers hand it to
-`actions/checkout` and `git push` against their own repository, so a fork
-PR opened from the fork's default branch would name `main` and act on the
-wrong branch entirely. That is why fork pull requests are refused here
-rather than in each caller: the guard cannot be lost when a project edits
-its workflows, and every consumer inherits it at `@main` without changing
-anything, because it is folded into `authorized`.
-
-### review-pr-with-claude
-
-Runs an automated code review on a pull request using Claude Code.
-
-**Usage:**
-
-```yaml
-- uses: shakenfist/actions/review-pr-with-claude@main
-  with:
-    pr-number: ${{ github.event.issue.number }}
-    max-turns: '50'
-```
-
-**Inputs:**
-
-| Name | Required | Default | Description |
-|------|----------|---------|-------------|
-| `pr-number` | Yes | - | The PR number to review |
-| `max-turns` | No | `50` | Maximum Claude turns |
-| `force` | No | `false` | Review even if bot has already reviewed |
-
-### setup-test-environment
-
-Sets up the test environment for Shaken Fist projects: checks out the
-actions, shakenfist, client-python and agent-python repositories. The
-checkout of the repository that triggered the workflow is at the
-triggering ref (for a pull request, the PR merge ref -- the change as
-merged into its base); the others are at their default branches.
-
-### build-smoke-cluster
-
-Provisions under-cloud test instances and deploys a Shaken Fist cluster
-onto them via the shakenfist.shakenfist collection, leaving the cluster
-usable by later steps in the same job. Requires setup-test-environment
-to have run first. Outputs the cluster coordinates (`primary`,
-`upload_target`, `namespace`, `inventory`).
-
-## Adding Shaken Fist smoke CI to your repository
-
-Two modes, depending on what "have I broken things?" means for your
-repository. Both need a `[self-hosted, vm, debian-12]` runner.
-
-**Mode 1 — your check is Shaken Fist's own smoke suite** (the component
-you develop is deployed into the cluster and the standard suite
-exercises it). This mode only tests YOUR change when your repository is
-one of the components the deploy builds from a checkout — shakenfist,
-client-python or agent-python. For any other repository it deploys pure
-develop and your change is never exercised: use Mode 2 instead.
+## Getting a cluster in your CI
 
 ```yaml
 jobs:
@@ -129,191 +45,27 @@ jobs:
       tier: smoke
 ```
 
-**Mode 2 — you want to run your own tests against a live cluster**
-(nothing of yours is inside the cluster; you test your integration with
-it). Add your own `actions/checkout` for your repository's test content
-— setup-test-environment only checks out the Shaken Fist component
-repositories:
+That runs Shaken Fist's own smoke suite. If you want to run *your* tests
+against a live cluster instead, or wire up the reviewer or a bot-trigger
+comment workflow, see
+[docs/consuming.md](https://github.com/shakenfist/actions/blob/main/docs/consuming.md).
 
-```yaml
-jobs:
-  smoke:
-    runs-on: [self-hosted, vm, debian-12]
-    steps:
-      - name: Setup test environment
-        uses: shakenfist/actions/setup-test-environment@main
+## Documentation
 
-      - name: Build the smoke cluster
-        id: cluster
-        timeout-minutes: 90
-        uses: shakenfist/actions/build-smoke-cluster@main
-
-      - name: Run my tests against the cluster
-        run: |
-          # The cluster's API is on the primary; credentials are in
-          # /etc/sf/sfrc on the cluster nodes. For example:
-          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@${{ steps.cluster.outputs.primary }} \
-              '. /etc/sf/sfrc; /srv/shakenfist/venv/bin/sf-client node list'
-```
-
-The cluster's lifetime is the job: nothing tears it down explicitly, the
-under-cloud reaper collects the test instances afterwards. The deploy
-builds the shakenfist server and client wheels from the checkouts made
-by setup-test-environment, so cross-repo changes must land in
-dependency order.
-
-### setup-kerbside-environment
-
-Sets up the Kerbside-specific test environment: checks out kerbside-patches,
-assembles patched source, provisions a test VM, installs build dependencies,
-and configures the CI registry.
-
-### deploy-kolla-ansible
-
-Bootstraps, validates, and deploys Kolla-Ansible on a test VM. This action
-is shared between kerbside and kerbside-patches CI to avoid duplication.
-
-**Usage:**
-
-```yaml
-# Local build (no registry) - used by kerbside CI
-- uses: shakenfist/actions/deploy-kolla-ansible@main
-  with:
-    base_user: debian
-    image_tag: local
-    build_targets: master
-    topology: all-in-one
-
-# CI registry build - used by kerbside-patches CI
-- uses: shakenfist/actions/deploy-kolla-ansible@main
-  with:
-    base_user: debian
-    image_tag: master-debian-trixie-abc123
-    build_targets: master
-    topology: all-in-one
-    registry_token: ${{ secrets.CI_REGISTRY_TOKEN }}
-    enable_kerbside: 'true'
-    use_ci_registry: 'true'
-```
-
-**Inputs:**
-
-| Name | Required | Default | Description |
-|------|----------|---------|-------------|
-| `base_user` | Yes | `debian` | SSH user on target VM |
-| `image_tag` | Yes | - | Container image tag (`local` or registry hash) |
-| `build_targets` | Yes | - | OpenStack release (master, 2025.1, etc.) |
-| `topology` | Yes | `all-in-one` | Deployment topology |
-| `registry_token` | No | `''` | CI registry token (omit for local builds) |
-| `enable_kerbside` | No | `true` | Enable kerbside in deployment |
-| `use_ci_registry` | No | `false` | Pull from CI registry; pass `--use-ci-registry` to bootstrap and post-install. When `false`, CI registry settings are stripped from `globals.yml` so Kolla-Ansible uses local images. |
-
-**Steps performed:**
-1. Bootstrap Kolla-Ansible (with conditional registry/kerbside/ci-registry flags)
-2. Run pre-checks
-3. Pull images (only when `use_ci_registry` is `true`)
-4. Deploy
-5. Install patched OpenStack clients
-6. Post install Kolla-Ansible setup
-
-### deploy-kerbside-on-shakenfist
-
-Provisions the Kerbside integration in a running single-node Shaken Fist
-cluster (the `build-smoke-cluster` primary) and deploys a kerbside proxy
-co-located on that primary, pointed at the cluster via a `type: shakenfist`
-source. Used by kerbside's `sf-e2e-functional.yml` end-to-end lane. Mirrors
-`deploy-kolla-ansible`'s shape (SSH into the primary, run a sequence of
-steps, fail fast). The caller stages a kerbside checkout and a built proxy
-wheel on the runner first.
-
-**Inputs:**
-
-| Name | Required | Default | Description |
-|------|----------|---------|-------------|
-| `base_user` | No | `debian` | SSH user on the SF primary |
-| `primary` | Yes | - | Egress address of the SF primary node |
-| `system_key` | Yes | - | The SF system namespace key |
-| `kerbside_public_fqdn` | No | `http://127.0.0.1:13002` | `KERBSIDE_URL` set in SF; also the token audience and exchange-URL base (must equal kerbside's `SF_CONSOLE_TOKEN_AUDIENCE`) |
-| `token_duration` | No | `300` | `KERBSIDE_TOKEN_DURATION` (seconds) set in SF |
-| `kerbside_src` | Yes | - | Runner path to the kerbside checkout to deploy |
-| `proxy_wheel` | Yes | - | Runner path/glob to the staged kerbside-proxy wheel |
-
-## Usage in Workflows
-
-These actions are designed to be used in GitHub Actions workflows. Example:
-
-```yaml
-name: PR Retest
-
-on:
-  issue_comment:
-    types: [created]
-
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-  actions: write
-
-jobs:
-  trigger-retest:
-    if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@shakenfist-bot please retest')
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: shakenfist/actions/pr-bot-trigger@main
-        id: trigger
-        with:
-          trigger-phrase: 'please retest'
-          reaction: 'rocket'
-
-      - name: Trigger functional tests
-        if: steps.trigger.outputs.authorized == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run functional-tests.yml \
-            --repo ${{ github.repository }} \
-            --ref "${{ steps.trigger.outputs.pr-ref }}"
-```
-
-## Ansible Playbooks
-
-The `ansible/` directory contains playbooks used by CI workflows for
-provisioning and configuring test infrastructure:
-
-- **ci-image.yml**: Builds CI base images with pre-installed packages.
-- **ci-dependencies.yml**: Downloads and caches VM images.
-- **ci-topology-*.yml**: Provisions multi-node test clusters.
-- **ci-gather-logs.yml**: Collects logs from test nodes after runs.
-
-### CI Caching
-
-The playbooks configure remote VMs to use local caches:
-
-- **apt proxy**: Writes `/etc/apt/apt.conf.d/01proxy` pointing to
-  `http://192.168.1.15:3128` (Squid).
-- **pip mirror**: Writes `/etc/pip.conf` pointing to
-  `https://devpi.home.stillhq.com/root/pypi/+simple/` (devpi).
-- **collection deploy**: `deploy-collection.sh` (via the
-  build-smoke-cluster action) exports `http_proxy`, `https_proxy` and
-  `PIP_INDEX_URL` for package operations during deployment.
-
-Plays targeting remote hosts also set `environment:` directives to
-pass proxy settings to Ansible modules (apt, get_url, etc.).
+| Document | What is in it |
+|---|---|
+| [docs/consuming.md](https://github.com/shakenfist/actions/blob/main/docs/consuming.md) | How to wire your repository up to these actions |
+| [docs/actions.md](https://github.com/shakenfist/actions/blob/main/docs/actions.md) | Inputs, outputs and usage for every composite action |
+| [docs/ci.md](https://github.com/shakenfist/actions/blob/main/docs/ci.md) | This repository's own CI, and why so little of it can be tested before merge |
+| [docs/ansible.md](https://github.com/shakenfist/actions/blob/main/docs/ansible.md) | The CI playbooks and the local package caches they configure |
+| [ARCHITECTURE.md](https://github.com/shakenfist/actions/blob/main/ARCHITECTURE.md) | What the components are and how a run flows through them |
+| [AGENTS.md](https://github.com/shakenfist/actions/blob/main/AGENTS.md) | Conventions and traps, for humans and coding agents alike |
 
 ## Contributing
 
-When adding new actions:
-
-1. Create a new directory with the action name
-2. Add `action.yml` with the action definition
-3. Add any supporting scripts
-4. Update this README with documentation
+When adding a new action: create a directory named for it, add an
+`action.yml`, add any supporting scripts, and document it in
+[docs/actions.md](https://github.com/shakenfist/actions/blob/main/docs/actions.md).
 
 Before opening a pull request, run the checks CI will run:
 
@@ -323,11 +75,8 @@ pre-commit run --all-files
 python3 -m unittest discover -s tests -t . --verbose
 ```
 
-See [docs/ci.md](docs/ci.md) for the rest, including the secret scan and
-which linters are deliberately not enabled yet.
+## Projects using these actions
 
-## Projects Using These Actions
-
-- [imago](https://github.com/shakenfist/imago) - Disk image management
-- [occystrap](https://github.com/shakenfist/occystrap) - Container image tools
-- [shakenfist](https://github.com/shakenfist/shakenfist) - Main project
+- [imago](https://github.com/shakenfist/imago) — disk image management
+- [occystrap](https://github.com/shakenfist/occystrap) — container image tools
+- [shakenfist](https://github.com/shakenfist/shakenfist) — the main project

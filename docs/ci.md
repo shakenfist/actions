@@ -41,8 +41,10 @@ switching to them would break every consumer.
 
 ## What CI does about it
 
-Three lanes, covering what is checkable without a cluster plus a
-post-merge check on what is not.
+Five lanes: what is checkable without a cluster, a post-merge check on
+what is not, a bot-triggered lane for re-running any of it on request,
+static analysis over the workflows themselves, and a dependency updater
+keeping the pins they all rest on current.
 
 ### Pull request lane -- `ci.yml`
 
@@ -265,6 +267,131 @@ because it is invisible from this side and because this repository is
 otherwise explicit about what `@main` pinning costs. Pin the clone to
 a tag or a SHA if that coupling is ever more than is wanted.
 
+### Security lane -- `codeql-analysis.yml`
+
+CodeQL runs on pushes to `main`, on pull requests, and weekly on a
+schedule, analysing two languages.
+
+`actions` is the one that matters here. GitHub Actions workflows are
+most of what this repository *is*, and CodeQL's actions queries look for
+exactly what goes wrong in them: untrusted input reaching a `run:`
+block, over-broad token permissions, unpinned third-party actions. A
+finding in these files is a finding in every consumer's CI, because they
+all resolve them at `@main`. `python` is the second, covering the helper
+scripts under `tools/` and `review-pr-with-claude/`.
+
+Two deliberate differences from `templates/codeql/` in
+`shakenfist/development`:
+
+* It triggers on `main` rather than `develop`. This repository keeps
+  `main` as its default branch so that consumers pinning `@main` keep
+  working.
+* There is no autobuild step. Nothing here compiles, both languages are
+  analysed without one, and running autobuild against an interpreted
+  tree only adds a step that can fail for reasons unrelated to the
+  analysis.
+
+Documentation-only changes are filtered out at the trigger. That is safe
+here *specifically* because CodeQL is not a required status check on
+this repository -- a `paths-ignore` on a required check leaves a gate
+waiting forever on a run that never starts.
+
+**Fork pull requests do not run it**, the same condition `ci.yml`'s
+lanes carry and for the same reason: this is a `static` runner holding
+`/srv/github/id_ci`. The extractors parse rather than build and there
+is no autobuild step, so no fork code obviously executes -- but the
+Python extractor's dependency handling has varied between
+`codeql-action` releases and this workflow pins none of that off, so
+"safe" is not a property the file establishes. Refusing costs nothing
+either way: a fork pull request's `GITHUB_TOKEN` cannot hold
+`security-events: write`, so there is nowhere for the analysis to
+upload results.
+
+Successive pushes to a branch each start a fresh two-language matrix on
+scarce static runners, so the job takes a concurrency group keyed on the
+ref *and* the language -- per language, or the two would cancel each
+other.
+
+The repository-settings half of the same audit -- secret scanning, push
+protection and Dependabot security updates -- is enabled through the
+API rather than from a file in the tree, so it appears in no diff and no
+commit. Nothing here would notice it being turned back off. This
+repository ships `export-repo-config.yml` but does not call it on
+itself, and that workflow would not catch it anyway -- its
+`gh api repos/...` field list stops at the merge and feature toggles and
+never reads `security_and_analysis`. The daily consistency audit in
+`shakenfist/development` is the only thing watching, and it would report
+a regression as a fresh audit failure rather than as configuration
+drift. Widening the export is the obvious fix, but that workflow is
+consumed by the whole fleet at `@main`, so it is a change to make
+deliberately rather than in passing.
+
+### Dependency lane -- `renovate.yml`
+
+Renovate runs hourly on a `static` runner, autodiscovering only
+`shakenfist/actions`, and opens pull requests for two managers:
+
+* **github-actions** -- the third-party action pins in
+  `.github/workflows/` and in the composite `action.yml` files. Those
+  had drifted apart before renovate arrived: `actions/checkout` was
+  pinned at `@v4` in some files and `@v6` in others. The two workflows
+  added alongside it use `@v7`, which is what the fleet template
+  specifies and what upstream currently ships, so the tree briefly
+  carries three majors. Renovate's first sweep converges them; pinning
+  the new files to a version already known to be stale, purely to make
+  the spread look smaller, would not.
+* **pre-commit** -- the hook revisions in `.pre-commit-config.yaml`.
+  This manager is opt-in and ships disabled, so `renovate.json` turns it
+  on explicitly. It matters more here than the version numbers suggest:
+  those hooks are the *only* automated gate this repository has over the
+  workflows and actions the whole fleet consumes, so an unwatched pin
+  means the thing judging everything else is itself unjudged. `instar`
+  found this the hard way, four months behind on `actionlint` while its
+  other dependencies stayed current.
+
+Nothing is automerged. `minimumReleaseAge` is three days and every
+update type is left for a human, which is the right default here for the
+reason the top of this document gives -- a merge to `main` is a deploy
+to every consumer at once, with no staging step between.
+
+Renovate pushes its branches to this repository rather than to a fork,
+so its pull requests are *not* skipped by the fork guard on `ci.yml` and
+get the full lint, unit test and gitleaks lane.
+
+That is worth following through, because it is the one place third-party
+code reaches a self-hosted runner on a trusted branch. A Renovate pull
+request bumping the `actionlint`, `shellcheck`, `flake8` or `skillsaw`
+rev makes `pre-commit run --all-files` clone and execute that new
+upstream revision on the runner holding `/srv/github/id_ci`, before
+anyone has read what changed upstream. `minimumReleaseAge: 3 days` and
+the no-automerge default are what stand between a compromised hook
+release and that runner. Neither is a substitute for looking at the
+upstream diff: a hook rev bump is the one dependency update here that
+should not be rubber-stamped.
+
+**The hourly cron is a wake-up, not the schedule.** `renovate.json`
+sets `"schedule": ["after 9pm"]`, so most of the 24 hourly runs find
+themselves outside that window and do nothing; updates arrive in one
+batch rather than through the day. No `timezone` is set, so "after 9pm"
+means 21:00 **UTC**, which is early morning in Australian hours rather
+than the evening the phrasing suggests. Both the schedule and the
+missing timezone come from `templates/renovate/` in
+`shakenfist/development` and are the same in every repository running
+this lane, so changing either is a fleet decision rather than a local
+one. If a Renovate pull request seems slow to appear, this is why.
+
+The job takes a `renovate` concurrency group. `timeout-minutes` does not
+cover queue time, so an hourly cron can fire while the previous run is
+still waiting for a static runner; two instances autodiscovering the
+same repository race on branch creation. It does not cancel in progress
+-- killing Renovate mid-push is worse than skipping an hour.
+
+One thing renovate cannot help with: the `shakenfist/actions/...@main`
+references, both the ones downstream and the ones this repository makes
+of itself. A branch ref carries no version, so there is nothing for a
+dependency updater to bump. Those stay a manual concern, and are why
+`canary.yml` exists.
+
 ### What is still not covered
 
 Composite action changes are integration-tested only *after* they land.
@@ -380,6 +507,16 @@ one.
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that `@shakenfist-bot please address comments` reads back out |
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
+
+The documentation gets `tests/test_documentation_links.py`, which
+checks that every relative link resolves and that the two link
+conventions hold: the top-level `README.md` absolute throughout, and no
+relative link inside `docs/` escaping `docs/`. Both mirror consistency
+audits in `shakenfist/development` that would otherwise report the
+breakage a day later and against the repository rather than the change
+that caused it. The reshuffle that moved most of `README.md` into
+`docs/` rewrote every link pointing at the moved sections by hand,
+which is the kind of edit this catches.
 
 The workflows get one test file too, `tests/test_workflow_references.py`.
 It checks that everything a workflow names actually exists: dispatch
