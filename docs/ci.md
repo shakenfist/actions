@@ -538,6 +538,18 @@ every pattern in it must match a tracked file, and the four files its
 header argues are out of scope must stay out -- because a typo there
 fails nothing and silently shrinks what gets reviewed.
 
+The ansible playbooks get `tests/test_ansible_readiness.py`. It parses
+every YAML file under `ansible/`, works out which plays create Shaken
+Fist instances, and fails unless each is followed by a readiness play
+that imports `tasks/wait-for-cloud-init.yml` and targets the hosts that
+play added. It also checks that the gate still waits for both an
+authenticated connection and cloud-init, and that every include path in
+the tree resolves. That invariant cannot be exercised before merge --
+the fabric is not available on a dev host, so a missing gate first shows
+up as a flaky canary run days later -- and it has already been broken
+once, when only one of twelve provisioning paths grew the gate. See
+[ansible.md](ansible.md) for the gate itself.
+
 Those are all cross-file references or silent-failure guards nothing
 else validates -- actionlint checks a workflow's syntax, not whether
 the file it dispatches is there -- and each one fails only when

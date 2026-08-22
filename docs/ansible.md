@@ -52,12 +52,22 @@ rather than being allowed to consume the whole workflow budget.
 
 `wait_for_connection` returns on the first connection that
 authenticates, which is usually the sshd that is about to be restarted,
-so the `cloud-init status` command can itself land in the bounce. It
-runs with `ignore_unreachable` and is retried once behind a second
-`wait_for_connection`, so the gate cannot fail the play with the flake
-it exists to remove. Because both attempts are failure tolerant, the
-result may carry no return code at all, and the log line that reports it
-defaults every field it interpolates.
+so the `cloud-init status` command can itself land in the bounce. Both
+attempts run with `ignore_unreachable`, and the first is retried once
+behind a second `wait_for_connection`, so the gate cannot fail the play
+with the flake it exists to remove. Because both attempts are failure
+tolerant, the result may carry no return code at all; the log line that
+reports it defaults every field it interpolates, and names the missing
+return code rather than printing a bare "unknown" -- that case means the
+gate returned without waiting for anything.
+
+Budget for the slow path when reading a timeout. One gate can spend
+about twenty minutes -- 300s waiting for a connection, an unreachable
+attempt, 300s waiting for the replacement sshd, then the 600s cap in the
+retry -- and `ci-image.yml` and `ci-image-desktop.yml` import it twice
+each. That is against the 90 minute budget on the build step in
+`smoke-cluster.yml`. On the normal path, where cloud-init has already
+finished by the time SSH answers, the gate costs seconds.
 
 The gate matters even where nothing SSHes in directly afterwards: on the
 image build and topology playbooks it stops Ansible's package tasks from
@@ -66,9 +76,13 @@ fighting cloud-init for the dpkg lock.
 New playbooks that create instances should follow the same pattern. Put
 the readiness play immediately after the provisioning play, before the
 first play that does real work on the new hosts.
-`tests/test_ansible_readiness.py` enforces this: it parses every
-playbook under `ansible/`, works out which plays create instances, and
-fails if any of them is not followed by a play importing the gate. That
+`tests/test_ansible_readiness.py` enforces this: it parses every YAML
+file under `ansible/`, works out which plays create instances, and fails
+if any of them is not followed by a readiness play that both imports the
+gate and targets the hosts that play added. Matching on hosts rather
+than on position is what makes a partially gated playbook fail: the two
+image playbooks each build two independent instances, so a gate play
+copied without changing its `hosts:` would otherwise pass. That
 check exists because the invariant cannot be tested any other way before
 merge -- the fabric is not available on a dev host -- and because it has
 already been broken once, when only one of twelve provisioning paths

@@ -34,7 +34,12 @@
 # cloud-init never reaches a terminal state, which in CI means burning the
 # whole workflow timeout rather than failing the job. Cap it with
 # coreutils timeout so that case costs ten minutes and then proceeds to
-# the real tasks, which fail with something diagnosable.
+# the real tasks, which fail with something diagnosable. Counting the
+# retry below, the worst case for one gate is closer to twenty minutes:
+# 300s here, an unreachable attempt, 300s waiting for the replacement
+# sshd, and 600s in the retry. ci-image.yml and ci-image-desktop.yml
+# import this file twice each. On the normal path, where cloud-init has
+# already finished, the whole gate costs seconds.
 #
 # One case --wait does not cover: on older cloud-init the wait loop only
 # re-polls while the status is "running", so a status of "not run" returns
@@ -42,6 +47,15 @@
 # started at all, which the task above has already ruled out -- Shaken
 # Fist delivers the ssh key by config drive, so cloud-init has run its
 # init stage before any authenticated connection can succeed.
+#
+# become is not strictly needed to read the status, but it is what the
+# original kerbside gate did and it is harmless here for the same reason
+# the paragraph above gives: the default user's sudoers drop-in and its
+# ssh key are both written by cloud-init's init stage, so a host which
+# has authenticated us can also sudo. If become did somehow fail,
+# failed_when: false would swallow it and this gate would wait for
+# nothing, so the log task at the bottom names that case rather than
+# reporting it as an unremarkable unknown.
 #
 # ignore_unreachable is the other half of the sshd bounce, handled below.
 - name: Wait for cloud-init to finish
@@ -72,16 +86,19 @@
       ansible.builtin.command: timeout 600 cloud-init status --wait
       changed_when: false
       failed_when: false
+      ignore_unreachable: true
       register: cloud_init_status
 
 # rc is defaulted because the tasks above are deliberately failure
 # tolerant: a result which never produced an rc at all (an unreachable
 # host both times, or a become failure) must not turn this log line into
-# the thing that fails the play.
+# the thing that fails the play. That case is worth saying out loud
+# though, because it means the gate returned without waiting for
+# anything, and a bare "unknown" is easy to read past in a long CI log.
 - name: Log the cloud-init state
   ansible.builtin.debug:
     msg: >-
       cloud-init on {{ inventory_hostname }}:
-      rc={{ cloud_init_status.rc | default('unknown') }}
+      rc={{ cloud_init_status.rc | default('NONE -- the check never ran') }}
       {{ cloud_init_status.stdout | default('') | trim }}
       {{ cloud_init_status.stderr | default('') | trim }}
