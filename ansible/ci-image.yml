@@ -179,16 +179,49 @@
         - name: Add the prometheus package repository
           shell: curl -s https://packagecloud.io/install/repositories/prometheus-rpm/release/script.rpm.sh | bash
 
+        # nobest for the same reason tools/ovirt-install-base.sh passes
+        # --nobest: a "*" update aborts outright when a mirror is mid-sync
+        # and the best candidate for some package needs a dependency which
+        # has not landed yet. Rocky pushes a platform-python/python3-libs
+        # pair to AppStream and BaseOS at different times, and regional
+        # mirrors lag the canonical one by varying amounts, so there is a
+        # window in which the best candidate is unsatisfiable. That is
+        # upstream skew rather than anything wrong with the image being
+        # built, and failing the build over it just means rebuilding later.
+        # nobest settles for the newest self-consistent set instead.
+        #
+        # Since ansible-core 2.17 the module default follows the
+        # distribution's own dnf configuration, which is best=True on Rocky,
+        # so this has to be said explicitly. The parameter itself needs
+        # ansible-core >= 2.11 on the controller.
+        #
+        # The retries are the other half of the same problem: nobest handles
+        # a mirror which is internally inconsistent, retries handle one which
+        # is briefly unreachable or serving a 503 mid-sync.
         - name: DNF update the system
           dnf:
             name: "*"
             state: latest
+            nobest: true
+          register: dnf_rebuild_action
+          retries: 10
+          delay: 30
+          until: dnf_rebuild_action is success
 
         # NOTE(mikal): I don't love this, as it increases the risk that we will
         # miss a package in getsf, but its so slow to install these without
         # pre-caching that doing this saves an hour off the CI job duration.
         #
         # NOTE(mikal): dnsmasq is deliberately not included in this list.
+        #
+        # state is present rather than latest. The bulk update above has
+        # already moved every installed package as far forward as the mirror
+        # allows, so latest would add nothing here except an upgrade of
+        # exactly the packages nobest may have just held back -- python3 and
+        # its friends appear in both lists -- and that upgrade resolves
+        # strictly, which fails the build in the window nobest exists to
+        # survive. A package which is not installed yet is still resolved
+        # strictly, which is the policy for anything this file names by hand.
         - name: Install packages which CI uses, to make CI runs faster
           dnf:
             name:
@@ -219,7 +252,7 @@
               - qemu-kvm
               - unzip
               - zip
-            state: latest
+            state: present
 
     - name: Install tox and dependencies via apt on Ubuntu
       apt:
@@ -240,7 +273,11 @@
     # tags (e.g. "docker", "docker,foo"); each block gates on its tag
     # appearing in that list. We use a regex rather than the `split`
     # filter because older ansible (2.10 on bookworm/bullseye) does
-    # not ship it.
+    # not ship it. The `nobest` parameter used above does require
+    # ansible-core >= 2.11, but that only rules 2.10 out for the dnf
+    # path: a 2.10 controller building a Debian image never sends
+    # `nobest` anywhere, and this block gates on `extras` for both
+    # package managers. So the regex stays.
     - when: extras is match('(^|,)docker(,|$)')
       block:
         - name: Install docker (apt)
@@ -401,10 +438,20 @@
       until: apt_action is success
       when: ansible_pkg_mgr == "apt"
 
+    # nobest and the retries for the reasons given on "DNF update the
+    # system" in the imagerebuild play above. This one only verifies that
+    # the finished image can sudo and manage packages, so failing it over
+    # mirror skew loses a verification run rather than an image, but there
+    # is no reason to treat the two differently.
     - name: Do a dnf update to ensure that we can sudo and manage packages
       dnf:
         name: "*"
         state: latest
+        nobest: true
+      register: dnf_action
+      retries: 10
+      delay: 30
+      until: dnf_action is success
       when: ansible_pkg_mgr == "dnf"
 
 - hosts: localhost
