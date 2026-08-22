@@ -223,6 +223,14 @@
 
     - include_tasks: ci-include-common-localhost.yml
 
+# Readiness gate -- see tasks/wait-for-cloud-init.yml for why the banner
+# wait in ci-include-common-localhost.yml is not enough on its own.
+- name: Wait for instances to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+
 - hosts: allsf
   gather_facts: yes
   become: true

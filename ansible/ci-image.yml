@@ -85,6 +85,15 @@
       register: result
       until: result.rc == 0
 
+# Readiness gate -- see tasks/wait-for-cloud-init.yml for why the waits
+# above are not enough on their own. Here it also keeps the package
+# operations below from fighting cloud-init for the dpkg lock.
+- name: Wait for imagerebuild to finish cloud-init
+  hosts: imagerebuild
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+
 - hosts: imagerebuild
   gather_facts: yes
   become: true
@@ -414,6 +423,15 @@
       delay: 30
       register: result
       until: result.rc == 0
+
+# Readiness gate -- see tasks/wait-for-cloud-init.yml for why the waits
+# above are not enough on their own. Here it also keeps the package
+# operations below from fighting cloud-init for the dpkg lock.
+- name: Wait for imagetest to finish cloud-init
+  hosts: imagetest
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
 
 - hosts: imagetest
   gather_facts: yes
