@@ -31,6 +31,20 @@ The playbooks configure remote VMs to use local caches:
 Plays targeting remote hosts also set `environment:` directives to
 pass proxy settings to Ansible modules (apt, get_url, etc.).
 
+## Package resolution policy
+
+The bulk `"*"` updates in `ci-image.yml` run with `nobest: true` and a
+retry loop. A Red Hat derived mirror which is mid-sync can offer a best
+candidate whose dependencies have not landed yet, which the default
+best-candidate resolution reports as an error and which would otherwise
+fail an image build over upstream timing rather than anything under
+test. `nobest` degrades that to the newest self-consistent package set,
+and the retries cover the transport half of the same problem. Targeted
+`dnf` installs are left strict, because a package the playbook names by
+hand failing to resolve is a real failure. `nobest` requires
+ansible-core >= 2.11 on the controller. The same reasoning, and the
+same flag, appears in `tools/ovirt-install-base.sh`.
+
 ## Linting
 
 Neither `yamllint` nor `ansible-lint` is enabled against this directory

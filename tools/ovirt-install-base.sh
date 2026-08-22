@@ -36,5 +36,12 @@ sudo dnf config-manager --set-enabled powertools 2>/dev/null \
 # applied to the bulk update: the packages this script actually needs are
 # installed explicitly below, where a resolution failure is a real failure
 # and should still be fatal.
+#
+# That does leave the install below exposed to the same window, and
+# knowingly so -- yum-utils pulls python3-dnf-plugins-core, python3-dnf and
+# hence python3-libs, which is one half of the pair this comment is about.
+# The trade is deliberate: a package this script names is one whose absence
+# breaks a later step, so an older candidate is not obviously safer than
+# stopping, and stopping at least says which package could not be resolved.
 sudo dnf update -y --nobest
 sudo dnf install -y vim patch yum-utils rsync
