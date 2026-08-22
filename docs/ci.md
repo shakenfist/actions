@@ -42,8 +42,9 @@ switching to them would break every consumer.
 ## What CI does about it
 
 Five lanes: what is checkable without a cluster, a post-merge check on
-what is not, static analysis over the workflows themselves, and a
-dependency updater keeping the pins they all rest on current.
+what is not, a bot-triggered lane for re-running any of it on request,
+static analysis over the workflows themselves, and a dependency updater
+keeping the pins they all rest on current.
 
 ### Pull request lane -- `ci.yml`
 

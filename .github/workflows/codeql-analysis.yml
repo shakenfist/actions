@@ -60,12 +60,19 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, static]
     timeout-minutes: 30
-    # Successive pushes to a branch each start a fresh two-language
-    # matrix on scarce static runners; the superseded run has nothing
-    # to say. Grouped per language so the two do not cancel each other.
+    # Successive pushes to a pull request each start a fresh
+    # two-language matrix on scarce static runners; the superseded run
+    # has nothing to say. Grouped per language so the two legs of one
+    # run do not cancel each other.
+    #
+    # Only pull request runs are cancelled. A push to main and the
+    # weekly schedule both upload results that become this
+    # repository's standing security posture, and they share a ref --
+    # so cancelling would let a later push discard the analysis of an
+    # earlier one and leave main's findings reflecting neither.
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.language }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       # actions: read is required for workflow run telemetry.
       actions: read

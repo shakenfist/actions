@@ -35,6 +35,7 @@ and against the repository rather than the change.
 
 import os
 import re
+import tempfile
 import unittest
 
 from tests.helpers import REPO_ROOT
@@ -42,7 +43,13 @@ from tests.helpers import REPO_ROOT
 
 # [text](target), with the target not starting a scheme or an anchor.
 LINK = re.compile(r'\[[^\]]*\]\(([^)]+)\)')
-FENCE = re.compile(r'^\s*```')
+# Both fence syntaxes. A ~~~ block whose sample text contains a link is
+# sample text, exactly as a ``` one is, and checking it would fail a
+# documentation change that is perfectly correct.
+FENCE = re.compile(r'^\s*(```|~~~)')
+# A link may carry a title: [text](target "Title"). The target is
+# everything up to the whitespace that introduces it.
+TITLE = re.compile(r'\s+["\'(]')
 
 
 def markdown_files():
@@ -69,7 +76,9 @@ def links(path):
             # [x](y) is sample text, not a rendered link.
             line = re.sub(r'`[^`]*`', '', line)
             for target in LINK.findall(line):
-                yield number, target.strip()
+                # Split the optional title off here, so all three
+                # tests below inherit the correction.
+                yield number, TITLE.split(target.strip(), maxsplit=1)[0]
 
 
 def is_relative(target):
@@ -82,14 +91,68 @@ def is_relative(target):
     return bool(target)
 
 
+SELF = re.compile(
+    r'^https://github\.com/shakenfist/actions/blob/(?:main|develop)/(.+)$')
+
+
+class LinkParserTest(unittest.TestCase):
+    """The parser's own sanity check, on a fixture rather than the tree.
+
+    The tree-walking tests below cannot tell "nothing is wrong" from
+    "the regex matched nothing", and coupling that check to how many
+    links the tree happens to contain makes them fail when the
+    documentation is in a perfectly correct state -- the docs-external
+    rule pushes authors toward absolute URLs, so docs/ converging on
+    zero relative links is a plausible future, not a defect.
+    """
+
+    SAMPLE = '''
+[plain](a.md)
+[titled](b.md "A title")
+[anchored](c.md#section)
+[absolute](https://example.com/x)
+
+```
+[fenced](never.md)
+```
+
+~~~
+[tilde fenced](never.md)
+~~~
+
+Inline `[code](never.md)` is sample text.
+'''
+
+    def parse(self):
+        with tempfile.NamedTemporaryFile('w', suffix='.md',
+                                         delete=False) as f:
+            f.write(self.SAMPLE)
+            name = f.name
+        try:
+            return [target for _, target in links(name)]
+        finally:
+            os.unlink(name)
+
+    def test_the_parser_extracts_exactly_the_real_links(self):
+        self.assertEqual(
+            self.parse(),
+            ['a.md', 'b.md', 'c.md#section', 'https://example.com/x'])
+
+    def test_a_title_is_not_part_of_the_target(self):
+        # [text](b.md "A title") yielding 'b.md "A title"' would fail
+        # every tree test on valid markdown.
+        self.assertIn('b.md', self.parse())
+
+    def test_both_fence_syntaxes_are_skipped(self):
+        self.assertNotIn('never.md', self.parse())
+
+
 class RelativeLinkTest(unittest.TestCase):
     def test_every_relative_link_resolves_on_disk(self):
-        found = False
         for relative, path in markdown_files():
             for number, target in links(path):
                 if not is_relative(target):
                     continue
-                found = True
                 # Drop any in-page anchor: docs/ci.md#section is a link
                 # to a file plus a heading within it.
                 clean = target.split('#', 1)[0]
@@ -102,7 +165,42 @@ class RelativeLinkTest(unittest.TestCase):
                         os.path.exists(resolved),
                         '%s:%d links to %s, which does not exist'
                         % (relative, number, target))
-        self.assertTrue(found, 'no relative documentation links found')
+
+
+class SelfReferencingAbsoluteLinkTest(unittest.TestCase):
+    """An absolute link back into this repository still has to resolve.
+
+    The README rule turns every link out of README.md into
+    https://github.com/shakenfist/actions/blob/main/<path>, and the
+    docs-external rule does the same to anything leaving docs/. That
+    makes self-referencing absolute URLs the largest class of link
+    here -- and the class a relative-link checker cannot see. Renaming
+    a file under docs/ would leave every one of them pointing at a
+    404 with all the other tests still green.
+
+    Checked entirely offline: the URL names a path in this repository,
+    so it is verified against the working tree, not fetched.
+    """
+
+    def test_every_self_referencing_url_names_a_file_that_exists(self):
+        found = False
+        for relative, path in markdown_files():
+            for number, target in links(path):
+                match = SELF.match(target)
+                if not match:
+                    continue
+                found = True
+                clean = match.group(1).split('#', 1)[0]
+                with self.subTest(file=relative, line=number, link=target):
+                    self.assertTrue(
+                        os.path.exists(os.path.join(REPO_ROOT, clean)),
+                        '%s:%d links to %s, but %s does not exist in this '
+                        'repository' % (relative, number, target, clean))
+        self.assertTrue(
+            found,
+            'no self-referencing absolute links found -- README.md must '
+            'link into this repository absolutely, so finding none means '
+            'the pattern has stopped matching')
 
 
 class DocsExternalLinkTest(unittest.TestCase):
@@ -118,7 +216,6 @@ class DocsExternalLinkTest(unittest.TestCase):
     DOCS = os.path.join(REPO_ROOT, 'docs')
 
     def test_no_relative_link_in_docs_escapes_docs(self):
-        found = False
         for relative, path in markdown_files():
             if not path.startswith(self.DOCS + os.sep):
                 continue
@@ -130,7 +227,6 @@ class DocsExternalLinkTest(unittest.TestCase):
                     # Site-root-absolute targets are the mkdocs
                     # convention and resolve on the published site.
                     continue
-                found = True
                 resolved = os.path.normpath(
                     os.path.join(os.path.dirname(path), clean))
                 with self.subTest(file=relative, line=number, link=target):
@@ -141,7 +237,6 @@ class DocsExternalLinkTest(unittest.TestCase):
                         'tree above it, so this renders on GitHub and 404s '
                         'there -- use an absolute URL'
                         % (relative, number, target))
-        self.assertTrue(found, 'no relative links inside docs/ found')
 
 
 class ReadmeAbsoluteLinkTest(unittest.TestCase):
