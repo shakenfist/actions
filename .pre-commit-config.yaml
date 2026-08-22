@@ -51,7 +51,7 @@ repos:
   # covers most of what it actually ships. It reads .github/actionlint.yaml
   # for the self-hosted runner labels.
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.7
+    rev: v1.7.12
     hooks:
       - id: actionlint
         name: Lint GitHub Actions workflows
