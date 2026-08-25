@@ -450,8 +450,8 @@ python3 "${create_issues_script}" \
     cp "${review_json_file}" "${review_json_with_issues}"
 }
 
-# Step 8: Render to markdown (with embedded JSON for address-comments
-# automation)
+# Step 8: Render to markdown (with the review embedded as JSON, so it can
+# be recovered from the posted comment)
 echo
 echo "Step 8: Rendering review to markdown..."
 python3 "${render_script}" --embed-json \

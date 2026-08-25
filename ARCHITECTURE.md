@@ -70,14 +70,13 @@ runner and permissions.
 | `canary.yml` | This repository's post-merge integration check |
 | `pr-retest.yml` | Re-runs `ci.yml` on a bot comment |
 | `pr-re-review.yml` | Re-runs the reviewer, with `force`, on a bot comment |
-| `pr-address-comments.yml` | Works through the review's actionable items on a bot comment |
 | `prune-reviews.yml` | Drops review marks made stale by a push to main and commits the regenerated state back |
 | `renovate.yml` | Hourly dependency updater for this repository's own pins |
 | `codeql-analysis.yml` | CodeQL over the workflows and the Python helpers |
 
 The last seven are the exception to "nothing here runs for itself" --
 they exist only for this repository and are not consumed downstream. The
-three bot-triggered ones are the shared templates from
+two bot-triggered ones are the shared templates from
 `shakenfist/development`, deployed here late: this repository ships the
 review automation the fleet runs and did not run it on itself until
 after #20 and #21 had both merged with their review fixes unlooked-at.
@@ -159,11 +158,13 @@ same-repository pull requests. Fork pull requests are reviewed only on
 explicit human request.
 
 The review data structure is shared, not ad hoc:
-`review-pr-with-claude/review-schema.json` defines it, `render-review.py`
-embeds it in a collapsed block in the posted comment, and the
-address-comments automation reads it back out of that block. The round
-trip is load-bearing -- if the embedded JSON stops parsing, that
-automation silently has nothing to work from.
+`review-pr-with-claude/review-schema.json` defines it and constrains
+what the reviewer may emit, and `render-review.py` embeds it in a
+collapsed block in the posted comment. That block is the review's only
+durable machine-readable form once the run's artifacts expire. Its one
+consumer was the retired comment addresser, so it currently has none,
+which makes it a candidate for removal rather than something to build
+on.
 
 ## Supporting material
 
