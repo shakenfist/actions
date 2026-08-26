@@ -12,10 +12,11 @@ inputs:
     required: true
   max-turns:
     description: >
-      Maximum Claude turns. Leave unset and the budget is scaled from
-      the diff size, which is what you want: a fixed budget is either
-      wasteful on a small diff or too small on a large one, and running
-      out costs the whole review.
+      Maximum Claude turns. Leave unset, or pass "auto", and the budget
+      is scaled from the diff size, which is what you want: a fixed
+      budget is either wasteful on a small diff or too small on a large
+      one, and running out costs the whole review. Passing an integer
+      pins the budget and opts out of that scaling.
     required: false
     default: ''
   force:

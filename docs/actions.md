@@ -84,7 +84,7 @@ Runs an automated code review on a pull request using Claude Code.
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `pr-number` | Yes | - | The PR number to review |
-| `max-turns` | No | scaled from the diff | Maximum Claude turns |
+| `max-turns` | No | `''` (scaled from the diff; `auto` means the same) | Maximum Claude turns |
 | `force` | No | `false` | Review even if bot has already reviewed |
 
 Leave `max-turns` alone unless you are pinning it for a test. The
@@ -94,6 +94,14 @@ small on a 1600 line one -- and running out costs the entire review,
 after it has been paid for. Over 1000 lines the prompt also asks the
 reviewer to work in priority order and cap itself at fifteen items, so
 that it converges instead of being cut off mid-sentence.
+
+Passing an integer pins the budget and opts out of that scaling, which
+matters for consumers copied from an older version of the example
+above: a workflow still passing `max-turns: '50'` gets 50 turns on
+every diff, exactly the behaviour this scaling replaced. Remove the
+line to get scaling back, or pass `auto` if something in the workflow
+needs the input to be there. A value that is not an integer is
+ignored, with a warning, in favour of scaling.
 
 ### When the reviewer cannot produce a review
 
@@ -108,14 +116,21 @@ the job summary rather than only in the step log.
 | Bot has already reviewed, and `force` is unset | Green | Skipped silently, as before |
 | Diff over GitHub's 20,000-line API cap | Green | A comment on the PR explaining the options |
 | Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
-| Response truncated mid-JSON | Green | The findings that completed are posted, headed by a warning that the review is partial |
-| Response held no recoverable review | Red | The reviewer or the prompt is at fault, not the PR |
-| The SDK errored, or the JSON failed schema validation | Red | Same -- a tooling problem worth a human's attention |
+| Response truncated mid-JSON, with at least one complete finding | Green | The findings that completed are posted, headed by a warning that the review is partial |
+| Response truncated before any finding completed | Green | A comment on the PR saying so; there is nothing to salvage |
+| Response held no JSON review at all | Red | The reviewer or the prompt is at fault, not the PR |
+| The SDK errored, or a review that was not truncated failed schema validation | Red | Same -- a tooling problem worth a human's attention |
 
-The first four are ordinary outcomes of reviewing a large change, and
+The first five are ordinary outcomes of reviewing a large change, and
 the money is spent by the time they are reached, so they buy an
 explanation on the pull request instead of a red X. The last two mean
 this repository is broken.
+
+Truncation is told apart from prose by whether a ```json block was
+opened at all, and the same explanation is not posted twice: a handler
+that finds its own heading already on the pull request writes the job
+summary and skips the comment, so re-review rounds on an oversized diff
+do not stack up identical notes.
 
 A green job means the reviewer reached a known endpoint. It does not
 mean the pull request was reviewed -- read the comment.

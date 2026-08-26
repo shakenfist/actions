@@ -23,7 +23,10 @@ review for a complete one.
 
 Exit codes:
     0 - A review was written to <review.json>
-    1 - Nothing usable could be extracted
+    1 - The response held no review at all, which is the reviewer or
+        the prompt being wrong rather than the response being large
+    2 - A review block was there but stopped before anything usable
+        arrived, so the response was cut off too early to salvage
 """
 
 import json
@@ -31,10 +34,13 @@ import sys
 from pathlib import Path
 
 
-# How far back to walk looking for a structurally complete cut point.
-# A truncated review is cut inside its last item, so the salvageable
-# point is a few hundred characters back at most; the bound stops a
-# pathological response from turning into a quadratic scan.
+# How many candidate cut points to try parsing before giving up.
+# Finding the cut points is one linear pass, but each candidate costs a
+# ``json.loads()`` over the prefix before it, so the cost of trying
+# them all is the number tried times the length of the response. A
+# truncated review is cut inside its last item and salvages within a
+# handful of candidates; this bounds what a pathological response --
+# one made mostly of tiny nested objects -- can charge for failing.
 MAX_SALVAGE_CANDIDATES = 2000
 
 SALVAGE_CAVEAT = (
@@ -49,29 +55,94 @@ CLOSERS = {'{': '}', '[': ']'}
 class ExtractionError(Exception):
     """No review could be recovered from the response."""
 
+    status = 'unparseable'
+    exit_code = 1
+
+
+class TruncatedError(ExtractionError):
+    """A review block was found, but it stopped before anything usable.
+
+    Separate from its parent because the two mean different things to
+    the caller: this one says the response ran out of room, which is a
+    fact about the size of the pull request, while a bare
+    ExtractionError says the response held no review at all, which is
+    the reviewer or the prompt being wrong.
+    """
+
+    status = 'truncated_unusable'
+    exit_code = 2
+
+
+def _fenced_blocks(text):
+    """Yield the contents of each ```json fenced block, in order.
+
+    A fence that opens and never closes is the truncation case, so its
+    contents run to the end of the response and nothing after it can be
+    a block.
+    """
+    lines = text.splitlines()
+
+    index = 0
+    while index < len(lines):
+        if lines[index].strip().lower() not in ('```json', '``` json'):
+            index += 1
+            continue
+
+        start = index + 1
+        for end in range(start, len(lines)):
+            if lines[end].strip() == '```':
+                yield '\n'.join(lines[start:end])
+                index = end + 1
+                break
+        else:
+            # Opening fence with no closing fence: truncated mid-block.
+            yield '\n'.join(lines[start:])
+            return
+
+
+def looks_like_a_review(data):
+    """True when a parsed object could be a review.
+
+    The schema requires a summary and an items array, so an object
+    without both cannot become a posted review no matter what else is
+    recovered alongside it.
+    """
+    return (isinstance(data, dict) and 'summary' in data
+            and isinstance(data.get('items'), list))
+
 
 def find_json_block(text):
     """Return the most likely JSON text in a model response.
 
-    Prefers a fenced ```json block. A fence that opens and never closes
-    is the truncation case, so everything after the opening fence is
-    returned for the salvage pass to deal with. Failing that, falls back
-    to the first brace that starts an object mentioning "summary".
+    Prefers a fenced ```json block, and among several prefers the last
+    one: the prompt hands the model a fenced example with the shape of
+    a real review, so a model that restates the format before answering
+    leaves the example first and its actual review last. Failing a
+    fence, falls back to the first brace that starts an object
+    mentioning "summary".
     """
-    lines = text.splitlines()
+    blocks = [block for block in _fenced_blocks(text) if block.strip()]
 
-    start = None
-    for i, line in enumerate(lines):
-        if line.strip().lower() in ('```json', '``` json'):
-            start = i + 1
-            break
+    if blocks:
+        try:
+            json.loads(blocks[-1])
+        except json.JSONDecodeError:
+            # The response was cut off while this block was still
+            # being written, which makes it the answer rather than a
+            # restated example. Hand it to the salvage pass.
+            return blocks[-1]
 
-    if start is not None:
-        for j in range(start, len(lines)):
-            if lines[j].strip() == '```':
-                return '\n'.join(lines[start:j])
-        # Opening fence with no closing fence: truncated mid-block.
-        return '\n'.join(lines[start:])
+        for block in reversed(blocks):
+            try:
+                data = json.loads(block)
+            except json.JSONDecodeError:
+                continue
+            if looks_like_a_review(data) and data['items']:
+                return block
+
+        # Nothing that parsed looked like a review. The last block is
+        # still the best guess at what the model meant to hand over.
+        return blocks[-1]
 
     # No fence at all. Take the first brace that opens an object which
     # goes on to mention a summary, which is enough to tell the review
@@ -120,10 +191,18 @@ def _cut_points(text):
 
 
 def salvage(text):
-    """Recover a JSON object from a truncated response.
+    """Recover a review from a truncated response.
 
     Returns the parsed object, or raises ExtractionError when no prefix
-    of the text closes into valid JSON.
+    of the text closes into something shaped like a review.
+
+    Parsing is not enough on its own. Truncation before the first item
+    closed leaves a prefix that parses -- ``summary`` and a completed
+    ``test_coverage``, say -- with no ``items`` at all, and returning
+    that would send a response that was merely cut off down the schema
+    validation failure path, which is where genuine tooling bugs land.
+    So keep walking back until the recovered object could actually be
+    posted.
     """
     candidates = list(_cut_points(text))[-MAX_SALVAGE_CANDIDATES:]
 
@@ -135,7 +214,7 @@ def salvage(text):
             data = json.loads(text[:cut] + closing)
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict):
+        if looks_like_a_review(data):
             return data
 
     raise ExtractionError('no complete JSON object could be recovered')
@@ -154,7 +233,14 @@ def extract(text):
     try:
         data = json.loads(block)
     except json.JSONDecodeError:
-        data = salvage(block)
+        try:
+            data = salvage(block)
+        except ExtractionError as e:
+            # A block was there and it did not parse, so the response
+            # was cut off. It just stopped too early for anything to
+            # survive, which is still a size problem rather than a
+            # broken reviewer.
+            raise TruncatedError(str(e)) from e
         data['caveat'] = SALVAGE_CAVEAT
         return data, True
 
@@ -178,8 +264,8 @@ def main():
     try:
         data, salvaged = extract(text)
     except ExtractionError as e:
-        print(f'status=unparseable reason={e}')
-        sys.exit(1)
+        print(f'status={e.status} reason={e}')
+        sys.exit(e.exit_code)
 
     output_path.write_text(json.dumps(data, indent=2))
     print('status=salvaged' if salvaged else 'status=ok')

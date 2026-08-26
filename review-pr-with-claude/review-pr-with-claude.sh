@@ -7,7 +7,9 @@
 # variables set by the action:
 #
 #   INPUT_PR_NUMBER   - PR number to review (required)
-#   INPUT_MAX_TURNS   - Maximum Claude turns (default: scale from diff)
+#   INPUT_MAX_TURNS   - Maximum Claude turns. Empty or "auto" scales
+#                       the budget from the diff size (the default);
+#                       an integer pins it and opts out of scaling.
 #   INPUT_FORCE       - Review even if already reviewed (default: false)
 #   GH_TOKEN          - GitHub token for API access
 #
@@ -33,6 +35,18 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 pr_number="${INPUT_PR_NUMBER}"
 max_turns="${INPUT_MAX_TURNS:-}"
 force="${INPUT_FORCE:-false}"
+
+# A caller-pinned budget has to be a plain integer: it is handed to
+# ``claude --max-turns`` and interpolated into a comment heredoc below,
+# and neither wants a surprise. Anything else falls back to scaling
+# from the diff rather than failing the run, since the reviewer being
+# unavailable over a malformed input helps nobody.
+if [ -n "${max_turns}" ] && [ "${max_turns}" != "auto" ] && \
+        ! [[ "${max_turns}" =~ ^[0-9]+$ ]]; then
+    echo "Warning: max-turns '${max_turns}' is not a number;" \
+        "scaling from the diff size instead"
+    max_turns=''
+fi
 
 # CI mode is always true when running as an action
 ci_mode=true
@@ -91,8 +105,25 @@ review_unavailable() {
         echo "it does not block the merge queue."
     } > "${comment_file}"
 
-    gh pr comment "${pr_number}" --body-file "${comment_file}" \
-        || echo "Warning: failed to post ${reason} comment"
+    # Has this same explanation already been posted? The diff-too-large
+    # check runs before the already-reviewed gate, and the re-review
+    # trigger sets force, so a second attempt reaches this handler and
+    # would otherwise leave an identical comment each time. The job
+    # summary is still written either way: that is per-run, and the
+    # run it explains is this one.
+    if gh pr view "${pr_number}" --json comments \
+            --jq '.comments[] |
+                select(
+                    .author.login == "github-actions" or
+                    .author.login == "shakenfist-bot"
+                ) | .body' 2>/dev/null \
+            | grep -qF "${heading}"; then
+        echo "Note: the PR already carries this explanation, not" \
+            "posting it again"
+    else
+        gh pr comment "${pr_number}" --body-file "${comment_file}" \
+            || echo "Warning: failed to post ${reason} comment"
+    fi
 
     step_summary "### :robot: ${heading}" '' "${body}"
 
@@ -103,6 +134,65 @@ review_unavailable() {
     echo "PR review skipped (${reason})"
     echo "========================================"
     exit 0
+}
+
+# The reviewer spent its whole turn budget without arriving at a
+# review. Called from both shapes that takes: an envelope with no
+# result text at all, and one carrying text that holds no review.
+#
+# The heredocs in here and in review_truncated_unavailable() are
+# unquoted so they can interpolate the budget and the diff size. Only
+# numeric variables set by this script may be named in them -- an
+# unquoted heredoc also runs $(...) and backticks, and everything the
+# reviewer touches after step 2 is pull request controlled.
+review_out_of_turns() {
+    review_unavailable "turn_budget_exhausted" \
+        "Automated review ran out of turns" \
+        "$(cat << COMMENT_EOF
+The reviewer used its whole budget of ${max_turns} turns on this
+${diff_lines} line diff without reaching a review, so there is
+nothing to post. Nothing is wrong with the PR -- the reviewer ran
+out of room before it finished looking.
+
+Options:
+
+* **Ask for another review.** The re-review trigger runs the
+  reviewer again, and the budget is scaled from the diff size, so a
+  rerun starts from the same place. Worth one attempt: the review
+  ending here is partly luck of the run.
+* **Split the PR.** A smaller diff reviews inside the budget and is
+  easier for humans to read too.
+* **Land without an automated review.** This job is not a required
+  check, so it does not block the merge queue.
+COMMENT_EOF
+)"
+}
+
+# The response stopped mid-JSON early enough that nothing survived the
+# salvage pass, or that what survived is not a whole review. Same
+# family as running out of turns: the reviewer ran out of room, which
+# is a fact about the size of this pull request rather than a broken
+# tool, so it finishes green with an explanation.
+review_truncated_unavailable() {
+    review_unavailable "truncated_unusable" \
+        "Automated review was cut off before it said anything" \
+        "$(cat << COMMENT_EOF
+The reviewer's response stopped part way through the review, on this
+${diff_lines} line diff, before any complete finding had been
+written. A partial review is salvaged and posted when there is one to
+salvage; this response was cut too early for that, so there is
+nothing to show. Nothing is wrong with the PR.
+
+Options:
+
+* **Ask for another review.** How much output a run gets through
+  varies, so a rerun is worth one attempt.
+* **Split the PR.** A smaller diff leaves the reviewer room to
+  finish, and is easier for humans to read too.
+* **Land without an automated review.** This job is not a required
+  check, so it does not block the merge queue.
+COMMENT_EOF
+)"
 }
 
 # The reviewer broke rather than ran out of room. Say so where the
@@ -261,6 +351,8 @@ if [ -z "${max_turns}" ] || [ "${max_turns}" = "auto" ]; then
     echo "Turn budget: ${max_turns} (scaled from diff size)"
 else
     echo "Turn budget: ${max_turns} (set by the caller)"
+    echo "Note: an explicit max-turns opts out of scaling with the" \
+        "diff. Drop the input, or pass 'auto', to get it back."
 fi
 echo
 
@@ -493,26 +585,7 @@ if [ ! -s "${claude_result_file}" ]; then
     # reasons that is matters: running out of turns is a budget
     # question about this PR, anything else is the reviewer breaking.
     if [ "${result_subtype}" = "error_max_turns" ]; then
-        review_unavailable "turn_budget_exhausted" \
-            "Automated review ran out of turns" \
-            "$(cat << COMMENT_EOF
-The reviewer used its whole budget of ${max_turns} turns on this
-${diff_lines} line diff without reaching a review, so there is
-nothing to post. Nothing is wrong with the PR -- the reviewer ran
-out of room before it finished looking.
-
-Options:
-
-* **Ask for another review.** The re-review trigger runs the
-  reviewer again, and the budget is scaled from the diff size, so a
-  rerun starts from the same place. Worth one attempt: the review
-  ending here is partly luck of the run.
-* **Split the PR.** A smaller diff reviews inside the budget and is
-  easier for humans to read too.
-* **Land without an automated review.** This job is not a required
-  check, so it does not block the merge queue.
-COMMENT_EOF
-)"
+        review_out_of_turns
     fi
 
     review_failed "Automated review produced no result" \
@@ -527,16 +600,36 @@ fi
 # partial review, because a large diff runs out of output room often
 # enough that discarding those is throwing away most of a review.
 echo "Extracting review JSON..."
-if extract_status=$(python3 "${extract_script}" \
-        "${claude_result_file}" "${review_json_file}"); then
+review_truncated=false
+extract_rc=0
+extract_status=$(python3 "${extract_script}" \
+    "${claude_result_file}" "${review_json_file}") || extract_rc=$?
+
+if [ "${extract_rc}" -eq 0 ]; then
     echo "Extraction: ${extract_status}"
     if [ "${extract_status}" = "status=salvaged" ]; then
         echo "Note: the response was truncated; the review is partial"
+        review_truncated=true
         ci_output "review_truncated" "true"
     fi
 else
+    echo "Extraction failed: ${extract_status}"
     echo "Response was:"
     head -50 "${claude_result_file}"
+
+    # Exit 2 says a review block was there and stopped before anything
+    # usable arrived, which is the large-diff outcome this PR exists
+    # to handle. So is a budget that ran out with prose in the result
+    # rather than nothing at all. Either way the response is too small,
+    # not the tooling too broken.
+    if [ "${extract_rc}" -eq 2 ]; then
+        ci_output "review_truncated" "true"
+        review_truncated_unavailable
+    fi
+    if [ "${result_subtype}" = "error_max_turns" ]; then
+        review_out_of_turns
+    fi
+
     review_failed "Automated review output could not be parsed" \
         "No JSON review could be recovered from the reviewer's \
 output, not even a partial one (${extract_status}; outcome: \
@@ -548,6 +641,15 @@ echo "Validating JSON..."
 if ! python3 "${render_script}" --validate "${review_json_file}"; then
     echo "JSON content:"
     cat "${review_json_file}"
+
+    # A salvaged review that will not validate is the response having
+    # been cut off, not the schema and the prompt disagreeing. Saying
+    # "tooling problem" there sends a human looking for a bug that is
+    # not present, so route it where the truncation cases go.
+    if [ "${review_truncated}" = "true" ]; then
+        review_truncated_unavailable
+    fi
+
     review_failed "Automated review failed schema validation" \
         "The reviewer returned JSON that does not match \
 review-schema.json (outcome: ${result_subtype}). The prompt, the \
