@@ -48,13 +48,11 @@ is the whole fleet's problem until it is fixed or reverted.
 ## Traps
 
 **Never write a bot trigger phrase in a comment you are posting.**
-`pr-retest.yml`, `pr-re-review.yml` and `pr-address-comments.yml` all
-match with `contains()` over the whole comment body, so the phrase fires
-from inside backticks, inside a quote, or inside a sentence explaining
-what not to do. Two of the three push commits to the pull request
-branch, which is how they collide with work you are about to push
-yourself. Describe them or break them up instead. The phrases are listed
-in [docs/ci.md](docs/ci.md).
+`pr-retest.yml` and `pr-re-review.yml` both match with `contains()` over
+the whole comment body, so the phrase fires from inside backticks,
+inside a quote, or inside a sentence explaining what not to do -- each
+one booking a scarce runner. Describe them or break them up instead. The
+phrases are listed in [docs/ci.md](docs/ci.md).
 
 **A pull request is reviewed once unless somebody asks again.** The
 automatic review in `ci.yml` does not set `force`, and

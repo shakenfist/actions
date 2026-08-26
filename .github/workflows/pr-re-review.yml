@@ -11,9 +11,9 @@
 #
 #   * A claude-code runner is scarce, and the template holds one for
 #     every comment containing the phrase, including comments from
-#     people with no write access at all. pr-address-comments.yml and
-#     pr-retest.yml both get this right, splitting the cheap part onto
-#     a static runner and escalating only once authorized.
+#     people with no write access at all. pr-retest.yml gets this
+#     right, splitting the cheap part onto a static runner and
+#     escalating only once authorized.
 #   * The inline copy had drifted from the action: it reacted with +1
 #     rather than rocket, worded its refusal differently, and could not
 #     tell "phrase not matched" from "not authorized" because it never
@@ -21,8 +21,8 @@
 #     login straight into `run:` and `--body`, which the action avoids
 #     by passing it through env.
 #
-# So this splits the job in two and uses pr-bot-trigger, matching the
-# other two files. AGENTS.md's five-lines-of-inline-shell rule points
+# So this splits the job in two and uses pr-bot-trigger, matching
+# pr-retest.yml. AGENTS.md's five-lines-of-inline-shell rule points
 # the same way. The fixes belong upstream in the template too.
 name: PR Re-review
 
@@ -39,9 +39,9 @@ jobs:
   trigger-re-review:
     name: "Trigger re-review"
     # Only run on PR comments (not issue comments), and never on a
-    # comment the bot itself posted: pr-address-comments.yml quotes
-    # model-generated summaries back into the pull request, and a
-    # summary that mentions a trigger phrase would re-fire the lane.
+    # comment the bot itself posted: the automated reviewer posts
+    # model-generated summaries onto the pull request, and a summary
+    # that mentions a trigger phrase would re-fire the lane.
     # contains() does not care that the phrase is inside a quote.
     if: |
       github.event.issue.pull_request &&

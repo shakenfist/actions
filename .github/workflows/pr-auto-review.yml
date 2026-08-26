@@ -99,9 +99,9 @@ jobs:
           # with more than thirty commits the last element is the
           # thirtieth commit and not the newest one -- and this guard
           # would then read a stale author and let a bot commit trigger
-          # the review it exists to suppress. Projects whose
-          # "address comments" automation makes one commit per review
-          # item reach thirty commits easily.
+          # the review it exists to suppress. A pull request with more
+          # than thirty commits is ordinary, so this is not a corner
+          # case worth trading for a shorter query.
           last_author_email=$(gh api \
             "repos/${{ github.repository }}/commits/${HEAD_SHA}" \
             --jq '.commit.author.email')

@@ -4,10 +4,10 @@
 
 This turns the reviewer model's JSON into the markdown comment posted on
 every pull request across the fleet, and into the machine-readable block
-that `@shakenfist-bot please address comments` reads back out again. The
-round trip is the part worth pinning down: if the embedded JSON stops
-being recoverable, the address-comments automation silently has nothing
-to work from.
+appended to it. The round trip is the part worth pinning down: the
+posted comment is the only durable copy of a review once the run's
+artifacts expire, so if the embedded JSON stops being recoverable the
+structured form of every review is lost with it.
 """
 
 import json
@@ -60,6 +60,16 @@ class StripNullsTest(unittest.TestCase):
 
 
 class ValidateReviewTest(unittest.TestCase):
+    def test_the_schema_sits_beside_the_script(self):
+        # load_schema() returns None when review-schema.json is not next
+        # to render-review.py, and validate_review() then returns valid
+        # without checking anything -- every review passes, including
+        # ones the schema would reject. That is a bypass rather than
+        # weaker validation, so the co-location is pinned here rather
+        # than left to the docstring that describes it.
+        self.assertTrue(render.SCHEMA_PATH.exists(), render.SCHEMA_PATH)
+        self.assertIsInstance(render.load_schema(), dict)
+
     def test_accepts_a_minimal_valid_review(self):
         valid, error = render.validate_review(
             {'summary': 'Looks fine', 'items': []})
@@ -192,9 +202,9 @@ class RenderMarkdownTest(unittest.TestCase):
         self.assertIn('- the empty case', text)
 
     def test_embedded_json_round_trips(self):
-        # The address-comments automation recovers the review by pulling
-        # this block back out of the posted comment. If it stops being
-        # valid JSON, that automation quietly loses its input.
+        # This block is how a review is recovered from the posted
+        # comment. If it stops being valid JSON, anything reading a
+        # review back quietly loses its input.
         data = {
             'summary': 'A summary',
             'items': [item(1, 'fix', 'Thing', location='a.py:1')],
@@ -208,9 +218,14 @@ class RenderMarkdownTest(unittest.TestCase):
         text = render.render_markdown({'summary': 's', 'items': []})
         self.assertNotIn('```json', text)
 
-    def test_footer_names_the_address_comments_trigger(self):
+    def test_footer_advertises_no_retired_trigger(self):
+        # The comment addresser was retired in August 2026. The footer
+        # used to tell every reader on every fleet pull request to type
+        # its trigger phrase, which now names a command nothing answers
+        # -- no workflow, no reply, no failure.
         text = render.render_markdown({'summary': 's', 'items': []})
-        self.assertIn('@shakenfist-bot please address comments', text)
+        self.assertIn('automated reviewer', text)
+        self.assertNotIn('please address comments', text)
 
 
 class RenderItemTest(unittest.TestCase):
