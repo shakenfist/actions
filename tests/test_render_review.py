@@ -60,6 +60,16 @@ class StripNullsTest(unittest.TestCase):
 
 
 class ValidateReviewTest(unittest.TestCase):
+    def test_the_schema_sits_beside_the_script(self):
+        # load_schema() returns None when review-schema.json is not next
+        # to render-review.py, and validate_review() then returns valid
+        # without checking anything -- every review passes, including
+        # ones the schema would reject. That is a bypass rather than
+        # weaker validation, so the co-location is pinned here rather
+        # than left to the docstring that describes it.
+        self.assertTrue(render.SCHEMA_PATH.exists(), render.SCHEMA_PATH)
+        self.assertIsInstance(render.load_schema(), dict)
+
     def test_accepts_a_minimal_valid_review(self):
         valid, error = render.validate_review(
             {'summary': 'Looks fine', 'items': []})
