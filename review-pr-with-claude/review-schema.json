@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Brief summary of what the PR does (1-3 sentences)"
     },
+    "caveat": {
+      "type": "string",
+      "description": "Why this review is incomplete, set by the tooling when a truncated response was salvaged"
+    },
     "items": {
       "type": "array",
       "description": "List of review items (issues, suggestions, observations)",

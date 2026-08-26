@@ -77,7 +77,6 @@ Runs an automated code review on a pull request using Claude Code.
 - uses: shakenfist/actions/review-pr-with-claude@main
   with:
     pr-number: ${{ github.event.issue.number }}
-    max-turns: '50'
 ```
 
 **Inputs:**
@@ -85,8 +84,41 @@ Runs an automated code review on a pull request using Claude Code.
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `pr-number` | Yes | - | The PR number to review |
-| `max-turns` | No | `50` | Maximum Claude turns |
+| `max-turns` | No | scaled from the diff | Maximum Claude turns |
 | `force` | No | `false` | Review even if bot has already reviewed |
+
+Leave `max-turns` alone unless you are pinning it for a test. The
+budget is 50 turns plus 10 for every 500 lines of diff, capped at 150,
+because a fixed budget is either generous on a 200 line diff or too
+small on a 1600 line one -- and running out costs the entire review,
+after it has been paid for. Over 1000 lines the prompt also asks the
+reviewer to work in priority order and cap itself at fifteen items, so
+that it converges instead of being cut off mid-sentence.
+
+### When the reviewer cannot produce a review
+
+The reviewer is not a required check anywhere in the fleet, so a red
+job buys nothing on its own: it does not block a merge, it leaves an X
+for a human to triage. What the exit code means is therefore split by
+whose problem the outcome is, and every case says which one it was in
+the job summary rather than only in the step log.
+
+| Outcome | Job | What happens |
+|---|---|---|
+| Bot has already reviewed, and `force` is unset | Green | Skipped silently, as before |
+| Diff over GitHub's 20,000-line API cap | Green | A comment on the PR explaining the options |
+| Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
+| Response truncated mid-JSON | Green | The findings that completed are posted, headed by a warning that the review is partial |
+| Response held no recoverable review | Red | The reviewer or the prompt is at fault, not the PR |
+| The SDK errored, or the JSON failed schema validation | Red | Same -- a tooling problem worth a human's attention |
+
+The first four are ordinary outcomes of reviewing a large change, and
+the money is spent by the time they are reached, so they buy an
+explanation on the pull request instead of a red X. The last two mean
+this repository is broken.
+
+A green job means the reviewer reached a known endpoint. It does not
+mean the pull request was reviewed -- read the comment.
 
 ## setup-test-environment
 

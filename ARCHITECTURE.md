@@ -139,9 +139,19 @@ caller CI (tests pass)                 human comment on a PR
   └── pr-auto-review.yml @main           └── pr-bot-trigger @main
         └── review-pr-with-claude @main        └── review-pr-with-claude @main
               ├── review-pr-with-claude.sh              (with force set)
+              ├── extract-review-json.py  response -> JSON
               ├── render-review.py    JSON -> markdown
               └── create-review-issues.py   actionable items -> issues
 ```
+
+A large diff is the case this chain is shaped around. The turn budget
+scales with the diff size, the prompt asks for prioritised output above
+a threshold, and a response cut off mid-JSON is salvaged down to the
+findings that completed and posted with the truncation declared. What
+is left over -- the reviewer erroring, or output nothing can be
+recovered from -- fails the job, because that is this repository being
+broken rather than the pull request being large.
+[docs/actions.md](docs/actions.md) has the full table of outcomes.
 
 A review is gated three ways: the caller's `needs:` list (tests passed),
 a check that the last commit is not the bot's, and a check inside

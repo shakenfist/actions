@@ -112,6 +112,29 @@ class RenderMarkdownTest(unittest.TestCase):
         text = render.render_markdown({'items': []})
         self.assertIn('No summary provided.', text)
 
+    def test_a_caveat_is_rendered_above_the_summary(self):
+        # A salvaged review carries a caveat saying so. It has to be
+        # the first thing read: a partial review taken for a complete
+        # one says the parts nobody looked at are fine.
+        text = render.render_markdown({
+            'summary': 'All good here',
+            'caveat': 'The response was truncated.',
+            'items': [],
+        })
+        self.assertIn('Incomplete review', text)
+        self.assertIn('The response was truncated.', text)
+        self.assertLess(text.index('Incomplete review'),
+                        text.index('### Summary'))
+
+    def test_no_caveat_means_no_warning(self):
+        text = render.render_markdown({'summary': 's', 'items': []})
+        self.assertNotIn('Incomplete review', text)
+
+    def test_a_review_with_a_caveat_still_validates(self):
+        valid, error = render.validate_review({
+            'summary': 's', 'items': [], 'caveat': 'Truncated.'})
+        self.assertTrue(valid, error)
+
     def test_fix_and_document_items_share_the_action_items_section(self):
         text = render.render_markdown({
             'summary': 's',
