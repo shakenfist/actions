@@ -57,7 +57,17 @@ CATEGORY_EMOJI = {
 
 
 def load_schema() -> dict | None:
-    """Load the JSON schema for validation."""
+    """Load the JSON schema for validation.
+
+    Returns None when `review-schema.json` is not sitting beside this
+    script, which `validate_review()` below treats as "valid". That is
+    a bypass rather than weaker checking: a relocated script does not
+    fail loudly, it silently stops validating, and every review passes
+    including ones the schema would reject. Move the two files
+    together. The workflow test that used to pin this arrangement went
+    with the comment addresser it was written for, so this comment is
+    the record.
+    """
     if not SCHEMA_PATH.exists():
         return None
     with open(SCHEMA_PATH) as f:
@@ -105,7 +115,8 @@ def validate_review(review_data: dict) -> tuple[bool, str]:
 
     schema = load_schema()
     if schema is None:
-        return True, ''  # No schema available, skip validation
+        # Fails open -- see load_schema() for why that is a bypass.
+        return True, ''
 
     try:
         jsonschema.validate(review_data, schema)

@@ -148,14 +148,17 @@ quoting a phrase back onto a pull request cannot re-trigger the lane.
 
 **Fork pull requests are refused**, by `pr-bot-trigger` rather than by
 each workflow. Its `pr-ref` output is `.head.ref`, a branch name in the
-*head* repository with nothing to say which repository that is; callers
-hand that name to `actions/checkout` against their own repository, and
-in the fleet's other callers to `git push origin HEAD:refs/heads/<ref>`
-as well. A fork pull request opened from the fork's default branch names
-`main`, so the checkout resolves to this repository's `main` -- and
-where a caller pushes, the push lands bot commits on the branch the
-whole fleet pins. Putting the refusal in the action means every
-repository consuming it at `@main` gets the guard without editing
+*head* repository with nothing to say which repository that is, and
+each caller resolves it against its own repository. A fork pull request
+opened from the fork's default branch therefore names `main`. Here the
+consequence is a dispatch: `pr-retest.yml` would run `ci.yml` against
+*this* repository's `main`. It is the only local caller that touches
+`pr-ref` at all -- `pr-re-review.yml` checks out `refs/pull/<n>/merge`
+and never reads it. In the fleet's other callers the same name reaches
+`actions/checkout` against their own repository and
+`git push origin HEAD:refs/heads/<ref>`, where it lands bot commits on
+the branch the whole fleet pins. Putting the refusal in the action means
+every repository consuming it at `@main` gets the guard without editing
 anything.
 
 The re-review one matters more than it looks. `review-pr-with-claude`
@@ -176,8 +179,8 @@ authoring commits from a review no human had read was the part that
 stopped anyone reaching for it. It is being removed from every
 repository rather than left switched off, because it triggered on
 `issue_comment` and so held `contents: write` against the pull request
-branch for a feature nobody wanted. See the `ci-review-automation` audit in
-`shakenfist/development` for the fleet-wide version of this.
+branch for a feature nobody wanted. See the `ci-review-automation`
+audit in `shakenfist/development` for the fleet-wide version of this.
 
 One deviation from the shared template in
 `shakenfist/development/templates/ci-review-automation/`, recorded in
@@ -187,13 +190,14 @@ cannot -- see above.
 
 One convention is knowingly not met. AGENTS.md says not to write more
 than about five lines of shell inline in a workflow step -- put it in a
-script under `tools/` so it can be run and tested outside CI. Both files
-carry blocks past that, in the comment steps. They are the fleet's
-shared templates, and every line this repository rewrites is a line that
-stops matching the nine other repositories running the same workflows,
-which costs more than it saves while the templates are still the source
-of truth. Recorded here rather than left as a silent conflict between
-the convention and the files.
+script under `tools/` so it can be run and tested outside CI. Only
+`pr-retest.yml` breaches it, in its dispatch step and its confirmation
+comment; `pr-re-review.yml` carries no inline shell at all. It is one of
+the fleet's shared templates, and every line this repository rewrites is
+a line that stops matching the other repositories running the same
+workflow, which costs more than it saves while the templates are still
+the source of truth. Recorded here rather than left as a silent conflict
+between the convention and the file.
 
 ### Post-merge lane -- `canary.yml`
 

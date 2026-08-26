@@ -162,9 +162,11 @@ The review data structure is shared, not ad hoc:
 what the reviewer may emit, and `render-review.py` embeds it in a
 collapsed block in the posted comment. That block is the review's only
 durable machine-readable form once the run's artifacts expire. Its one
-consumer was the retired comment addresser, so it currently has none,
-which makes it a candidate for removal rather than something to build
-on.
+consumer was the retired comment addresser, so it currently has none.
+It is kept deliberately on that basis -- as the durable copy, not as
+groundwork for a reader that is coming. Dropping it would change the
+shared reviewer's output for every repository at once, which is a
+fleet-wide decision rather than one to make from here.
 
 ## Supporting material
 

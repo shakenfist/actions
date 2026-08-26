@@ -8,8 +8,8 @@ before. That is not hypothetical here: the shared template these bot
 workflows came from dispatches `functional-tests.yml`, which this
 repository does not have, and the whole reason they were deployed at all
 is that a missing `pr-re-review.yml` let two pull requests merge with
-their review fixes unreviewed. Nothing else in CI looks at these files beyond their YAML
-syntax.
+their review fixes unreviewed. Nothing else in CI looks at these files
+beyond their YAML syntax.
 """
 
 import fnmatch
