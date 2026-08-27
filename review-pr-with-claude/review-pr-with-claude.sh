@@ -36,15 +36,18 @@ pr_number="${INPUT_PR_NUMBER}"
 max_turns="${INPUT_MAX_TURNS:-}"
 force="${INPUT_FORCE:-false}"
 
-# A caller-pinned budget has to be a plain integer: it is handed to
-# ``claude --max-turns`` and interpolated into a comment heredoc below,
-# and neither wants a surprise. Anything else falls back to scaling
-# from the diff rather than failing the run, since the reviewer being
-# unavailable over a malformed input helps nobody.
+# A caller-pinned budget has to be a positive integer: it is handed to
+# ``claude --max-turns`` and substituted into a comment below, and
+# neither wants a surprise. Zero is numeric and still nonsense -- the
+# CLI rejects it, and the resulting empty envelope reads as the
+# reviewer breaking rather than as a bad input. Anything unusable falls
+# back to scaling from the diff rather than failing the run, since the
+# reviewer being unavailable over a malformed input helps nobody.
 if [ -n "${max_turns}" ] && [ "${max_turns}" != "auto" ] && \
-        ! [[ "${max_turns}" =~ ^[0-9]+$ ]]; then
-    echo "Warning: max-turns '${max_turns}' is not a number;" \
-        "scaling from the diff size instead"
+        { ! [[ "${max_turns}" =~ ^[0-9]+$ ]] || \
+          [ "${max_turns}" -eq 0 ]; }; then
+    echo "Warning: max-turns '${max_turns}' is not a usable turn" \
+        "budget; scaling from the diff size instead"
     max_turns=''
 fi
 
@@ -136,21 +139,29 @@ review_unavailable() {
     exit 0
 }
 
+# The comment bodies in here and in review_truncated_unavailable() use
+# quoted heredocs, so nothing in them expands: an unquoted one would
+# also run $(...) and backticks, and pr_title, pr_author and
+# head_branch are all in scope at these call sites and all pull request
+# controlled, in a job holding a write token. The two numbers the
+# bodies need arrive through %% placeholders instead, substituted by
+# comment_body() below, which is safe because both are integers by the
+# time they get here -- max_turns from the validation in step 1, and
+# diff_lines from wc -l.
+comment_body() {
+    sed -e "s/%%MAX_TURNS%%/${max_turns}/g" \
+        -e "s/%%DIFF_LINES%%/${diff_lines}/g"
+}
+
 # The reviewer spent its whole turn budget without arriving at a
 # review. Called from both shapes that takes: an envelope with no
 # result text at all, and one carrying text that holds no review.
-#
-# The heredocs in here and in review_truncated_unavailable() are
-# unquoted so they can interpolate the budget and the diff size. Only
-# numeric variables set by this script may be named in them -- an
-# unquoted heredoc also runs $(...) and backticks, and everything the
-# reviewer touches after step 2 is pull request controlled.
 review_out_of_turns() {
     review_unavailable "turn_budget_exhausted" \
         "Automated review ran out of turns" \
-        "$(cat << COMMENT_EOF
-The reviewer used its whole budget of ${max_turns} turns on this
-${diff_lines} line diff without reaching a review, so there is
+        "$(cat << 'COMMENT_EOF' | comment_body
+The reviewer used its whole budget of %%MAX_TURNS%% turns on this
+%%DIFF_LINES%% line diff without reaching a review, so there is
 nothing to post. Nothing is wrong with the PR -- the reviewer ran
 out of room before it finished looking.
 
@@ -176,9 +187,9 @@ COMMENT_EOF
 review_truncated_unavailable() {
     review_unavailable "truncated_unusable" \
         "Automated review was cut off before it said anything" \
-        "$(cat << COMMENT_EOF
+        "$(cat << 'COMMENT_EOF' | comment_body
 The reviewer's response stopped part way through the review, on this
-${diff_lines} line diff, before any complete finding had been
+%%DIFF_LINES%% line diff, before any complete finding had been
 written. A partial review is salvaged and posted when there is one to
 salvage; this response was cut too early for that, so there is
 nothing to show. Nothing is wrong with the PR.
@@ -540,30 +551,41 @@ cat "${prompt_file}" | "${claude_bin}" -p - \
 # ``error_during_execution`` when the SDK itself failed -- and step 6
 # needs it to tell "ran out of room" apart from "broke", which look
 # identical from the missing result alone.
+#
+# The file is the CLI's raw stdout, so being non-empty does not make it
+# JSON: the CLI can die mid-write, or put a line of its own on stdout.
+# That is checked once, here, rather than left to the first bare ``jq``
+# and ``set -e`` -- an abort there would skip every handler below and
+# leave a red X carrying a jq parse error and nothing else, which is
+# the opaque failure this whole change exists to stop.
 claude_output="${output_dir}/claude-output.json"
-result_subtype='unknown'
-if [ -s "${claude_output}" ]; then
-    num_turns=$(jq -r '.num_turns // "unknown"' \
-        "${claude_output}")
-    duration_ms=$(jq -r '.duration_ms // "unknown"' \
-        "${claude_output}")
-    cost_usd=$(jq -r '.total_cost_usd // "unknown"' \
-        "${claude_output}")
-    result_subtype=$(jq -r '.subtype // "unknown"' \
-        "${claude_output}" 2>/dev/null || echo 'unparseable_envelope')
+if ! jq -e . "${claude_output}" > /dev/null 2>&1; then
+    echo "Envelope was:"
+    head -20 "${claude_output}" || true
 
-    echo
-    echo "Claude execution stats:"
-    echo "  Turns: ${num_turns} / ${max_turns}"
-    echo "  Duration: ${duration_ms}ms"
-    echo "  Cost: \$${cost_usd}"
-    echo "  Outcome: ${result_subtype}"
-
-    ci_output "claude_turns" "${num_turns}"
-    ci_output "claude_duration_ms" "${duration_ms}"
-    ci_output "claude_cost_usd" "${cost_usd}"
-    ci_output "claude_subtype" "${result_subtype}"
+    review_failed "Automated review produced an unreadable envelope" \
+        "The reviewer was asked for JSON on stdout and what came back \
+is not JSON, so there is nothing to read an outcome out of (diff: \
+${diff_lines} lines). The CLI itself failed rather than the review \
+running out of room -- check the step log."
 fi
+
+num_turns=$(jq -r '.num_turns // "unknown"' "${claude_output}")
+duration_ms=$(jq -r '.duration_ms // "unknown"' "${claude_output}")
+cost_usd=$(jq -r '.total_cost_usd // "unknown"' "${claude_output}")
+result_subtype=$(jq -r '.subtype // "unknown"' "${claude_output}")
+
+echo
+echo "Claude execution stats:"
+echo "  Turns: ${num_turns} / ${max_turns}"
+echo "  Duration: ${duration_ms}ms"
+echo "  Cost: \$${cost_usd}"
+echo "  Outcome: ${result_subtype}"
+
+ci_output "claude_turns" "${num_turns}"
+ci_output "claude_duration_ms" "${duration_ms}"
+ci_output "claude_cost_usd" "${cost_usd}"
+ci_output "claude_subtype" "${result_subtype}"
 
 # Step 6: Extract and validate review JSON
 echo
@@ -577,8 +599,7 @@ render_script="${script_dir}/render-review.py"
 create_issues_script="${script_dir}/create-review-issues.py"
 extract_script="${script_dir}/extract-review-json.py"
 
-jq -r '.result // empty' "${claude_output}" > "${claude_result_file}" \
-    2>/dev/null || true
+jq -r '.result // empty' "${claude_output}" > "${claude_result_file}"
 
 if [ ! -s "${claude_result_file}" ]; then
     # The envelope carries no result text at all. Which of the two

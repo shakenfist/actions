@@ -43,6 +43,14 @@ from pathlib import Path
 # one made mostly of tiny nested objects -- can charge for failing.
 MAX_SALVAGE_CANDIDATES = 2000
 
+# How many bare-brace candidates to consider when the response carries
+# no fence at all. Every brace that mentions "summary" nearby is tried,
+# because a JSON snippet quoted in prose passes that test too, and each
+# one costs a parse -- and, on failure, a salvage pass -- over the rest
+# of the response. This bounds what a response made of nothing but
+# "summary" mentions can charge for failing.
+MAX_BRACE_CANDIDATES = 20
+
 SALVAGE_CAVEAT = (
     'The reviewer ran out of output room part way through this review, '
     'so it was salvaged from the complete part of the response. '
@@ -111,49 +119,40 @@ def looks_like_a_review(data):
             and isinstance(data.get('items'), list))
 
 
-def find_json_block(text):
-    """Return the most likely JSON text in a model response.
+def candidate_blocks(text):
+    """Return the JSON candidates in a response, best guess first.
 
-    Prefers a fenced ```json block, and among several prefers the last
-    one: the prompt hands the model a fenced example with the shape of
-    a real review, so a model that restates the format before answering
-    leaves the example first and its actual review last. Failing a
-    fence, falls back to the first brace that starts an object
-    mentioning "summary".
+    Prefers fenced ```json blocks, last one first: the prompt hands the
+    model a fenced example with the shape of a real review, so a model
+    that restates the format before answering leaves the example first
+    and its actual review last.
+
+    Failing a fence, falls back to the braces that open an object going
+    on to mention a summary. Every such brace is a candidate rather
+    than only the first, because a JSON snippet quoted in prose ahead
+    of the review passes the same test, and stopping there would report
+    a review that did arrive as a response cut off before it said
+    anything.
+
+    Ordering here is positional, not "the first one that parses". A
+    block cut off mid-write is the model's answer rather than a
+    restated example, so it has to be offered before the earlier
+    complete blocks; deciding between them is `extract()`'s job.
     """
     blocks = [block for block in _fenced_blocks(text) if block.strip()]
-
     if blocks:
-        try:
-            json.loads(blocks[-1])
-        except json.JSONDecodeError:
-            # The response was cut off while this block was still
-            # being written, which makes it the answer rather than a
-            # restated example. Hand it to the salvage pass.
-            return blocks[-1]
+        return list(reversed(blocks))
 
-        for block in reversed(blocks):
-            try:
-                data = json.loads(block)
-            except json.JSONDecodeError:
-                continue
-            if looks_like_a_review(data) and data['items']:
-                return block
-
-        # Nothing that parsed looked like a review. The last block is
-        # still the best guess at what the model meant to hand over.
-        return blocks[-1]
-
-    # No fence at all. Take the first brace that opens an object which
-    # goes on to mention a summary, which is enough to tell the review
-    # apart from a JSON snippet quoted in prose.
+    candidates = []
     for index, char in enumerate(text):
         if char != '{':
             continue
         if '"summary"' in text[index:index + 2000]:
-            return text[index:]
+            candidates.append(text[index:])
+            if len(candidates) == MAX_BRACE_CANDIDATES:
+                break
 
-    return None
+    return candidates
 
 
 def _cut_points(text):
@@ -203,6 +202,13 @@ def salvage(text):
     validation failure path, which is where genuine tooling bugs land.
     So keep walking back until the recovered object could actually be
     posted.
+
+    That includes having found something. A cut after ``"items": []``
+    recovers an object the schema accepts, and posting it would record
+    the pull request as reviewed with a clean bill of health on the
+    strength of a response that stopped before the first finding was
+    written. A genuinely clean review arrives complete and never comes
+    through here.
     """
     candidates = list(_cut_points(text))[-MAX_SALVAGE_CANDIDATES:]
 
@@ -214,7 +220,7 @@ def salvage(text):
             data = json.loads(text[:cut] + closing)
         except json.JSONDecodeError:
             continue
-        if looks_like_a_review(data):
+        if looks_like_a_review(data) and data['items']:
             return data
 
     raise ExtractionError('no complete JSON object could be recovered')
@@ -225,30 +231,54 @@ def extract(text):
 
     salvaged is True when the response was truncated and the review was
     recovered from the part that arrived intact.
+
+    Candidates are tried in order and the first one that yields a
+    review wins, so a truncated last block still beats a complete
+    earlier one. A candidate that yields nothing is passed over rather
+    than ending the search, so a stray trailing fence, or a JSON
+    snippet quoted in prose, cannot discard a review that did arrive.
     """
-    block = find_json_block(text)
-    if block is None or not block.strip():
+    candidates = candidate_blocks(text)
+    if not candidates:
         raise ExtractionError('no JSON block found in the response')
 
-    try:
-        data = json.loads(block)
-    except json.JSONDecodeError:
+    truncated = False
+    findingless = None
+
+    for block in candidates:
         try:
-            data = salvage(block)
-        except ExtractionError as e:
-            # A block was there and it did not parse, so the response
-            # was cut off. It just stopped too early for anything to
-            # survive, which is still a size problem rather than a
-            # broken reviewer.
-            raise TruncatedError(str(e)) from e
-        data['caveat'] = SALVAGE_CAVEAT
-        return data, True
+            data = json.loads(block)
+        except json.JSONDecodeError:
+            # This block was still being written when the response ran
+            # out, so it is the answer if anything survives it.
+            truncated = True
+            try:
+                data = salvage(block)
+            except ExtractionError:
+                continue
+            data['caveat'] = SALVAGE_CAVEAT
+            return data, True
 
-    if not isinstance(data, dict):
-        raise ExtractionError(
-            f'JSON block is a {type(data).__name__}, not an object')
+        if not looks_like_a_review(data):
+            continue
+        if data['items']:
+            return data, False
+        # A review with no findings is a legitimate clean bill of
+        # health, but it is also the shape of a restated example, so
+        # keep looking before settling for it.
+        if findingless is None:
+            findingless = data
 
-    return data, False
+    if findingless is not None:
+        return findingless, False
+
+    if truncated:
+        # A block was there and it did not parse, so the response was
+        # cut off. It just stopped too early for anything to survive,
+        # which is still a size problem rather than a broken reviewer.
+        raise TruncatedError('no complete JSON object could be recovered')
+
+    raise ExtractionError('no JSON block held anything shaped like a review')
 
 
 def main():

@@ -46,71 +46,66 @@ REVIEW = {
 }
 
 
-class FindJsonBlockTest(unittest.TestCase):
+class CandidateBlocksTest(unittest.TestCase):
     def test_finds_a_fenced_block(self):
-        block = extract.find_json_block(fenced('{"summary": "s"}'))
-        self.assertEqual(block, '{"summary": "s"}')
+        blocks = extract.candidate_blocks(fenced('{"summary": "s"}'))
+        self.assertEqual(blocks, ['{"summary": "s"}'])
 
     def test_ignores_prose_around_the_block(self):
         text = ('I read the diff.\n\n```json\n{"a": 1}\n```\n\n'
                 'Hope that helps.\n')
-        self.assertEqual(extract.find_json_block(text), '{"a": 1}')
+        self.assertEqual(extract.candidate_blocks(text), ['{"a": 1}'])
 
     def test_an_unclosed_fence_yields_everything_after_it(self):
         # This is the truncation case: the response stopped before the
         # closing fence was written.
         text = 'Review:\n\n```json\n{"summary": "s", "items": [{"id": 1'
         self.assertEqual(
-            extract.find_json_block(text),
-            '{"summary": "s", "items": [{"id": 1')
+            extract.candidate_blocks(text),
+            ['{"summary": "s", "items": [{"id": 1'])
 
     def test_falls_back_to_a_bare_object(self):
         text = 'No fences today. {"summary": "s", "items": []}'
         self.assertEqual(
-            extract.find_json_block(text),
-            '{"summary": "s", "items": []}')
+            extract.candidate_blocks(text),
+            ['{"summary": "s", "items": []}'])
 
     def test_a_brace_that_is_not_the_review_is_not_taken(self):
         # A JSON snippet quoted in prose has no summary near it, so it
-        # is passed over rather than returned as the review.
-        self.assertIsNone(
-            extract.find_json_block('Consider {"adequate": true} here.'))
-
-    def test_returns_none_when_there_is_no_json_at_all(self):
-        self.assertIsNone(
-            extract.find_json_block('I could not review this PR.'))
-
-    def test_the_last_review_block_wins_over_an_earlier_one(self):
-        # The prompt hands the model a fenced example with the shape of
-        # a real review. A model that restates the format before
-        # answering leaves two blocks, and the review is the second
-        # one; taking the first would post the example's placeholder
-        # text as a review, silently.
-        example = {'summary': 'Brief summary', 'items': [item(1, 'Short title')]}
-        text = ('Understood, the format is:\n\n```json\n'
-                + json.dumps(example) + '\n```\n\nHere is the review.\n\n'
-                '```json\n' + json.dumps(REVIEW) + '\n```\n')
+        # is passed over rather than offered as the review.
         self.assertEqual(
-            json.loads(extract.find_json_block(text)), REVIEW)
+            extract.candidate_blocks('Consider {"adequate": true} here.'),
+            [])
 
-    def test_a_truncated_last_block_wins_over_a_complete_earlier_one(self):
-        # Cut off mid-block means the model was still writing its
-        # answer, so the unfinished block is the answer and the earlier
-        # complete one is the example. Salvaging half a review beats
-        # posting a whole example.
-        example = {'summary': 'Brief summary', 'items': [item(1, 'Short title')]}
-        review_text = json.dumps(REVIEW)
-        text = ('The format is:\n\n```json\n' + json.dumps(example)
-                + '\n```\n\nReviewing now.\n\n```json\n'
-                + review_text[:review_text.index('{"id": 2')])
-        block = extract.find_json_block(text)
-        self.assertTrue(block.startswith('{"summary": "Adds a thing"'))
+    def test_returns_nothing_when_there_is_no_json_at_all(self):
+        self.assertEqual(
+            extract.candidate_blocks('I could not review this PR.'), [])
 
-    def test_a_block_that_is_not_a_review_falls_back_to_the_last(self):
-        # Nothing that parses looks like a review, so there is no
-        # reason to prefer one block over the one the model ended on.
+    def test_every_qualifying_brace_is_offered_in_order(self):
+        # A snippet quoted in prose ahead of the review satisfies the
+        # summary proximity test as well as the review does, so both
+        # have to be offered or the review is lost behind the snippet.
+        text = 'I saw {"a": 1} and the review is {"summary": "s"}'
+        blocks = extract.candidate_blocks(text)
+        self.assertEqual(len(blocks), 2)
+        self.assertTrue(blocks[0].startswith('{"a": 1}'))
+        self.assertEqual(blocks[1], '{"summary": "s"}')
+
+    def test_the_brace_fallback_is_bounded(self):
+        # Each candidate costs a parse and a salvage pass over the rest
+        # of the response, so the fallback stops rather than letting a
+        # pathological response charge quadratically for failing.
+        text = '{"summary": "s"' * (extract.MAX_BRACE_CANDIDATES + 50)
+        self.assertEqual(
+            len(extract.candidate_blocks(text)),
+            extract.MAX_BRACE_CANDIDATES)
+
+    def test_blocks_are_offered_last_first(self):
+        # The model's answer is the block it ended on, so that is the
+        # one tried first; the earlier ones are the fallback.
         text = ('```json\n{"a": 1}\n```\n\n```json\n{"b": 2}\n```\n')
-        self.assertEqual(extract.find_json_block(text), '{"b": 2}')
+        self.assertEqual(
+            extract.candidate_blocks(text), ['{"b": 2}', '{"a": 1}'])
 
 
 class SalvageTest(unittest.TestCase):
@@ -171,8 +166,57 @@ class SalvageTest(unittest.TestCase):
         with self.assertRaises(extract.ExtractionError):
             extract.salvage(text)
 
+    def test_refuses_a_prefix_cut_after_an_empty_items_array(self):
+        # This one parses and would pass schema validation, so nothing
+        # downstream would catch it: the pull request would be recorded
+        # as reviewed, with a clean bill of health, off a response that
+        # stopped before the first finding was written.
+        text = ('{"summary": "s", "items": [], '
+                '"positive_feedback": [{"title')
+        with self.assertRaises(extract.ExtractionError):
+            extract.salvage(text)
+
+    def test_the_walk_back_is_bounded(self):
+        # The walk starts at the end of the response and works back, so
+        # a response made mostly of tiny objects can bury the
+        # recoverable review under more cut points than are tried. That
+        # bound is the only thing standing between a pathological
+        # response and a parse of the whole text per object in it.
+        text = (json.dumps(REVIEW) + ' '
+                + '{"a": 1}' * (extract.MAX_SALVAGE_CANDIDATES + 100))
+        with self.assertRaises(extract.ExtractionError):
+            extract.salvage(text)
+
 
 class ExtractTest(unittest.TestCase):
+    def test_the_last_review_block_wins_over_an_earlier_one(self):
+        # The prompt hands the model a fenced example with the shape of
+        # a real review. A model that restates the format before
+        # answering leaves two blocks, and the review is the second
+        # one; taking the first would post the example's placeholder
+        # text as a review, silently.
+        example = {'summary': 'Brief summary', 'items': [item(1, 'Short title')]}
+        text = ('Understood, the format is:\n\n```json\n'
+                + json.dumps(example) + '\n```\n\nHere is the review.\n\n'
+                '```json\n' + json.dumps(REVIEW) + '\n```\n')
+        data, salvaged = extract.extract(text)
+        self.assertEqual(data, REVIEW)
+        self.assertFalse(salvaged)
+
+    def test_a_truncated_last_block_wins_over_a_complete_earlier_one(self):
+        # Cut off mid-block means the model was still writing its
+        # answer, so the unfinished block is the answer and the earlier
+        # complete one is the example. Salvaging half a review beats
+        # posting a whole example.
+        example = {'summary': 'Brief summary', 'items': [item(1, 'Short title')]}
+        review_text = json.dumps(REVIEW)
+        text = ('The format is:\n\n```json\n' + json.dumps(example)
+                + '\n```\n\nReviewing now.\n\n```json\n'
+                + review_text[:review_text.index('{"id": 2')])
+        data, salvaged = extract.extract(text)
+        self.assertTrue(salvaged)
+        self.assertEqual(data['summary'], 'Adds a thing')
+
     def test_a_complete_response_is_not_marked_salvaged(self):
         data, salvaged = extract.extract(fenced(json.dumps(REVIEW)))
         self.assertEqual(data, REVIEW)
@@ -219,6 +263,46 @@ class ExtractTest(unittest.TestCase):
             extract.extract(response)
         self.assertEqual(caught.exception.exit_code, 2)
         self.assertEqual(caught.exception.status, 'truncated_unusable')
+
+    def test_a_review_with_no_findings_is_still_a_review(self):
+        # A clean bill of health arrives complete and has to survive
+        # the preference for a review that actually found something.
+        clean = {'summary': 'Nothing to report', 'items': []}
+        data, salvaged = extract.extract(fenced(json.dumps(clean)))
+        self.assertEqual(data, clean)
+        self.assertFalse(salvaged)
+
+    def test_a_cut_after_empty_items_is_reported_as_truncation(self):
+        # Salvaging this would post a clean bill of health and satisfy
+        # the already-reviewed gate, so the pull request would end up
+        # recorded as reviewed by a response that said nothing.
+        response = ('```json\n{"summary": "s", "items": [], '
+                    '"positive_feedback": [{"title')
+        with self.assertRaises(extract.TruncatedError):
+            extract.extract(response)
+
+    def test_a_trailing_cut_off_fence_does_not_discard_a_review(self):
+        # The model finished the review and then started writing
+        # something else. The unfinished block is tried first, as
+        # always, but yielding nothing has to fall through to the
+        # complete review rather than end the search.
+        text = (fenced(json.dumps(REVIEW))
+                + '\nOne more thing.\n\n```json\n{"note": "abc')
+        data, salvaged = extract.extract(text)
+        self.assertEqual(data, REVIEW)
+        self.assertFalse(salvaged)
+
+    def test_a_prose_brace_does_not_hide_an_unfenced_review(self):
+        # No fence at all, and a JSON snippet quoted ahead of the
+        # review. Anchoring on the first brace makes the text
+        # unclosable, which reports a review that did arrive as a
+        # response cut off before it said anything -- green, with a
+        # comment about diff size, for a review sitting right there.
+        text = ('I saw {"a": 1} and the review is '
+                + json.dumps(REVIEW))
+        data, salvaged = extract.extract(text)
+        self.assertEqual(data, REVIEW)
+        self.assertFalse(salvaged)
 
 
 class MainTest(unittest.TestCase):
