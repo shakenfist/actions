@@ -100,9 +100,9 @@ matters for consumers copied from an older version of the example
 above: a workflow still passing `max-turns: '50'` gets 50 turns on
 every diff, exactly the behaviour this scaling replaced. Remove the
 line to get scaling back, or pass `auto` if something in the workflow
-needs the input to be there. A value that is not a positive integer --
-including `0`, which the CLI rejects -- is ignored, with a warning, in
-favour of scaling.
+needs the input to be there. A value that is not a positive integer of
+at most four digits -- including `0`, which the CLI rejects -- is
+ignored, with a warning, in favour of scaling.
 
 ### When the reviewer cannot produce a review
 
@@ -119,20 +119,31 @@ the job summary rather than only in the step log.
 | Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
 | Response truncated mid-JSON, with at least one complete finding | Green | The findings that completed are posted, headed by a warning that the review is partial |
 | Response truncated before any finding completed | Green | A comment on the PR saying so; there is nothing to salvage |
-| Response held no JSON review at all | Red | The reviewer or the prompt is at fault, not the PR |
+| Response held no JSON review, and the turn budget was exhausted | Green | As the turn-budget row above: a comment on the PR, since the reviewer ran out of room rather than going wrong |
+| Response held no JSON review, with turns to spare | Red | The reviewer or the prompt is at fault, not the PR |
 | The CLI wrote something that is not a JSON envelope | Red | The CLI failed; nothing can be read out of it |
 | The SDK errored, or a review that was not truncated failed schema validation | Red | Same -- a tooling problem worth a human's attention |
 
-The first five are ordinary outcomes of reviewing a large change, and
+The first six are ordinary outcomes of reviewing a large change, and
 the money is spent by the time they are reached, so they buy an
 explanation on the pull request instead of a red X. The last three mean
 this repository, or the tooling under it, is broken.
 
-Truncation is told apart from prose by whether a JSON code fence was
-opened at all, and the same explanation is not posted twice: a handler
-that finds its own heading already on the pull request writes the job
-summary and skips the comment, so re-review rounds on an oversized diff
-do not stack up identical notes.
+Truncation is told apart from the other failures by the fences. A
+response with no ```json fence at all was never writing a review, and a
+fence that closed says the response finished writing what is inside it
+-- so JSON in there that will not parse is the reviewer emitting
+something invalid, which is a tooling problem and goes red. Only a
+fence left open, or an unfenced object running to the end of the
+response, is treated as having been cut off.
+
+The same explanation is not posted twice: each of these comments
+carries an HTML marker naming its reason, and a handler that finds its
+own marker already on the pull request writes the job summary and skips
+the comment, so re-review rounds on an oversized diff do not stack up
+identical notes. That check reads a bounded page of the pull request's
+comments, so on a very long thread an older explanation can scroll out
+of view and be posted again.
 
 A green job means the reviewer reached a known endpoint. It does not
 mean the pull request was reviewed -- read the comment.

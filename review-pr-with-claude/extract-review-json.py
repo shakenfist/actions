@@ -21,10 +21,18 @@ open brackets, and keeps what survives. A salvaged review gets a
 renders at the top of the posted comment so nobody mistakes a partial
 review for a complete one.
 
+A response is only treated as truncated when it could actually have
+been cut off: a fence left open, or an unfenced object running to the
+end of the text. JSON that will not parse inside a fence that closed
+is the reviewer emitting something invalid, which is a bug in the
+prompt or the schema rather than a large diff, and is reported as such.
+
 Exit codes:
     0 - A review was written to <review.json>
-    1 - The response held no review at all, which is the reviewer or
-        the prompt being wrong rather than the response being large
+    1 - The response held no review at all, or held JSON that will not
+        parse in a block that finished being written, which is the
+        reviewer or the prompt being wrong rather than the response
+        being large
     2 - A review block was there but stopped before anything usable
         arrived, so the response was cut off too early to salvage
 """
@@ -55,9 +63,27 @@ SALVAGE_CAVEAT = (
     'The reviewer ran out of output room part way through this review, '
     'so it was salvaged from the complete part of the response. '
     'Findings after the truncation point are missing -- treat this as a '
-    'partial review, not a clean bill of health.')
+    'partial review, not a clean bill of health. Asking the bot for '
+    'another review gets a fresh pass over the whole diff.')
 
 CLOSERS = {'{': '}', '[': ']'}
+
+# What every recovered item needs before the review is worth keeping.
+# These mirror review-schema.json, which render-review.py validates
+# against: a salvaged review that fails that validation is discarded
+# whole, so the walk-back has to stop somewhere the validator will
+# accept rather than merely somewhere the JSON parser will. Drift
+# between the two is pinned by a test rather than by a shared import,
+# because this script deliberately runs without jsonschema.
+ITEM_REQUIRED_FIELDS = {
+    'id': int,
+    'title': str,
+    'category': str,
+    'action': str,
+}
+ITEM_ACTIONS = ('fix', 'document', 'consider', 'none')
+ITEM_CATEGORIES = ('security', 'bug', 'performance', 'documentation',
+                   'style', 'testing', 'other')
 
 
 class ExtractionError(Exception):
@@ -82,11 +108,14 @@ class TruncatedError(ExtractionError):
 
 
 def _fenced_blocks(text):
-    """Yield the contents of each ```json fenced block, in order.
+    """Yield (contents, closed) for each ```json fenced block, in order.
 
     A fence that opens and never closes is the truncation case, so its
     contents run to the end of the response and nothing after it can be
-    a block.
+    a block. Which of the two happened is reported rather than
+    discarded: a fence that closed says the response finished writing
+    what is inside it, so JSON in there that will not parse is
+    malformed rather than unfinished.
     """
     lines = text.splitlines()
 
@@ -99,12 +128,12 @@ def _fenced_blocks(text):
         start = index + 1
         for end in range(start, len(lines)):
             if lines[end].strip() == '```':
-                yield '\n'.join(lines[start:end])
+                yield '\n'.join(lines[start:end]), True
                 index = end + 1
                 break
         else:
             # Opening fence with no closing fence: truncated mid-block.
-            yield '\n'.join(lines[start:])
+            yield '\n'.join(lines[start:]), False
             return
 
 
@@ -119,8 +148,39 @@ def looks_like_a_review(data):
             and isinstance(data.get('items'), list))
 
 
+def items_are_usable(items):
+    """True when every recovered item will survive schema validation.
+
+    What is checked is the required fields -- present, and of the type
+    the schema declares -- and the two enums. An optional field of the
+    wrong type still gets through and still fails validation
+    downstream, which is deliberate: that is the model writing nonsense
+    rather than a response stopping early, and walking back over it
+    would drop good findings to hide a reviewer bug that should be
+    seen.
+    """
+    for entry in items:
+        if not isinstance(entry, dict):
+            return False
+        for field, field_type in ITEM_REQUIRED_FIELDS.items():
+            if not isinstance(entry.get(field), field_type):
+                return False
+        if entry['action'] not in ITEM_ACTIONS:
+            return False
+        if entry['category'] not in ITEM_CATEGORIES:
+            return False
+    return True
+
+
 def candidate_blocks(text):
     """Return the JSON candidates in a response, best guess first.
+
+    Each candidate is a (block, truncatable) pair. ``truncatable`` says
+    whether this block could have stopped mid-write: an unclosed fence
+    could, and so could a brace-fallback candidate, where there is no
+    fence to say where the object was meant to end. A closed fence
+    could not, and that distinction decides whether unparseable
+    contents are a large diff or a broken reviewer.
 
     Prefers fenced ```json blocks, last one first: the prompt hands the
     model a fenced example with the shape of a real review, so a model
@@ -139,7 +199,8 @@ def candidate_blocks(text):
     restated example, so it has to be offered before the earlier
     complete blocks; deciding between them is `extract()`'s job.
     """
-    blocks = [block for block in _fenced_blocks(text) if block.strip()]
+    blocks = [(block, not closed)
+              for block, closed in _fenced_blocks(text) if block.strip()]
     if blocks:
         return list(reversed(blocks))
 
@@ -148,7 +209,7 @@ def candidate_blocks(text):
         if char != '{':
             continue
         if '"summary"' in text[index:index + 2000]:
-            candidates.append(text[index:])
+            candidates.append((text[index:], True))
             if len(candidates) == MAX_BRACE_CANDIDATES:
                 break
 
@@ -209,6 +270,13 @@ def salvage(text):
     strength of a response that stopped before the first finding was
     written. A genuinely clean review arrives complete and never comes
     through here.
+
+    It also includes every recovered item being one the schema will
+    accept. Stopping the walk one item too early loses that finding;
+    stopping it one item too late fails validation downstream, and a
+    salvaged review that fails validation is thrown away in full -- so
+    a single unusable trailing item costs every complete finding in
+    front of it.
     """
     candidates = list(_cut_points(text))[-MAX_SALVAGE_CANDIDATES:]
 
@@ -220,7 +288,8 @@ def salvage(text):
             data = json.loads(text[:cut] + closing)
         except json.JSONDecodeError:
             continue
-        if looks_like_a_review(data) and data['items']:
+        if (looks_like_a_review(data) and data['items']
+                and items_are_usable(data['items'])):
             return data
 
     raise ExtractionError('no complete JSON object could be recovered')
@@ -237,6 +306,12 @@ def extract(text):
     earlier one. A candidate that yields nothing is passed over rather
     than ending the search, so a stray trailing fence, or a JSON
     snippet quoted in prose, cannot discard a review that did arrive.
+
+    Only a candidate that could have been cut off mid-write is salvaged
+    and reported as truncation. A closed fence holding JSON that will
+    not parse is the reviewer emitting something invalid, which is a
+    prompt or schema problem rather than a size one, so it falls
+    through to the unparseable path and the job goes red.
     """
     candidates = candidate_blocks(text)
     if not candidates:
@@ -245,10 +320,16 @@ def extract(text):
     truncated = False
     findingless = None
 
-    for block in candidates:
+    for block, truncatable in candidates:
         try:
             data = json.loads(block)
         except json.JSONDecodeError:
+            if not truncatable:
+                # The fence closed, so the response finished writing
+                # this block; it is malformed, not unfinished. Calling
+                # that truncation would blame the diff size for a
+                # tooling bug, and hide it behind a green job.
+                continue
             # This block was still being written when the response ran
             # out, so it is the answer if anything survives it.
             truncated = True

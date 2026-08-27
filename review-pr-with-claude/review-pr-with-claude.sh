@@ -36,15 +36,19 @@ pr_number="${INPUT_PR_NUMBER}"
 max_turns="${INPUT_MAX_TURNS:-}"
 force="${INPUT_FORCE:-false}"
 
-# A caller-pinned budget has to be a positive integer: it is handed to
-# ``claude --max-turns`` and substituted into a comment below, and
-# neither wants a surprise. Zero is numeric and still nonsense -- the
-# CLI rejects it, and the resulting empty envelope reads as the
-# reviewer breaking rather than as a bad input. Anything unusable falls
-# back to scaling from the diff rather than failing the run, since the
-# reviewer being unavailable over a malformed input helps nobody.
+# A caller-pinned budget has to be a positive integer of at most four
+# digits: it is handed to ``claude --max-turns`` and substituted into a
+# comment below, and neither wants a surprise. Zero is numeric and
+# still nonsense -- the CLI rejects it, and the resulting empty
+# envelope reads as the reviewer breaking rather than as a bad input.
+# The length bound is what keeps the zero test meaningful: a value too
+# large for bash arithmetic makes ``[ -eq 0 ]`` itself fail, which
+# leaves the whole guard false and lets the value through with a bash
+# error in the log. Anything unusable falls back to scaling from the
+# diff rather than failing the run, since the reviewer being
+# unavailable over a malformed input helps nobody.
 if [ -n "${max_turns}" ] && [ "${max_turns}" != "auto" ] && \
-        { ! [[ "${max_turns}" =~ ^[0-9]+$ ]] || \
+        { ! [[ "${max_turns}" =~ ^[0-9]{1,4}$ ]] || \
           [ "${max_turns}" -eq 0 ]; }; then
     echo "Warning: max-turns '${max_turns}' is not a usable turn" \
         "budget; scaling from the diff size instead"
@@ -97,6 +101,12 @@ review_unavailable() {
     local heading="$2"
     local body="$3"
 
+    # A marker only this handler emits, so the duplicate check below
+    # matches on something the reviewer cannot say by accident. Marking
+    # by reason rather than by heading also means rewording a heading
+    # does not silently start a fresh series of duplicates.
+    local marker="<!-- sf-reviewer-unavailable: ${reason} -->"
+
     local comment_file="${output_dir}/unavailable-comment.md"
     {
         echo "## :robot: ${heading}"
@@ -106,6 +116,8 @@ review_unavailable() {
         echo "This message comes from the reviewer's \"no review to"
         echo "post\" handler; the workflow step exited successfully so"
         echo "it does not block the merge queue."
+        echo
+        echo "${marker}"
     } > "${comment_file}"
 
     # Has this same explanation already been posted? The diff-too-large
@@ -114,13 +126,19 @@ review_unavailable() {
     # would otherwise leave an identical comment each time. The job
     # summary is still written either way: that is per-run, and the
     # run it explains is this one.
+    #
+    # Best effort: --json comments returns issue comments, so posted
+    # reviews are not searched, but it returns a bounded page of them,
+    # so on a long enough pull request an older explanation can fall
+    # out of view and be posted again. A duplicate comment is a much
+    # smaller problem than a missing one.
     if gh pr view "${pr_number}" --json comments \
             --jq '.comments[] |
                 select(
                     .author.login == "github-actions" or
                     .author.login == "shakenfist-bot"
                 ) | .body' 2>/dev/null \
-            | grep -qF "${heading}"; then
+            | grep -qF "${marker}"; then
         echo "Note: the PR already carries this explanation, not" \
             "posting it again"
     else
@@ -492,6 +510,11 @@ PROMPT_EOF
 # Instructions added only for a large diff. A truncated review is
 # worth nothing, so on a diff this size the model is told to converge:
 # work in priority order, cap the item count, and finish the JSON.
+#
+# This is assigned after the prompt heredoc that uses it, which is
+# deliberate rather than a bug: PROMPT_EOF is quoted, so
+# ${large_diff_guidance} survives in the prompt file as literal text
+# until the Python substitution below fills it in.
 large_diff_guidance=''
 if [ "${diff_lines}" -gt "${large_diff_threshold}" ]; then
     large_diff_guidance=$(cat << GUIDANCE_EOF

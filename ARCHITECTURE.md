@@ -147,10 +147,12 @@ caller CI (tests pass)                 human comment on a PR
 A large diff is the case this chain is shaped around. The turn budget
 scales with the diff size, the prompt asks for prioritised output above
 a threshold, and a response cut off mid-JSON is salvaged down to the
-findings that completed and posted with the truncation declared. What
-is left over -- the reviewer erroring, or output nothing can be
-recovered from -- fails the job, because that is this repository being
-broken rather than the pull request being large.
+findings that completed and posted with the truncation declared -- but
+only where the response could actually have been cut off, which the
+fences say. What is left over -- the reviewer erroring, or output that
+finished and still holds no recoverable review -- fails the job,
+because that is this repository being broken rather than the pull
+request being large.
 [docs/actions.md](docs/actions.md) has the full table of outcomes.
 
 A review is gated three ways: the caller's `needs:` list (tests passed),
