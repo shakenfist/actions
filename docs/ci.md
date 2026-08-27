@@ -505,6 +505,7 @@ one.
 | `tools/ci-make-inventory.py` | Writes the ansible inventory every CI cluster deploy is driven from. A mistake produces a valid inventory with a node in the wrong group, and the deploy then fails much further along |
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that makes that comment the review's durable machine-readable copy |
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
+| `review-pr-with-claude/extract-review-json.py` | Decides whether a review survives a truncated response. It rebuilds JSON the model did not finish writing, so the boundary between "recovered the completed findings" and "invented a review" is worth pinning |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
 
 The documentation gets `tests/test_documentation_links.py`, which

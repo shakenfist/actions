@@ -139,6 +139,14 @@ def render_markdown(review_data: dict, embed_json: bool = False) -> str:
     lines.append('## PR Review')
     lines.append('')
 
+    # Caveat, when the review is known to be incomplete. This goes
+    # above the summary deliberately: a partial review read as a
+    # complete one is worse than no review at all.
+    caveat = review_data.get('caveat')
+    if caveat:
+        lines.append(f'> :warning: **Incomplete review.** {caveat}')
+        lines.append('')
+
     # Summary
     lines.append('### Summary')
     lines.append('')
@@ -323,6 +331,23 @@ def render_item(item: dict) -> list[str]:
     return lines
 
 
+def load_review(input_path: Path) -> dict:
+    """Load review JSON, reporting a parse failure as an error.
+
+    The input is a model's output rather than a file this repository
+    wrote, and a truncated response reaches this script as JSON that
+    stops mid-item. That is a known failure mode, so it exits with a
+    message the CI log can be read from rather than a traceback.
+    """
+    try:
+        with open(input_path) as f:
+            return strip_nulls(json.load(f))
+    except json.JSONDecodeError as e:
+        print(f'Error: {input_path} is not valid JSON: {e}',
+              file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -342,8 +367,7 @@ def main() -> None:
             print('Error: --validate requires an input file')
             sys.exit(1)
         input_path = Path(args[1])
-        with open(input_path) as f:
-            data = strip_nulls(json.load(f))
+        data = load_review(input_path)
         is_valid, error = validate_review(data)
         if is_valid:
             print('Valid')
@@ -360,8 +384,7 @@ def main() -> None:
     output_path = Path(args[1]) if len(args) > 1 else None
 
     # Load and validate
-    with open(input_path) as f:
-        data = strip_nulls(json.load(f))
+    data = load_review(input_path)
 
     is_valid, error = validate_review(data)
     if not is_valid:

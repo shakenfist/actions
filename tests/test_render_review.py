@@ -10,7 +10,11 @@ artifacts expire, so if the embedded JSON stops being recoverable the
 structured form of every review is lost with it.
 """
 
+import contextlib
+import io
 import json
+import os
+import tempfile
 import unittest
 
 from tests.helpers import load_script
@@ -111,6 +115,29 @@ class RenderMarkdownTest(unittest.TestCase):
     def test_missing_summary_falls_back_rather_than_raising(self):
         text = render.render_markdown({'items': []})
         self.assertIn('No summary provided.', text)
+
+    def test_a_caveat_is_rendered_above_the_summary(self):
+        # A salvaged review carries a caveat saying so. It has to be
+        # the first thing read: a partial review taken for a complete
+        # one says the parts nobody looked at are fine.
+        text = render.render_markdown({
+            'summary': 'All good here',
+            'caveat': 'The response was truncated.',
+            'items': [],
+        })
+        self.assertIn('Incomplete review', text)
+        self.assertIn('The response was truncated.', text)
+        self.assertLess(text.index('Incomplete review'),
+                        text.index('### Summary'))
+
+    def test_no_caveat_means_no_warning(self):
+        text = render.render_markdown({'summary': 's', 'items': []})
+        self.assertNotIn('Incomplete review', text)
+
+    def test_a_review_with_a_caveat_still_validates(self):
+        valid, error = render.validate_review({
+            'summary': 's', 'items': [], 'caveat': 'Truncated.'})
+        self.assertTrue(valid, error)
 
     def test_fix_and_document_items_share_the_action_items_section(self):
         text = render.render_markdown({
@@ -276,6 +303,36 @@ class RenderItemTest(unittest.TestCase):
         self.assertNotIn('📍', text)
         self.assertNotIn('💡', text)
         self.assertNotIn('ℹ️', text)
+
+
+class LoadReviewTest(unittest.TestCase):
+    """The input is model output, so it does not always parse."""
+
+    def write(self, content):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, 'review.json')
+        with open(path, 'w') as f:
+            f.write(content)
+        return path
+
+    def test_a_review_is_loaded_with_its_nulls_stripped(self):
+        path = self.write(json.dumps(
+            {'summary': 's', 'items': [], 'test_coverage': None}))
+        self.assertEqual(
+            render.load_review(path), {'summary': 's', 'items': []})
+
+    def test_invalid_json_exits_one_with_a_message_on_stderr(self):
+        # A traceback here reads as the renderer being broken. The
+        # extractor can hand this script a file only when something
+        # upstream went wrong, and the CI log has to say which.
+        path = self.write('{"summary": "s", "items": [')
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as caught:
+                render.load_review(path)
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn('is not valid JSON', stderr.getvalue())
 
 
 if __name__ == '__main__':

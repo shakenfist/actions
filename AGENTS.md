@@ -60,6 +60,14 @@ automatic review in `ci.yml` does not set `force`, and
 reviewed. After you push a round of fixes, comment asking the bot to
 re-review, or nothing looks at them.
 
+**A green `Automated reviewer` job does not mean the PR was reviewed.**
+It means the reviewer reached a known endpoint: a diff too large to
+fetch, a turn budget that ran out, a response cut off before it said
+anything, or a review it actually posted are all green, and every one
+of those but the last explains itself in a comment on the pull
+request. The outcomes are tabulated in
+[docs/actions.md](docs/actions.md).
+
 **Do not "fix" the `@main` pins inside `smoke-cluster.yml`.** They look
 wrong -- the composite actions are right there in the same repository --
 but a relative reference inside a reusable workflow resolves against the
