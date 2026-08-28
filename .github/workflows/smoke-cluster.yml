@@ -234,6 +234,35 @@ jobs:
           fi
           bash "${script}" ${{ inputs.base_image_user }}
 
+      # Sample cluster headroom through the functional test step, so that CI
+      # cloud sizing is eventually decided from a distribution rather than from
+      # the handful of hand-collected data points it was guessed from. The
+      # probe itself, and the tool that summarises what it writes, both live in
+      # shakenfist's tools/ -- that is where the JSONL format contract has both
+      # of its halves and is unit tested on an ordinary pull request. This is
+      # only the launcher. See shakenfist's
+      # docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md, D13 and D14.
+      #
+      # continue-on-error, and the script itself always exits 0: the point of
+      # the instrument is to observe CI's failure surface, and one that can
+      # fail the job changes the thing being measured (D15).
+      #
+      # The cap is derived from test_timeout_minutes rather than hardcoded --
+      # callers pass 45 through 70 -- plus five minutes. The probe starts in
+      # the step immediately before the timed test step, so the only time not
+      # covered by the timeout itself is the step transition; the margin keeps
+      # it sampling through stestr's teardown, while still bounding how long it
+      # would poll a cancelled job's leaked cluster. It caps itself because
+      # cancel-in-progress means the stop step below is not guaranteed to run.
+      - name: Start the cluster headroom probe
+        if: inputs.test_kind == 'functional'
+        continue-on-error: true
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          tools/ci_headroom_launch.sh "${primary}" "${{ inputs.base_image_user }}" \
+              "$(( ${{ inputs.test_timeout_minutes }} * 60 + 300 ))"
+
       - name: Run functional tests
         if: inputs.test_kind == 'functional'
         timeout-minutes: ${{ inputs.test_timeout_minutes }}
@@ -324,6 +353,29 @@ jobs:
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
               ${{ inputs.base_image_user }}@${primary} "${script}"
+
+      # Stop the headroom probe, take the scheduler refusal census, and print
+      # the summary. Two separate instruments, reported separately: a poll
+      # every few seconds cannot see a refusal, which begins and ends between
+      # samples, and a refusal census cannot see a cloud sitting half empty for
+      # an hour (D9). The census is its own filtered Loki query rather than the
+      # unfiltered dump ci-gather-logs-loki.yml already puts in the bundle,
+      # which returns the first 5000 lines of the deploy and never reaches the
+      # test window (D11).
+      #
+      # Both outputs stay in /srv/ci/traces on the primary, which the "Gather
+      # logs" step below already collects into the 90 day bundle, so this adds
+      # no artifact upload of its own. always(), because the runs worth
+      # measuring are the ones whose tests failed; continue-on-error and a
+      # script that always exits 0, for the same reason as the start step.
+      - name: Collect the cluster headroom series and refusal census
+        if: always() && inputs.test_kind == 'functional'
+        continue-on-error: true
+        run: |
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          cd ${GITHUB_WORKSPACE}/actions
+          tools/ci_headroom_collect.sh "${primary}" "${{ inputs.base_image_user }}" \
+              "${{ inputs.topology }} ${{ inputs.stestr_config }}"
 
       - name: List failing tests
         if: failure() && inputs.test_kind == 'functional'
