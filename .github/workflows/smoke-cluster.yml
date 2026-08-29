@@ -110,6 +110,20 @@ jobs:
     # no elasticity at all. The conductor's sizing recommender cannot
     # see this: both its upsize triggers are swap-based and there is no
     # swap. See shakenfist/shakenfist#3696.
+    #
+    # s is two vCPU and 4096 MB, so it covers the 2.72 GB worst case with
+    # about a third of the runner still free. It is also the recommender's
+    # own answer rather than a guess: the same suites' accidental landings
+    # on xl all generate downsize recommendations, and they all say s.
+    #
+    # One size covers all three topologies because the biggest deploy is
+    # not the one it looks like. slim-tier is two nodes, slim-primary is
+    # five, so slim-primary is the wide one, and the measurements agree --
+    # the slim-primary jobs peak at 2678-2714 MB while slim-tier sits at
+    # 2618 MB, below even some single-node runs. The ceiling among the
+    # jobs routed through here is 2714 MB (Ansible modules); node
+    # lifecycle peaks slightly higher at 2719 MB but names its own
+    # runner, so it is sized in shakenfist's functional-tests.yml.
     runs-on: [self-hosted, vm, debian-12, s]
     # NOTE: inside a reusable workflow `github.workflow` resolves to the
     # CALLER's workflow name, so it cannot disambiguate this job from the

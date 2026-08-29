@@ -87,6 +87,16 @@ actionlint fails the lint job. Static runners are `[self-hosted, static]`
 *exactly* -- adding a size or an OS label there asks for a runner that
 does not exist, and the job waits forever without being scheduled.
 
+**A `vm` runs-on must also name a size** (`xs`/`s`/`m`/`l`/`xl`). This is
+the opposite rule to the static one above, and the failure is quieter: the
+conductor matches the size out of the labels, and when it finds none it
+falls back to the first entry in `CI_SIZES` -- `xs`, one vCPU and 2048 MB
+-- rather than leaving the job unconstrained. An omitted size is therefore
+a silent downgrade to the smallest runner, not a free choice, and nothing
+in this repository shows it. Any job which builds wheels or drives an
+ansible deploy from the runner needs at least `s`. See
+[shakenfist/shakenfist#3696](https://github.com/shakenfist/shakenfist/issues/3696).
+
 **Do not add `secrets: inherit` when calling `pr-auto-review.yml`.**
 Nothing in the reviewer chain reads a secret; both it and
 `review-pr-with-claude` authenticate with `github.token` from the
