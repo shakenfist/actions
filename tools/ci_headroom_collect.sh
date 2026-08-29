@@ -47,8 +47,21 @@ ssh_user="${2:-debian}"
 label="${3:-}"
 
 # Loki refuses a query_range asking for more entries than its
-# max_entries_limit_per_query, whose default is 5000.
+# max_entries_limit_per_query, whose default is 5000. It gives no signal when
+# it cuts a response off at that limit, so the number is handed to the report
+# as well: a census holding exactly this many entries is reported as possibly
+# truncated rather than as a complete count of the run's refusals.
 census_limit=5000
+
+# There is deliberately no `|= "Added event"` line filter on the census query
+# below. That is the message eventlog.add_event_multi logs under, but pylogrus'
+# JsonFormatter merges the caller's fields over the record last and one of them
+# is `message`, so the shipped JSON's `message` is the event's own message and
+# the string `Added event` never appears in the line. Such a filter matches
+# nothing at all, and the empty census which results is reported honestly as
+# "no schedule stage events at all" -- which reads like an idle cluster rather
+# than a broken query. See tools/queue-wait-report.py's docstring in the
+# shakenfist repository, which learned this the same way.
 
 if [ -z "${primary}" ]; then
     echo "usage: $0 <primary> <ssh-user> [label]"
@@ -83,7 +96,7 @@ start_ns=$(( start * 1000000000 ))
 end_ns=$(( $(date +%s) * 1000000000 ))
 
 curl -sS -G http://localhost:3100/loki/api/v1/query_range \
-    --data-urlencode 'query={job="shakenfist"} |= "Added event" |~ "schedule (at stage|has no candidates at stage)"' \
+    --data-urlencode 'query={job="shakenfist"} |~ "schedule (at stage|has no candidates at stage)"' \
     --data-urlencode "start=${start_ns}" \
     --data-urlencode "end=${end_ns}" \
     --data-urlencode "limit=${census_limit}" \
@@ -132,6 +145,15 @@ if [ ! -s "${series}" ]; then
 fi
 
 report_args=(--series "${series}")
+
+# The report is taken from the triggering component ref, which may predate
+# --census-limit even where it is new enough to have the tool at all. The
+# report treats an unknown argument as a usage error and exits 0 without
+# printing anything, so an unconditional flag would silently cost the whole
+# summary on those refs.
+if grep -q -- '--census-limit' "${report}" 2>/dev/null; then
+    report_args+=(--census-limit "${census_limit}")
+fi
 if [ -s "${census}" ]; then
     report_args+=(--census "${census}")
 else
