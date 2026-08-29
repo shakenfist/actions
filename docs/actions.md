@@ -164,6 +164,13 @@ usable by later steps in the same job. Requires setup-test-environment
 to have run first. Outputs the cluster coordinates (`primary`,
 `upload_target`, `namespace`, `inventory`).
 
+The calling job must request at least an `s` runner
+(`runs-on: [self-hosted, vm, <image>, s]`). A composite action runs on
+whatever runner its caller asked for, so the size is the consumer's to
+get right, and the wheel builds and the ansible deploy both run on the
+runner itself -- measured demand is roughly 2.7 GB, against the 2048 MB
+a sizeless runs-on silently falls back to.
+
 ## setup-kerbside-environment
 
 Sets up the Kerbside-specific test environment: checks out kerbside-patches,

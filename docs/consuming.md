@@ -60,7 +60,7 @@ repositories:
 ```yaml
 jobs:
   smoke:
-    runs-on: [self-hosted, vm, debian-12]
+    runs-on: [self-hosted, vm, debian-12, s]
     steps:
       - name: Setup test environment
         uses: shakenfist/actions/setup-test-environment@main
@@ -79,6 +79,13 @@ jobs:
               debian@${{ steps.cluster.outputs.primary }} \
               '. /etc/sf/sfrc; /srv/shakenfist/venv/bin/sf-client node list'
 ```
+
+The size element of that `runs-on` is not optional. The conductor takes
+the runner size from the labels, and a `vm` runs-on which names none
+falls back to the first entry in its size table -- `xs`, one vCPU and
+2048 MB -- which is too small to drive the deploy. Mode 1 consumers
+inherit the size from the reusable workflow, but in Mode 2 the job is
+yours and so is the size.
 
 The cluster's lifetime is the job: nothing tears it down explicitly, the
 under-cloud reaper collects the test instances afterwards. The deploy
