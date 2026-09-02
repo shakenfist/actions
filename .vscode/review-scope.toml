@@ -28,9 +28,15 @@ include = [
     'ansible/files/user-data',
 ]
 
-# Left out by not being named above: .flake8 and .gitignore (tool
-# configuration with no behaviour of its own),
-# etc/ovirt-45-rocky-8-repos.patch (a vendored third-party patch --
-# reviewing it would attest to somebody else's diff), and
-# ansible/files/shakenfist-ci-failure-loki.cwd (a saved query blob).
-exclude = []
+# Named here rather than merely left out of include above, so that
+# each one is a recorded decision that something should not be
+# reviewed rather than a silence nobody chose. Patterns are by
+# extension where there is one, so the next file of the same kind
+# inherits the decision instead of failing the audit again.
+exclude = [
+    '.flake8',              # tool configuration, no behaviour of its own
+    '.gitignore',           # tool configuration, no behaviour of its own
+    'etc/*.patch',          # vendored third-party patches -- a review mark here
+                            # would attest to somebody else's diff
+    'ansible/files/*.cwd',  # saved Loki query blobs
+]
