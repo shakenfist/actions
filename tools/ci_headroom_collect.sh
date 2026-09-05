@@ -22,6 +22,30 @@
 # capture refusals on healthy runs and silently drop every event behind a
 # 507 -- exactly backwards.
 #
+# The regex also matches the capacity guard's own two audit messages, below
+# the stage layer: 'instance placement denied' (shakenfist/instance.py) is
+# the ledger refusing a write, and 'placement admitted over namespace
+# capacity claim' is a placement admitted over an advisory claim. Neither is
+# a substring of the stage phrases or of each other, so all five forms are
+# alternatives in one top-level regex rather than a nested group -- without
+# them the Loki query only ever sees the scheduler's per-candidate stage
+# events and the guard's own refusals, which sit one layer below the stage
+# check, are invisible to it. That produced a *Capacity guard census*
+# section with nothing to count on every run since the stage-event filter
+# was fixed (docs/plans/PLAN-ci-cloud-sizing-phase-02-baseline.md in
+# shakenfist, decision D20, survey finding 4) even though the guard fired.
+#
+# The third guard message, 'placement recorded despite exceeding capacity
+# guard' (instance.py:1139), is the P5 forced ground-truth write: a placement
+# recorded even though the guard refused it. It matters more than its rarity
+# suggests. Step 2f established that a cluster's first ~165 seconds admit
+# every placement unguarded, because scheduler_node_capacity has no rows
+# until the reconciler's first pass, and the reconciler then records the
+# result as a node holding more than its own limit. That mechanism and the
+# P5 forced write leave the *same* end state, and this event is the only
+# thing which tells them apart -- so a census collecting the other two but
+# not this one cannot distinguish the defect from its lookalike.
+#
 # The census cannot reuse the Loki dump that ansible/ci-gather-logs-loki.yml
 # already puts in every bundle. That one is an unfiltered {job="shakenfist"}
 # with limit 5000 and direction=forward over a six hour window, so it returns
@@ -74,8 +98,9 @@ ssh_opts=(-i /srv/github/id_ci -o StrictHostKeyChecking=no
 
 echo "=== Stopping the headroom probe and taking the refusal census ==="
 ssh "${ssh_opts[@]}" "${ssh_user}@${primary}" \
-    bash -s -- "${census_limit}" <<'REMOTE_EOF' || true
+    bash -s -- "${census_limit}" "${label}" <<'REMOTE_EOF' || true
 census_limit="$1"
+label="$2"
 
 # Stop the poller. It may have already exited on its own --max-seconds cap, or
 # never have started at all; both are fine and neither is an error here.
@@ -96,12 +121,20 @@ start_ns=$(( start * 1000000000 ))
 end_ns=$(( $(date +%s) * 1000000000 ))
 
 curl -sS -G http://localhost:3100/loki/api/v1/query_range \
-    --data-urlencode 'query={job="shakenfist"} |~ "schedule (at stage|has no candidates at stage)"' \
+    --data-urlencode 'query={job="shakenfist"} |~ "schedule (at stage|has no candidates at stage)|instance placement denied|placement admitted over namespace capacity claim|placement recorded despite exceeding capacity guard"' \
     --data-urlencode "start=${start_ns}" \
     --data-urlencode "end=${end_ns}" \
     --data-urlencode "limit=${census_limit}" \
     --data-urlencode "direction=forward" \
     > /srv/ci/traces/headroom-census.json 2>/dev/null || true
+
+# The label the runner passed us (topology plus stestr config) is not written
+# anywhere on the primary today, so a later harvest over the bundle has to
+# guess the topology from the artifact name -- and the "guests" bundle's name
+# does not encode it, so the guess needs a lookup table that silently rots
+# whenever the job matrix changes. Write it beside the series and census so it
+# lands in the same "Gather logs" scp and the guess is no longer needed.
+printf '%s\n' "${label}" > /srv/ci/traces/headroom-label 2>/dev/null || true
 
 echo "Contents of /srv/ci/traces:"
 ls -l /srv/ci/traces 2>/dev/null || true
