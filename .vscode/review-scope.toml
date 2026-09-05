@@ -13,8 +13,11 @@
 # clusters, review-schema.json is what constrains the automated
 # reviewer's output, and .gitleaks.toml decides what the secret scan
 # will not look at -- all three are security-relevant in a way their
-# file extensions do not advertise. run_remote and user-data have no
-# extension and are named explicitly for that reason.
+# file extensions do not advertise. The .cwd file is a clingwrap
+# gather bundle whose shell and shell_emitter jobs run as root on
+# every CI node on failure, with emitter output interpreted as
+# further config. run_remote and user-data have no extension and are
+# named explicitly for that reason.
 include = [
     '*.py',
     '*.sh',
@@ -24,6 +27,7 @@ include = [
     '*.j2',
     '*.json',
     '*.toml',
+    '*.cwd',
     'tools/run_remote',
     'ansible/files/user-data',
 ]
@@ -38,5 +42,4 @@ exclude = [
     '.gitignore',           # tool configuration, no behaviour of its own
     'etc/*.patch',          # vendored third-party patches -- a review mark here
                             # would attest to somebody else's diff
-    'ansible/files/*.cwd',  # saved Loki query blobs
 ]
