@@ -22,11 +22,43 @@
 # capture refusals on healthy runs and silently drop every event behind a
 # 507 -- exactly backwards.
 #
+# The regex also matches the capacity guard's own two audit messages, below
+# the stage layer: 'instance placement denied' (shakenfist/instance.py) is
+# the ledger refusing a write, and 'placement admitted over namespace
+# capacity claim' is a placement admitted over an advisory claim. The three
+# guard forms are added as top-level alternatives beside the scheduler's own
+# group, since none of them is a substring of the stage phrases or of each
+# other. Without them the query sees only the scheduler's per-candidate stage
+# events, and the guard's own refusals -- which sit one layer below the stage
+# check -- never appear at all. That produced a *Capacity guard census*
+# section with nothing to count on every run since the stage-event filter
+# was fixed (docs/plans/PLAN-ci-cloud-sizing-phase-02-baseline.md in
+# shakenfist, decision D20, survey finding 4) even though the guard fired.
+#
+# The third guard message, 'placement recorded despite exceeding capacity
+# guard' (also shakenfist/instance.py), is the P5 forced ground-truth write:
+# a placement recorded even though the guard refused it. It matters more than
+# its rarity suggests. Step 2f established that a cluster's first ~165 seconds
+# admit every placement unguarded, because scheduler_node_capacity has no rows
+# until the reconciler's first pass, and the reconciler then records the
+# result as a node holding more than its own limit. That mechanism and the
+# P5 forced write leave the *same* end state, and this event is the only
+# thing which tells them apart -- so a census collecting the other two but
+# not this one cannot distinguish the defect from its lookalike.
+#
 # The census cannot reuse the Loki dump that ansible/ci-gather-logs-loki.yml
 # already puts in every bundle. That one is an unfiltered {job="shakenfist"}
 # with limit 5000 and direction=forward over a six hour window, so it returns
 # the first 5000 lines of the DEPLOY and never reaches the test window at all.
-# Filtered to the scheduler's stage events, the same limit is generous.
+# Filtered to the scheduler's stage events and the guard's three audit
+# messages, the same limit is still comfortable for a smoke run. The guard
+# messages do not change that much: all three are emitted once per placement
+# (shakenfist/instance.py), whereas the stage events are emitted once per
+# candidate node considered, so a placement which evaluates many candidates
+# logs many stage events and at most one guard event. A census holding
+# exactly census_limit entries is reported as possibly truncated rather than
+# as a complete count, which is the honest reading if this ever stops being
+# true.
 #
 # Loki is installed only on the primary, in every topology
 # (build-smoke-cluster/action.yml), and the census runs on the primary, so
@@ -35,6 +67,15 @@
 #
 # Usage:
 #   tools/ci_headroom_collect.sh <primary> <ssh-user> [label]
+#
+# The label is free text describing the run, and smoke-cluster.yml passes the
+# topology and the stestr config separated by a single space. It is written
+# verbatim to /srv/ci/traces/headroom-label, followed by a newline. A harvest
+# should read the whole file rather than its first line: the label is free
+# text and nothing collapses a newline inside it, though no caller can
+# produce one today. An absent label writes no file at all rather than an
+# empty one, so the two cases stay distinguishable. It reaches the primary base64 encoded -- see the ssh call
+# below, which explains why.
 #
 # NOTHING in this script may fail the job: this phase exists to observe CI's
 # failure surface, and an instrument that can fail the job changes the thing
@@ -73,9 +114,25 @@ ssh_opts=(-i /srv/github/id_ci -o StrictHostKeyChecking=no
           -o UserKnownHostsFile=/dev/null)
 
 echo "=== Stopping the headroom probe and taking the refusal census ==="
+
+# ssh does not preserve argv boundaries: it joins its command arguments with
+# spaces into a single string and the remote login shell re-parses that. The
+# label smoke-cluster.yml passes contains a space, so sent as-is only the
+# topology would bind to "label" on the far side, and a label carrying $(...),
+# a backtick or a semicolon would run on the primary instead of being written
+# down. base64 output has nothing the second parse can act on, and unlike
+# printf '%q' it does not assume the remote login shell is bash. Any argument
+# added to this call needs the same treatment.
+label_b64=$(printf '%s' "${label}" | base64 -w0 2>/dev/null || true)
+if [ -n "${label}" ] && [ -z "${label_b64}" ]; then
+    echo "WARNING: could not base64 the label, so it will not reach the"
+    echo "bundle. The summary below still has it."
+fi
+
 ssh "${ssh_opts[@]}" "${ssh_user}@${primary}" \
-    bash -s -- "${census_limit}" <<'REMOTE_EOF' || true
+    bash -s -- "${census_limit}" "${label_b64}" <<'REMOTE_EOF' || true
 census_limit="$1"
+label=$(printf '%s' "${2:-}" | base64 -d 2>/dev/null || true)
 
 # Stop the poller. It may have already exited on its own --max-seconds cap, or
 # never have started at all; both are fine and neither is an error here.
@@ -95,13 +152,32 @@ esac
 start_ns=$(( start * 1000000000 ))
 end_ns=$(( $(date +%s) * 1000000000 ))
 
+# The scheduler's two stage forms, then the capacity guard's three audit
+# messages, as top-level alternatives. See the header for why each is here.
+census_match='schedule (at stage|has no candidates at stage)'
+census_match="${census_match}|instance placement denied"
+census_match="${census_match}|placement admitted over namespace capacity claim"
+census_match="${census_match}|placement recorded despite exceeding capacity guard"
+
 curl -sS -G http://localhost:3100/loki/api/v1/query_range \
-    --data-urlencode 'query={job="shakenfist"} |~ "schedule (at stage|has no candidates at stage)"' \
+    --data-urlencode "query={job=\"shakenfist\"} |~ \"${census_match}\"" \
     --data-urlencode "start=${start_ns}" \
     --data-urlencode "end=${end_ns}" \
     --data-urlencode "limit=${census_limit}" \
     --data-urlencode "direction=forward" \
     > /srv/ci/traces/headroom-census.json 2>/dev/null || true
+
+# The label the runner passed us (topology plus stestr config) is not written
+# anywhere on the primary today, so a later harvest over the bundle has to
+# guess the topology from the artifact name -- and the "guests" bundle's name
+# does not encode it, so the guess needs a lookup table that silently rots
+# whenever the job matrix changes. Write it beside the series and census so it
+# lands in the same "Gather logs" scp and the guess is no longer needed.
+# Written only when there is something to write, so an absent file means
+# unambiguously that no label was supplied rather than that one was empty.
+if [ -n "${label}" ]; then
+    printf '%s\n' "${label}" > /srv/ci/traces/headroom-label 2>/dev/null || true
+fi
 
 echo "Contents of /srv/ci/traces:"
 ls -l /srv/ci/traces 2>/dev/null || true
