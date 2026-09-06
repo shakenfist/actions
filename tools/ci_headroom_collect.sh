@@ -50,7 +50,15 @@
 # already puts in every bundle. That one is an unfiltered {job="shakenfist"}
 # with limit 5000 and direction=forward over a six hour window, so it returns
 # the first 5000 lines of the DEPLOY and never reaches the test window at all.
-# Filtered to the scheduler's stage events, the same limit is generous.
+# Filtered to the scheduler's stage events and the guard's three audit
+# messages, the same limit is still comfortable for a smoke run. The guard
+# messages do not change that much: all three are emitted once per placement
+# (shakenfist/instance.py), whereas the stage events are emitted once per
+# candidate node considered, so a placement which evaluates many candidates
+# logs many stage events and at most one guard event. A census holding
+# exactly census_limit entries is reported as possibly truncated rather than
+# as a complete count, which is the honest reading if this ever stops being
+# true.
 #
 # Loki is installed only on the primary, in every topology
 # (build-smoke-cluster/action.yml), and the census runs on the primary, so
@@ -62,10 +70,11 @@
 #
 # The label is free text describing the run, and smoke-cluster.yml passes the
 # topology and the stestr config separated by a single space. It is written
-# verbatim to /srv/ci/traces/headroom-label as one line plus a newline, which
-# is the contract a later harvest over the bundle parses; an absent label
-# writes no file at all rather than an empty one, so the two cases stay
-# distinguishable. It reaches the primary base64 encoded -- see the ssh call
+# verbatim to /srv/ci/traces/headroom-label, followed by a newline. A harvest
+# should read the whole file rather than its first line: the label is free
+# text and nothing collapses a newline inside it, though no caller can
+# produce one today. An absent label writes no file at all rather than an
+# empty one, so the two cases stay distinguishable. It reaches the primary base64 encoded -- see the ssh call
 # below, which explains why.
 #
 # NOTHING in this script may fail the job: this phase exists to observe CI's
@@ -115,6 +124,10 @@ echo "=== Stopping the headroom probe and taking the refusal census ==="
 # printf '%q' it does not assume the remote login shell is bash. Any argument
 # added to this call needs the same treatment.
 label_b64=$(printf '%s' "${label}" | base64 -w0 2>/dev/null || true)
+if [ -n "${label}" ] && [ -z "${label_b64}" ]; then
+    echo "WARNING: could not base64 the label, so it will not reach the"
+    echo "bundle. The summary below still has it."
+fi
 
 ssh "${ssh_opts[@]}" "${ssh_user}@${primary}" \
     bash -s -- "${census_limit}" "${label_b64}" <<'REMOTE_EOF' || true
