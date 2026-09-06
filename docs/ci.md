@@ -533,7 +533,7 @@ rather than `== 'true'`, that every self-hosted VM lane keeps its fork
 guard, that `check_paths` acquires no checkout (the only reason its
 missing guard is correct), and that the prune job refuses to run on
 any ref but `main`. `.vscode/review-scope.toml` is checked too --
-every pattern in it must match a tracked file, and the four files its
+every pattern in it must match a tracked file, and the two files its
 header argues are out of scope must stay out -- because a typo there
 fails nothing and silently shrinks what gets reviewed.
 
