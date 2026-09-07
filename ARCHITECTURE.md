@@ -66,6 +66,7 @@ runner and permissions.
 | `smoke-cluster.yml` | The full deploy-and-test lane: cluster, test suite, log bundle |
 | `pr-auto-review.yml` | The automated reviewer, gated on the caller's tests passing |
 | `export-repo-config.yml` | Exports repository settings and rulesets, opens a PR on drift |
+| `issue-link-check.yml` | Fails a pull request that will not close the issues it says it fixes |
 | `ci.yml` | This repository's own pull request checks |
 | `canary.yml` | This repository's post-merge integration check |
 | `pr-retest.yml` | Re-runs `ci.yml` on a bot comment |

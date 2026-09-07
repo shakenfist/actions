@@ -1,0 +1,67 @@
+# Check that a pull request will close the issues it says it fixes.
+#
+# This is a reusable workflow. Caller repos invoke it with:
+#
+#   jobs:
+#     issue_link_check:
+#       if: github.event_name == 'pull_request'
+#       uses: shakenfist/actions/.github/workflows/issue-link-check.yml@main
+#
+# GitHub only acts on issue-closing keywords in a pull request's
+# description. A stanza wrapped in backticks is a code span and is ignored,
+# and a stanza in a commit message is not parsed at all for anything merged
+# through a merge queue. Either mistake silently leaves a fixed issue open,
+# and is only discovered later by somebody noticing the issue is still
+# there. This compares what the pull request claims against
+# closingIssuesReferences -- GitHub's own parse -- and fails while the
+# description can still be edited.
+#
+# It also prints the issues GitHub will close but nobody asked for, which is
+# how a closing keyword in ordinary prose closes a live bug. That is
+# reported and never enforced: real descriptions contain too many innocent
+# matches for a machine to judge.
+
+name: Issue link check
+
+on:
+  workflow_call:
+    inputs:
+      # Underscored, not "runs-on": a hyphen is an operator in a GitHub
+      # expression, so inputs.runs-on would parse as a subtraction and the
+      # only way to read it would be inputs['runs-on'].
+      runs_on:
+        description: >
+          JSON array of runner labels, e.g. '["self-hosted","static"]'.
+        type: string
+        default: '["ubuntu-latest"]'
+
+# Read only. The check reports and fails; it never edits an issue or a
+# description, because deciding what a pull request meant to close is the
+# author's job and not this workflow's.
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+jobs:
+  issue-link-check:
+    name: Issue links
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout shakenfist/actions
+        uses: actions/checkout@v7
+        with:
+          repository: shakenfist/actions
+          path: .sf-actions
+
+      # The pull request is read entirely through the API, so the calling
+      # repository is deliberately not checked out.
+      - name: Check issue links
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .sf-actions/tools/check-issue-links.py \
+            --repo "${{ github.repository }}" \
+            --pr "${{ github.event.pull_request.number }}"
