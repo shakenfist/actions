@@ -135,10 +135,11 @@ class RenderInventoryTest(unittest.TestCase):
                          ['sf-1', 'sf-3'])
 
     def test_database_tier_is_mirrored_into_legacy_etcd_master(self):
-        # Pre-phase-7 copies of examples/_shared/site.yml only read
-        # groups['etcd_master']. actions@main is consumed at runtime by
-        # every shakenfist branch, so dropping this silently breaks the
-        # older ones. Remove this test with the fallback.
+        # Copies of examples/_shared/site.yml older than the
+        # database_node rename read only groups['etcd_master'].
+        # actions@main is consumed at runtime by every shakenfist
+        # branch, so dropping this silently breaks the older ones.
+        # Remove this test with the fallback.
         text = self.render([
             spec('sf-1', '10.0.0.1', database=True),
             spec('sf-2', '10.0.0.2', database=False),

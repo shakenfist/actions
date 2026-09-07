@@ -3,10 +3,9 @@ set -euo pipefail
 
 # ci_node_checks.sh -- per-node, GATING system-level health check.
 #
-# Part of phase 5 of the Shaken Fist "ship logs to Loki" plan
-# (PLAN-remove-syslog-forwarding). Once rsyslog forwarding is removed there
-# is no central /var/log/syslog; Shaken Fist's structured application logs go
-# to Loki and are gated by tools/ci_log_checks_loki.sh.
+# There is no central /var/log/syslog to grep: Shaken Fist ships its
+# structured application logs to Loki, where tools/ci_log_checks_loki.sh
+# gates them.
 #
 # However a class of failure conditions originate from the KERNEL, SYSTEMD,
 # or a process's STDERR rather than from SF's Python logger, so they never

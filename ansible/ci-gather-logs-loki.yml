@@ -1,6 +1,5 @@
 ---
-# Loki-aware CI log gather playbook (phase 4 of
-# PLAN-remove-syslog-forwarding).
+# Loki-aware CI log gather playbook.
 #
 # A copy of ci-gather-logs.yml that:
 #   (a) ships the Loki-aware clingwrap config
@@ -15,8 +14,10 @@
 #       bundle directory, so the central Loki view lands in the aggregated
 #       artifact -- useful even when the per-node shipper itself failed.
 #
-# The original ci-gather-logs.yml and clingwrap's built-in .cwd are left
-# untouched; phase 5 switches the workflow to this playbook.
+# This is the playbook CI actually runs: smoke-cluster.yml and
+# shakenfist's functional-tests.yml both invoke it. The pre-Loki
+# ci-gather-logs.yml and clingwrap's built-in .cwd are left unchanged
+# beside it.
 
 - hosts: localhost
   gather_facts: yes

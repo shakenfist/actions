@@ -5,11 +5,11 @@ set -euo pipefail
 #
 # This script reproduces the INTENT of every non-etcd check in
 # tools/ci_log_checks.sh, but instead of grepping the primary node's
-# aggregated /var/log/syslog it queries the per-run Loki stood up in
-# phase 3 of PLAN-remove-syslog-forwarding.
+# aggregated /var/log/syslog it queries the Loki that build-smoke-cluster
+# stands up fresh on the primary for each CI run.
 #
-# Shaken Fist logs are now structured JSON (phase 1 field contract). The
-# Loki stream labels are exactly:
+# Shaken Fist logs are structured JSON. The Loki stream labels are
+# exactly:
 #     {job="shakenfist", daemon=<daemon name>, host=<node name>}
 # and the JSON line body carries (at least):
 #     logger_name, ts, level, pid, thread_name, message,
@@ -35,24 +35,25 @@ set -euo pipefail
 #                       on the primary via tools/run_remote, where the
 #                       CI Loki lives).
 #
-# DROPPED (deliberately, vs ci_log_checks.sh): the etcd checks. etcd was
-# removed by the BYO-MariaDB plan, so the "Building new etcd connection"
-# >5000 counted threshold and the "Cannot communicate with etcd, no
-# configured server" forbidden pattern have NO successor here.
-# (ci_event_checks.sh, which was entirely etcd-centric, likewise gets no
-# Loki successor.)
+# DROPPED (deliberately, vs ci_log_checks.sh): the etcd checks. Shaken
+# Fist keeps its state in MariaDB rather than etcd, so the "Building new
+# etcd connection" >5000 counted threshold and the "Cannot communicate
+# with etcd, no configured server" forbidden pattern have NO successor
+# here. (ci_event_checks.sh, which was entirely etcd-centric, likewise
+# gets no Loki successor.)
 #
-# Full validation of this script is the phase-5 CI run against a live
-# Loki. Here it is only bash -n / shellcheck / local-Loki smoke tested.
+# This script only ever runs on a cluster primary, so pre-commit covers
+# it with bash -n and shellcheck alone. A smoke cluster run against a
+# live Loki is the only thing that exercises it fully.
 
 BRANCH="${1:-}"
 JOB_NAME="${2:-}"
 
 LOKI_BASE_URL="${LOKI_BASE_URL:-http://localhost:3100}"
 
-# Wide query window. Phase 3 stands up a fresh Loki per CI run, so every
-# line in it is from this run; we do not need a precise window. Six hours
-# comfortably covers a CI run.
+# Wide query window. Each CI run gets a fresh Loki, so every line in it is
+# from this run; we do not need a precise window. Six hours comfortably
+# covers a CI run.
 QUERY_WINDOW_SECONDS=$(( 6 * 60 * 60 ))
 # Generous per-query line cap. Loki's query_range caps at this many
 # entries; counts above it are reported as ">=LIMIT".
@@ -305,9 +306,8 @@ fi
 # 'stop-sigterm' timed out" / "Main process exited, code=exited" /
 # "Failed with result 'exit-code'" lines -- are intentionally NOT checked
 # here. Loki carries only SF's Python application logs, so these never
-# reach it. Their gating moves to a per-node systemctl/journald check
-# (phase 5 of PLAN-remove-syslog-forwarding); they now live only in each
-# node's journald.
+# reach it. They live only in each node's journald, and the per-node
+# systemctl/journald check (ci_node_checks.sh) is what gates them.
 for forbid in "${FORBIDDEN_MSG[@]}"; do
     check_forbidden "$(msg_query "${forbid}")" "${forbid}" "${START_NS}" "${END_NS}"
 done
@@ -383,8 +383,8 @@ FORBIDDEN_ONCE_STABLE_MSG=(
     "Cluster not yet stable"
     "StatusCode.UNAVAILABLE"
     # NOTE: the systemd "Failed with result 'exit-code'." line is NOT
-    # checked here (systemd-origin, not in Loki); it moves to the
-    # per-node systemctl/journald check in phase 5.
+    # checked here (systemd-origin, not in Loki); the per-node
+    # systemctl/journald check (ci_node_checks.sh) gates it instead.
     "API query for node told node not ready"
     "Not processing queues as dependencies are unhealthy"
 )

@@ -75,11 +75,12 @@ def render_inventory(nodes):
     # hypervisor that is not the network node (etc.) lands only where it should.
     # The database tier is emitted into BOTH database_node and the legacy
     # etcd_master group for one release cycle: actions@main is consumed at
-    # runtime by every shakenfist branch, and pre-phase-7 copies of
-    # examples/_shared/site.yml only read groups['etcd_master']. The dual
-    # emission also exercises the deploy playbook's compatibility union and
-    # deprecation warning on every CI run. Remove etcd_master here when the
-    # fallback is removed from site.yml next release.
+    # runtime by every shakenfist branch, and copies of examples/_shared/
+    # site.yml older than the database_node rename read only
+    # groups['etcd_master']. The dual emission also exercises the deploy
+    # playbook's compatibility union and deprecation warning on every CI
+    # run. Remove etcd_master here when the fallback is removed from
+    # site.yml next release.
     group_flags = (
         ('hypervisors', 'is_hypervisor'),
         ('network_node', 'is_network_node'),

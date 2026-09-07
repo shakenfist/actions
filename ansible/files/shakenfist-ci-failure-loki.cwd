@@ -2,9 +2,9 @@
 # Loki-aware Shaken Fist CI-failure clingwrap bundle.
 #
 # This is a copy of clingwrap's built-in shakenfist-ci-failure.cwd,
-# adapted for the post-rsyslog / Loki world (phase 4 of
-# PLAN-remove-syslog-forwarding). It is shipped from the
-# shakenfist/actions repo and passed to clingwrap via
+# adapted for a cluster that ships its logs to Loki rather than to a
+# central syslog. It is shipped from the shakenfist/actions repo and
+# passed to clingwrap via
 #     clingwrap gather --target <path-to-this-file>
 # (clingwrap accepts a file-path --target; see clingwrap/main.py gather()).
 # clingwrap itself is NOT modified and its built-in .cwd is left intact.
