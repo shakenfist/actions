@@ -1,0 +1,334 @@
+{
+  "clientRemote": "",
+  "gitRemote": "",
+  "gitSha": "",
+  "treeEntries": [],
+  "auditedFiles": [
+    {
+      "path": ".github/workflows/canary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/codeql-analysis.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/export-repo-config.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/actionlint.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-auto-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/netplan-eth1.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/user-data",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/__init__.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/helpers.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ansible_readiness.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_make_inventory.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_create_review_issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_documentation_links.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_extract_review_json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_render_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_run_remote.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/wait-for-cloud-init.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/wait-for-ssh-with-refloat.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-gather-logs-loki.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-gather-logs.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image-desktop.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-include-common-localhost.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-node-checks.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-localhost-released.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-localhost-upgrade.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-localhost.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary-released.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-create-instance.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node-2.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kerbside-on-shakenfist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kerbside-on-shakenfist",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kolla-ansible/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kolla-ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/create-review-issues.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/extract-review-json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-pr-with-claude.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-schema.json",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-test-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-test-environment",
+      "author": "mikal"
+    },
+    {
+      "path": "etc/ovirt-45-rocky-8-answers.conf.j2",
+      "author": "mikal"
+    },
+    {
+      "path": "etc/ovirt-45-rocky-8-repos.patch",
+      "author": "mikal"
+    },
+    {
+      "path": "etc/ovirt-45-rocky-9-answers.conf.j2",
+      "author": "mikal"
+    },
+    {
+      "path": "etc",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/buffer.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_code_formatting.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_drain_check.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_event_checks.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_launch.sh",
+      "author": "mikal"
+    }
+  ],
+  "partiallyAuditedFiles": [],
+  "resolvedEntries": []
+}

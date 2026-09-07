@@ -1,0 +1,285 @@
+{
+  "version": 1,
+  "files": {
+    ".github/actionlint.yaml": {
+      "sha": "e22fc12c6a98bb0fde42b5f908efc41465933e4a",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/canary.yml": {
+      "sha": "eb280daeac65933e6dcc3d52bfc03615f312a96a",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/ci.yml": {
+      "sha": "eb987bf187e11b0fc66b0049a263ddc81d38c70b",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/codeql-analysis.yml": {
+      "sha": "cbe1fe485f10c876d4e8367aadc00fa0fcb81910",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/export-repo-config.yml": {
+      "sha": "dae3139f272bd9d9bb745f42e91ee8629144492c",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/pr-auto-review.yml": {
+      "sha": "7782339f38c7d1daa88a7019483318ee8fe34491",
+      "date": "2026-09-04"
+    },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "4ed90cdbe3b57683fc8b1c23f1a3e1e9b6fbe01f",
+      "date": "2026-09-04"
+    },
+    ".github/workflows/pr-retest.yml": {
+      "sha": "800a9f74077797366c4e533cab91a080dcbf31d7",
+      "date": "2026-09-04"
+    },
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
+      "date": "2026-08-24"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "5f865ac81471fd02be67c644b99ad9177cff23b4",
+      "date": "2026-09-04"
+    },
+    "AGENTS.md": {
+      "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
+      "date": "2026-09-07"
+    },
+    "README.md": {
+      "sha": "44e645c02c975d08358d2c878665f497c7ce31f2",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-dependencies.yml": {
+      "sha": "6bd26e8b1484cf4119dc1abd7dae71092be30567",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-gather-logs-loki.yml": {
+      "sha": "2ecc669df0b438e1c78546c3fb1fe7f53b5c18b2",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-gather-logs.yml": {
+      "sha": "8f72cef07419e05672c015976536ec6132663911",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-image-desktop.yml": {
+      "sha": "98a20b9c3c5941fcf506bd1a887c84ed37ecee96",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-image.yml": {
+      "sha": "794f7d97ffa3362433383cff18ab19087e7bbd35",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-include-common-localhost.yml": {
+      "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-node-checks.yml": {
+      "sha": "f5384b29308c7b9a97b5873d31a38547cc15b0c8",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-topology-localhost-released.yml": {
+      "sha": "06b7b475b60a78e98e34936f4b78e0e5d0dfefe8",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-topology-localhost-upgrade.yml": {
+      "sha": "065f73f684b95a93566f1dd55114984c912392d9",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-topology-localhost.yml": {
+      "sha": "806579a219ff49d862160aecb7d59d7f5348316d",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-topology-slim-primary-released.yml": {
+      "sha": "2cc68cb7b0989ccfa549db80267a66ac6e41e942",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-topology-slim-primary.yml": {
+      "sha": "1e2426cd4487ebcf84a4c52a3acbf1e9047d65b6",
+      "date": "2026-09-07"
+    },
+    "ansible/ci-topology-slim-tier.yml": {
+      "sha": "89a8b7537e84dcdac57d6cc8d9c5de722172f546",
+      "date": "2026-09-07"
+    },
+    "ansible/files/netplan-eth1.yaml": {
+      "sha": "ee42fcd72bee037f6df556ae1acaeb7f075697c7",
+      "date": "2026-09-04"
+    },
+    "ansible/files/shakenfist-ci-failure-loki.cwd": {
+      "sha": "c12315df5bbc0548a5a887e6cbb9009dda5b5dd0",
+      "date": "2026-09-04"
+    },
+    "ansible/files/user-data": {
+      "sha": "128382120d350596a21a95a7ec14031cc6856e8d",
+      "date": "2026-09-04"
+    },
+    "ansible/kerbside-create-instance.yml": {
+      "sha": "043e45e4f1b85b320cfeba693435092b4affb641",
+      "date": "2026-09-07"
+    },
+    "ansible/kerbside-multi-node-2.yml": {
+      "sha": "694c7b26e4d2e023388efc3d3df4e35d78f5eb42",
+      "date": "2026-09-07"
+    },
+    "ansible/kerbside-multi-node.yml": {
+      "sha": "e70dcabeea03e24ae4d33ec0ac90c38ee60534e8",
+      "date": "2026-09-07"
+    },
+    "ansible/kerbside-single-node.yml": {
+      "sha": "95884b8513357e419f6beb0acc71f3da6fa8fc0a",
+      "date": "2026-09-07"
+    },
+    "ansible/tasks/wait-for-cloud-init.yml": {
+      "sha": "f879cb9fee4899a34e2374f8bf7c0fa96580832e",
+      "date": "2026-09-07"
+    },
+    "ansible/tasks/wait-for-ssh-with-refloat.yml": {
+      "sha": "6640f3073e18e7dab5996ff0c64be81e5a7c87ea",
+      "date": "2026-09-07"
+    },
+    "build-smoke-cluster/action.yml": {
+      "sha": "5ce2553f526c8fc0babd19985780f0ece822a529",
+      "date": "2026-09-07"
+    },
+    "deploy-kerbside-on-shakenfist/action.yml": {
+      "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
+      "date": "2026-09-07"
+    },
+    "deploy-kolla-ansible/action.yml": {
+      "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
+      "date": "2026-09-07"
+    },
+    "docs/actions.md": {
+      "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
+      "date": "2026-09-07"
+    },
+    "docs/ansible.md": {
+      "sha": "1a107101a0693f74dc996e2149f24620be5e00f5",
+      "date": "2026-09-07"
+    },
+    "docs/ci.md": {
+      "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",
+      "date": "2026-09-07"
+    },
+    "docs/consuming.md": {
+      "sha": "e16c8037b6235b27d5f4e3bfa53b05b69e3bd8b5",
+      "date": "2026-09-07"
+    },
+    "etc/ovirt-45-rocky-8-answers.conf.j2": {
+      "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
+      "date": "2026-09-07"
+    },
+    "etc/ovirt-45-rocky-8-repos.patch": {
+      "sha": "3c9236b18af7f5078e65324789116824e3495952",
+      "date": "2026-09-07"
+    },
+    "etc/ovirt-45-rocky-9-answers.conf.j2": {
+      "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
+      "date": "2026-09-07"
+    },
+    "pr-bot-trigger/action.yml": {
+      "sha": "6b3f06297218784b0f1f69e67bb9f180f6409d6b",
+      "date": "2026-09-07"
+    },
+    "renovate.json": {
+      "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
+      "date": "2026-09-07"
+    },
+    "review-pr-with-claude/action.yml": {
+      "sha": "80c734cd819db949388f2976fcadaef7003f1cdc",
+      "date": "2026-09-07"
+    },
+    "review-pr-with-claude/create-review-issues.py": {
+      "sha": "d361f1309338099b9280abb7a395228251120978",
+      "date": "2026-09-07"
+    },
+    "review-pr-with-claude/extract-review-json.py": {
+      "sha": "91a5b6eaab5e681668cc3696b0a1a2bfcc2d84e4",
+      "date": "2026-09-07"
+    },
+    "review-pr-with-claude/render-review.py": {
+      "sha": "fdc6746c850520c6753fff7ecbb8ed8200ec009b",
+      "date": "2026-09-07"
+    },
+    "review-pr-with-claude/review-pr-with-claude.sh": {
+      "sha": "d23a49c8b6d03c362e412d24576827f06818debf",
+      "date": "2026-09-07"
+    },
+    "review-pr-with-claude/review-schema.json": {
+      "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
+      "date": "2026-09-07"
+    },
+    "setup-kerbside-environment/action.yml": {
+      "sha": "663b0bed0278ba7aeceef7477dff7c4f6c3e46a6",
+      "date": "2026-09-07"
+    },
+    "setup-test-environment/action.yml": {
+      "sha": "abd3cc38508e29755801041d1981405a36eea161",
+      "date": "2026-09-07"
+    },
+    "tests/__init__.py": {
+      "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "date": "2026-09-07"
+    },
+    "tests/helpers.py": {
+      "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
+      "date": "2026-09-07"
+    },
+    "tests/test_ansible_readiness.py": {
+      "sha": "ee5b9d2ddf0fa518337e01fb16396fd7b2a71799",
+      "date": "2026-09-07"
+    },
+    "tests/test_ci_make_inventory.py": {
+      "sha": "a1dc335f2d6866b34db25d5c2ba0da311e92e40f",
+      "date": "2026-09-07"
+    },
+    "tests/test_create_review_issues.py": {
+      "sha": "f09bf2f1fdb6d67e00b6b988904d1987d443222e",
+      "date": "2026-09-07"
+    },
+    "tests/test_documentation_links.py": {
+      "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
+      "date": "2026-09-07"
+    },
+    "tests/test_extract_review_json.py": {
+      "sha": "a7d7050f66f018cd46fb57b95edd50b876572bd4",
+      "date": "2026-09-07"
+    },
+    "tests/test_render_review.py": {
+      "sha": "b0463699eba93deed6751d8a26a40764b7e8c1e4",
+      "date": "2026-09-07"
+    },
+    "tests/test_run_remote.py": {
+      "sha": "a0778f7c03c11c37d2472b12fe3ffa6ff7facacf",
+      "date": "2026-09-07"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "570c9811fe57225d0a2287f492d167cd4a71c015",
+      "date": "2026-09-07"
+    },
+    "tools/buffer.py": {
+      "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",
+      "date": "2026-09-07"
+    },
+    "tools/ci_code_formatting.sh": {
+      "sha": "ecda63158795fe4dd7462db66e5e2333182e1d78",
+      "date": "2026-09-07"
+    },
+    "tools/ci_drain_check.sh": {
+      "sha": "ca213b9539b5eb724222e9072d04fc0ba7585292",
+      "date": "2026-09-07"
+    },
+    "tools/ci_event_checks.sh": {
+      "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
+      "date": "2026-09-07"
+    },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "63412501ed2e8ba78c3de1c7ec6ee9807a7e530e",
+      "date": "2026-09-07"
+    },
+    "tools/ci_headroom_launch.sh": {
+      "sha": "e9142251b2f646d7354b2140a7bd6a01412d9e8f",
+      "date": "2026-09-07"
+    }
+  }
+}
