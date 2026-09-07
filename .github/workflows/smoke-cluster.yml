@@ -264,8 +264,8 @@ jobs:
       # probe itself, and the tool that summarises what it writes, both live in
       # shakenfist's tools/ -- that is where the JSONL format contract has both
       # of its halves and is unit tested on an ordinary pull request. This is
-      # only the launcher. See shakenfist's
-      # docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md, D13 and D14.
+      # only the launcher. See D13 and D14 in
+      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
       #
       # continue-on-error, and the script itself always exits 0: the point of
       # the instrument is to observe CI's failure surface, and one that can
