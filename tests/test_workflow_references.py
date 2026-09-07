@@ -552,17 +552,19 @@ class ReviewScopeTest(unittest.TestCase):
                     'exclude pattern %r matches no tracked file' % pattern)
 
     def test_the_documented_out_of_scope_files_are_out_of_scope(self):
-        # The header names three files it deliberately leaves out and
+        # The header names two files it deliberately leaves out and
         # says why for each. If a later widening of the include list
         # pulls one back in, that argument needs revisiting rather than
         # silently ceasing to be true. The .cwd bundle used to be
         # listed here on the grounds that it held saved Loki queries;
         # it is a clingwrap gather config whose shell jobs run as root
-        # on every CI node, so it was moved into scope instead.
+        # on every CI node, so it was moved into scope instead. The
+        # oVirt repo patch was listed as a vendored third-party diff;
+        # it is written here and decides which repositories the oVirt
+        # CI nodes install from, so it moved into scope too.
         deliberately_out = [
             '.flake8',
             '.gitignore',
-            'etc/ovirt-45-rocky-8-repos.patch',
         ]
         include = self.scope['include']
         for path in deliberately_out:

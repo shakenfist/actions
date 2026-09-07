@@ -16,8 +16,13 @@
 # file extensions do not advertise. The .cwd file is a clingwrap
 # gather bundle whose shell and shell_emitter jobs run as root on
 # every CI node on failure, with emitter output interpreted as
-# further config. run_remote and user-data have no extension and are
-# named explicitly for that reason.
+# further config. The one .patch file is not a vendored upstream
+# diff: it is written here, and it points the CentOS SIG repositories
+# the oVirt CI nodes install from at vault.centos.org baseurls, so it
+# decides where those nodes fetch packages from. A genuinely vendored
+# third-party diff would be a fresh decision and belongs in the
+# exclude list by name. run_remote and user-data have no extension
+# and are named explicitly for that reason.
 include = [
     '*.py',
     '*.sh',
@@ -28,6 +33,7 @@ include = [
     '*.json',
     '*.toml',
     '*.cwd',
+    '*.patch',
     'tools/run_remote',
     'ansible/files/user-data',
 ]
@@ -40,6 +46,4 @@ include = [
 exclude = [
     '.flake8',              # tool configuration, no behaviour of its own
     '.gitignore',           # tool configuration, no behaviour of its own
-    'etc/*.patch',          # vendored third-party patches -- a review mark here
-                            # would attest to somebody else's diff
 ]
