@@ -303,6 +303,14 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

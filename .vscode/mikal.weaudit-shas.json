@@ -105,6 +105,10 @@
       "sha": "ee42fcd72bee037f6df556ae1acaeb7f075697c7",
       "date": "2026-09-04"
     },
+    "ansible/files/shakenfist-ci-failure-loki.cwd": {
+      "sha": "57b4d1a88dd8e4835699e616d67652a987950fad",
+      "date": "2026-09-09"
+    },
     "ansible/files/user-data": {
       "sha": "128382120d350596a21a95a7ec14031cc6856e8d",
       "date": "2026-09-04"
