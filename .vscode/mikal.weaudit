@@ -311,6 +311,18 @@
     {
       "path": "ansible/files",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-gather-logs-loki.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-node-checks.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
