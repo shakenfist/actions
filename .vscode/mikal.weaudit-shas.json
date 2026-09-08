@@ -37,10 +37,6 @@
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "5f865ac81471fd02be67c644b99ad9177cff23b4",
-      "date": "2026-09-04"
-    },
     "AGENTS.md": {
       "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
       "date": "2026-09-07"
@@ -51,10 +47,6 @@
     },
     "ansible/ci-dependencies.yml": {
       "sha": "6bd26e8b1484cf4119dc1abd7dae71092be30567",
-      "date": "2026-09-07"
-    },
-    "ansible/ci-gather-logs-loki.yml": {
-      "sha": "2ecc669df0b438e1c78546c3fb1fe7f53b5c18b2",
       "date": "2026-09-07"
     },
     "ansible/ci-gather-logs.yml": {
@@ -71,10 +63,6 @@
     },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
-      "date": "2026-09-07"
-    },
-    "ansible/ci-node-checks.yml": {
-      "sha": "f5384b29308c7b9a97b5873d31a38547cc15b0c8",
       "date": "2026-09-07"
     },
     "ansible/ci-topology-localhost-released.yml": {
@@ -103,10 +91,6 @@
     },
     "ansible/files/netplan-eth1.yaml": {
       "sha": "ee42fcd72bee037f6df556ae1acaeb7f075697c7",
-      "date": "2026-09-04"
-    },
-    "ansible/files/shakenfist-ci-failure-loki.cwd": {
-      "sha": "c12315df5bbc0548a5a887e6cbb9009dda5b5dd0",
       "date": "2026-09-04"
     },
     "ansible/files/user-data": {
@@ -229,10 +213,6 @@
       "sha": "ee5b9d2ddf0fa518337e01fb16396fd7b2a71799",
       "date": "2026-09-07"
     },
-    "tests/test_ci_make_inventory.py": {
-      "sha": "a1dc335f2d6866b34db25d5c2ba0da311e92e40f",
-      "date": "2026-09-07"
-    },
     "tests/test_create_review_issues.py": {
       "sha": "f09bf2f1fdb6d67e00b6b988904d1987d443222e",
       "date": "2026-09-07"
@@ -271,14 +251,6 @@
     },
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
-      "date": "2026-09-07"
-    },
-    "tools/ci_headroom_collect.sh": {
-      "sha": "63412501ed2e8ba78c3de1c7ec6ee9807a7e530e",
-      "date": "2026-09-07"
-    },
-    "tools/ci_headroom_launch.sh": {
-      "sha": "e9142251b2f646d7354b2140a7bd6a01412d9e8f",
       "date": "2026-09-07"
     }
   }

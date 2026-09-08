@@ -41,23 +41,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/smoke-cluster.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/netplan-eth1.yaml",
       "author": "mikal"
     },
     {
-      "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/user-data",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/files",
       "author": "mikal"
     },
     {
@@ -70,10 +58,6 @@
     },
     {
       "path": "tests/test_ansible_readiness.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ci_make_inventory.py",
       "author": "mikal"
     },
     {
@@ -113,10 +97,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-gather-logs-loki.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-gather-logs.yml",
       "author": "mikal"
     },
@@ -130,10 +110,6 @@
     },
     {
       "path": "ansible/ci-include-common-localhost.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-node-checks.yml",
       "author": "mikal"
     },
     {
@@ -174,10 +150,6 @@
     },
     {
       "path": "ansible/kerbside-single-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {
@@ -318,14 +290,6 @@
     },
     {
       "path": "tools/ci_event_checks.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/ci_headroom_collect.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/ci_headroom_launch.sh",
       "author": "mikal"
     }
   ],
