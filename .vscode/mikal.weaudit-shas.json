@@ -21,6 +21,10 @@
       "sha": "dae3139f272bd9d9bb745f42e91ee8629144492c",
       "date": "2026-08-24"
     },
+    ".github/workflows/issue-link-check.yml": {
+      "sha": "4e5b158307670d19c1fa45d791bd97803df1c3e0",
+      "date": "2026-09-09"
+    },
     ".github/workflows/pr-auto-review.yml": {
       "sha": "7782339f38c7d1daa88a7019483318ee8fe34491",
       "date": "2026-09-04"
@@ -36,6 +40,14 @@
     ".github/workflows/prune-reviews.yml": {
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "7ffa6e6b66b70c20c8cfc0a18f5313cb02657676",
+      "date": "2026-09-09"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "b4fcc840d18d8dcf306baf4eb8fb68b217294904",
+      "date": "2026-09-09"
     },
     "AGENTS.md": {
       "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
