@@ -78,7 +78,7 @@
 # empty one, so the two cases stay distinguishable. It reaches the primary base64 encoded -- see the ssh call
 # below, which explains why.
 #
-# NOTHING in this script may fail the job: this phase exists to observe CI's
+# NOTHING in this script may fail the job: the probe exists to observe CI's
 # failure surface, and an instrument that can fail the job changes the thing
 # being measured. Every step tolerates a dead poller, a missing file and an
 # unreachable Loki, and the script always exits 0. It runs on the CI runner,

@@ -3,7 +3,8 @@
 # Deploys a single-node Shaken Fist smoke cluster via the
 # shakenfist.shakenfist ansible collection (examples/_shared/site.yml) instead
 # of getsf, runs the smoke functional test suite, and gathers logs. Callers
-# (shakenfist's functional-tests.yml and scheduled-tests.yml, client-python's
+# (this repository's own canary.yml, by relative path; shakenfist's
+# functional-tests.yml and scheduled-tests.yml; client-python's
 # functional-tests.yml) invoke it with a few-line `uses:`.
 #
 #   jobs:

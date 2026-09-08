@@ -42,9 +42,10 @@ set -euo pipefail
 # here. (ci_event_checks.sh, which was entirely etcd-centric, likewise
 # gets no Loki successor.)
 #
-# This script only ever runs on a cluster primary, so pre-commit covers
-# it with bash -n and shellcheck alone. A smoke cluster run against a
-# live Loki is the only thing that exercises it fully.
+# This script only ever runs on a cluster primary, so the only automated
+# check it gets is pre-commit's shellcheck, gated at error severity. A
+# smoke cluster run against a live Loki is the only thing that exercises
+# it fully.
 
 BRANCH="${1:-}"
 JOB_NAME="${2:-}"

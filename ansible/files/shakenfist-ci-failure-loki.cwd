@@ -12,19 +12,19 @@
 # Differences from the built-in shakenfist-ci-failure.cwd:
 #   ADDED:    a `directory` job for /srv/shakenfist/spool/logship/ -- the
 #             undelivered Loki-bound log spool. In Mode A (Loki configured,
-#             which CI runs) SF's per-module SysLogHandlers are removed, so
-#             structured logs go ONLY to the spool -> Loki, not to journald.
-#             When the Loki push itself failed, the undelivered lines live
-#             here, so this is the PRIMARY local-debug artifact for a
-#             shipper failure. (The sqlite spools are small -- bounded by
-#             the 100k-row high-water mark.)
-#   REPLACED: the /var/log/syslog + /var/log/syslog.1 `file` jobs (which
-#             will not exist once rsyslog is removed) with a `journalctl
-#             -u "sf-*.service"` shell job. The sf.target journal job is
-#             kept. NOTE: in Mode A this journal holds only the systemd
-#             stdout/stderr RESIDUAL (uncaught tracebacks, pre-logging
-#             output) -- the routine structured logs are in the spool
-#             above and in Loki. It is the full local log only in Mode B.
+#             which CI runs) SF's per-module SysLogHandlers are LEFT IN
+#             PLACE and a Loki handler is added to the root logger at INFO,
+#             so journald still holds every level locally while Loki
+#             receives INFO and above. What sits in the spool is therefore
+#             what failed to ship, which is how you tell a shipper failure
+#             from a quiet daemon. (The sqlite spools are small -- bounded
+#             by the 100k-row high-water mark.)
+#   REPLACED: the /var/log/syslog + /var/log/syslog.1 `file` jobs (nothing
+#             forwards to a central syslog any more, so at most those held
+#             this node's own local copy) with a `journalctl -u
+#             "sf-*.service"` shell job. The sf.target journal job is kept.
+#             This journal is the full local log at every level, including
+#             the DEBUG that is never shipped to Loki at all.
 #   DROPPED:  the `journalctl -u etcd` shell job -- etcd is gone.
 #
 # Everything else (the sf-* unit-file emitter, /run/sf pid/abort files,
@@ -142,7 +142,7 @@
   command: journalctl -u sf.target
   destination: _commands/journalctl-sf-target
 
-- name: SF systemd unit logs (stdout/stderr residual in Mode A)
+- name: SF systemd unit logs (the full local log, DEBUG included)
   type: shell
   command: journalctl -u "sf-*.service" --no-pager
   destination: _commands/journalctl-sf-units
