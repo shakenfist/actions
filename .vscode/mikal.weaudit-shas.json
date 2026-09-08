@@ -145,10 +145,6 @@
       "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",
       "date": "2026-09-07"
     },
-    "docs/consuming.md": {
-      "sha": "e16c8037b6235b27d5f4e3bfa53b05b69e3bd8b5",
-      "date": "2026-09-07"
-    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
