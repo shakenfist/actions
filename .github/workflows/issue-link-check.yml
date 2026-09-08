@@ -33,6 +33,13 @@ on:
         description: >
           JSON array of runner labels, e.g. '["self-hosted","static"]'.
         type: string
+        # Deliberately GitHub-hosted. A repository with no self-hosted
+        # pool adopts this check by dropping the caller's "with:" block
+        # and taking the default; fleet repositories pass
+        # ["self-hosted","static"] instead. See shakenfist/development
+        # at templates/issue-link-check/README.md, which is where that
+        # choice is explained to adopters.
+        # audit-ok: github-hosted-runner -- adopters with no self-hosted pool
         default: '["ubuntu-latest"]'
 
 # Read only. The check reports and fails; it never edits an issue or a

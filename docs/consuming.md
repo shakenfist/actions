@@ -117,7 +117,7 @@ jobs:
     if: |
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '@shakenfist-bot please retest')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, static]
 
     steps:
       - uses: shakenfist/actions/pr-bot-trigger@main
