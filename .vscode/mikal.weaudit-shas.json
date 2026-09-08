@@ -237,6 +237,14 @@
       "sha": "ee5b9d2ddf0fa518337e01fb16396fd7b2a71799",
       "date": "2026-09-07"
     },
+    "tests/test_check_issue_links.py": {
+      "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
+      "date": "2026-09-09"
+    },
+    "tests/test_ci_make_inventory.py": {
+      "sha": "4596b013378338481cfa604fa6786aefe091a725",
+      "date": "2026-09-09"
+    },
     "tests/test_create_review_issues.py": {
       "sha": "f09bf2f1fdb6d67e00b6b988904d1987d443222e",
       "date": "2026-09-07"

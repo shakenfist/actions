@@ -331,6 +331,14 @@
     {
       "path": "docs",
       "author": "mikal"
+    },
+    {
+      "path": "tests/test_check_issue_links.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_make_inventory.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
