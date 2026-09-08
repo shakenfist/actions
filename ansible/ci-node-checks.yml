@@ -1,12 +1,11 @@
 ---
-# Per-node, GATING system-level health check (phase 5 of
-# PLAN-remove-syslog-forwarding).
+# Per-node, GATING system-level health check.
 #
 # Fans tools/ci_node_checks.sh out to EVERY node in the inventory and FAILS
-# the run if ANY node reports a system-level failure. This restores the
-# kernel/systemd/stderr-origin coverage that Loki cannot provide: after
-# rsyslog forwarding is removed those conditions live only in each node's
-# journald / systemd state, so they must be checked on each node directly.
+# the run if ANY node reports a system-level failure. This provides the
+# kernel/systemd/stderr-origin coverage that Loki cannot: nothing forwards
+# those conditions to a central syslog, so they live only in each node's
+# journald / systemd state and must be checked on each node directly.
 #
 # UNLIKE the log-GATHER playbooks (ci-gather-logs*.yml) this is a gate: the
 # checks run with sudo and a non-zero exit on any host must fail the

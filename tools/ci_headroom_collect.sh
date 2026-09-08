@@ -11,8 +11,8 @@
 # but cannot see a scheduler refusal, since a refusal begins and ends between
 # samples. The refusal CENSUS is the converse: a filtered Loki query counting
 # every candidate node the scheduler dropped, per stage, including on runs that
-# pass. See docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md in
-# shakenfist, decisions D9 and D11.
+# pass. See decisions D9 and D11 in
+# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
 #
 # The filter is a regex, not a substring, because the scheduler emits TWO
 # message forms and the important one is the second: 'schedule at stage X'
@@ -32,8 +32,9 @@
 # events, and the guard's own refusals -- which sit one layer below the stage
 # check -- never appear at all. That produced a *Capacity guard census*
 # section with nothing to count on every run since the stage-event filter
-# was fixed (docs/plans/PLAN-ci-cloud-sizing-phase-02-baseline.md in
-# shakenfist, decision D20, survey finding 4) even though the guard fired.
+# was fixed, even though the guard fired. See decision D20 and survey
+# finding 4 in
+# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-02-baseline.md
 #
 # The third guard message, 'placement recorded despite exceeding capacity
 # guard' (also shakenfist/instance.py), is the P5 forced ground-truth write:
@@ -77,7 +78,7 @@
 # empty one, so the two cases stay distinguishable. It reaches the primary base64 encoded -- see the ssh call
 # below, which explains why.
 #
-# NOTHING in this script may fail the job: this phase exists to observe CI's
+# NOTHING in this script may fail the job: the probe exists to observe CI's
 # failure surface, and an instrument that can fail the job changes the thing
 # being measured. Every step tolerates a dead poller, a missing file and an
 # unreachable Loki, and the script always exits 0. It runs on the CI runner,
