@@ -311,6 +311,146 @@
     {
       "path": "tests/test_ci_make_inventory.py",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/install-kolla-prerequisites.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node-2.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/check-issue-links.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_launch.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_log_checks_loki.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_log_checks.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_node_checks.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_sync_docs.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-make-inventory.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/clone_with_depends.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/deploy-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/event_statistics.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/gitleaks-scan.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/install-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/network_allocation_torture.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ovirt-enable-el9-spice.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ovirt-gather-artifacts.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ovirt-install-base.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ovirt-patch-ovn.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ovirt-prepare-host.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/review-tracking.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/run_remote",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/start-test-target.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/sync_component_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".gitleaks.toml",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
