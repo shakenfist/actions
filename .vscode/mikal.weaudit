@@ -311,6 +311,38 @@
     {
       "path": "tests/test_ci_make_inventory.py",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/install-kolla-prerequisites.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node-2.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

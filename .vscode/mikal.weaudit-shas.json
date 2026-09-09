@@ -125,6 +125,22 @@
       "sha": "043e45e4f1b85b320cfeba693435092b4affb641",
       "date": "2026-09-07"
     },
+    "ansible/kerbside-multi-node-2.yml": {
+      "sha": "3920f866171a7d3548345e6b03fd4bb61b787ab8",
+      "date": "2026-09-10"
+    },
+    "ansible/kerbside-multi-node.yml": {
+      "sha": "414991ee6071a2d9de5e22cd889bbec375bb3711",
+      "date": "2026-09-10"
+    },
+    "ansible/kerbside-single-node.yml": {
+      "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
+      "date": "2026-09-10"
+    },
+    "ansible/tasks/install-kolla-prerequisites.yml": {
+      "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
+      "date": "2026-09-10"
+    },
     "ansible/tasks/wait-for-cloud-init.yml": {
       "sha": "f879cb9fee4899a34e2374f8bf7c0fa96580832e",
       "date": "2026-09-07"
@@ -148,6 +164,10 @@
     "docs/actions.md": {
       "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
       "date": "2026-09-07"
+    },
+    "docs/ansible.md": {
+      "sha": "016497de60ff8c30da0e462e6add32adbc62c33d",
+      "date": "2026-09-10"
     },
     "docs/ci.md": {
       "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",
