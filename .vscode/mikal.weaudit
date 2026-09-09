@@ -283,6 +283,62 @@
     {
       "path": "tools/ci_event_checks.sh",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/issue-link-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-gather-logs-loki.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-node-checks.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_check_issue_links.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_make_inventory.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
