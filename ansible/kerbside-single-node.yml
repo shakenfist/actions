@@ -133,3 +133,13 @@
   gather_facts: false
   tasks:
     - import_tasks: tasks/wait-for-cloud-init.yml
+
+# kolla-ansible cannot bootstrap a host whose package_facts fails, and on
+# debian:13 that needs a package the base image does not carry. Separate
+# from the readiness play above rather than folded into it, because it
+# must run after that gate: see tasks/install-kolla-prerequisites.yml.
+- name: Install kolla-ansible's node prerequisites
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/install-kolla-prerequisites.yml

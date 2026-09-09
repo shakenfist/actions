@@ -1,0 +1,69 @@
+# What a kolla-ansible target host needs before it can be bootstrapped.
+#
+# kolla-ansible's baremetal role opens with
+#
+#   TASK [openstack.kolla.baremetal : Gather package facts]
+#
+# and ansible's package_facts module needs the apt python bindings to
+# select its apt backend. Without python3-apt it does not fall back to
+# anything, it reports that it could not detect a package manager at all:
+#
+#   Could not detect a supported package manager from the following list:
+#   ['apk', 'apt', 'pacman', ...], or the required Python library is not
+#   installed.
+#
+# and the deploy dies there, before the role has installed a thing. The
+# role cannot bootstrap its way out of this, because the fact gathering
+# runs ahead of every install it does.
+#
+# The debian:12 base image shipped python3-apt, so nothing ever had to ask
+# for it. debian:13 does not. The all-in-one topologies kept working on
+# debian:13 by coincidence rather than by design: there the kolla host is
+# also the deploy host, and kerbside-patches' install-build-dependencies.sh
+# -- which setup-kerbside-environment runs over ssh on the deploy host and
+# nowhere else -- pulls python3-apt in. A multinode topology has no such
+# coincidence, and every node except the deploy host failed.
+#
+# Include these tasks from a play targeting the provisioned hosts, and put
+# that play after the readiness gate: cloud-init holds the apt lock while
+# it runs, so an install racing it fails on the lock rather than on
+# anything real. See tasks/wait-for-cloud-init.yml.
+#
+# Deliberately apt-get rather than the apt module. That module needs
+# python3-apt too, and although it will try to install it for itself when
+# it is missing, this is precisely the host state where that recovery path
+# would be load bearing rather than incidental. apt-get needs nothing.
+
+# Not os_family: the question here is which package manager the host has,
+# and the pkg_mgr collector answers it from the binaries present, which
+# needs no bindings of its own. The playbooks that import this file run
+# their readiness play with gather_facts: false, so nothing has been
+# gathered yet.
+- name: Work out which package manager the host has
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - '!min'
+      - pkg_mgr
+
+# Rocky hosts take package_facts' rpm backend, which needs no bindings, so
+# they want nothing from this file.
+- name: Install the apt bindings package_facts needs
+  when: ansible_facts.pkg_mgr == 'apt'
+  become: true
+  # LC_ALL because the changed_when below reads apt-get's own words, and
+  # a localised host would report every run as changed.
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    LC_ALL: C
+  block:
+    # A Debian cloud image arrives with its package lists emptied, so an
+    # install ahead of an update cannot locate the package at all.
+    - name: Update the apt package lists
+      ansible.builtin.command: apt-get update
+      changed_when: false
+
+    - name: Install python3-apt
+      ansible.builtin.command: apt-get install -y python3-apt
+      register: python3_apt
+      changed_when: "'is already the newest version' not in python3_apt.stdout"
