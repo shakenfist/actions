@@ -97,6 +97,46 @@ merge -- the fabric is not available on a dev host -- and because it has
 already been broken once, when only one of twelve provisioning paths
 grew the gate.
 
+## Kolla node prerequisites
+
+The kerbside playbooks add a second short play after the readiness gate,
+importing `ansible/tasks/install-kolla-prerequisites.yml`:
+
+```yaml
+- name: Install kolla-ansible's node prerequisites
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/install-kolla-prerequisites.yml
+```
+
+It installs `python3-apt` on the Debian hosts. kolla-ansible's baremetal
+role begins by gathering package facts, and ansible's `package_facts`
+module needs the apt python bindings to select its apt backend. Without
+them it does not fall back -- it reports that it could not detect a
+package manager at all -- and the deploy dies there, ahead of every
+install the role would have done, so the role cannot bootstrap its way
+out of it. Rocky hosts take the rpm backend and need nothing.
+
+The `debian:12` base image carried `python3-apt`, so this never had to be
+asked for. `debian:13` does not. That difference was invisible on the
+all-in-one topologies, where the kolla host is also the deploy host and
+kerbside-patches' `_build/install-build-dependencies.sh` pulls the
+package in -- `setup-kerbside-environment` runs that script over SSH on
+the deploy host and on no other node. Multinode has no such coincidence,
+and every node except the deploy host failed on the first run after the
+base image moved.
+
+The tasks use `apt-get` rather than the `apt` module on purpose. That
+module needs `python3-apt` as well, and although it tries to install it
+for itself when it is missing, this is the one host state where that
+recovery path would be carrying the deploy rather than tidying up after
+it.
+
+Order matters as much as it does for the readiness gate, and for a
+related reason: cloud-init holds the apt lock while it runs, so this play
+must come after the gate rather than before it.
+
 ## CI caching
 
 The playbooks configure remote VMs to use local caches:
