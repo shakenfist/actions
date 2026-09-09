@@ -125,18 +125,6 @@
       "sha": "043e45e4f1b85b320cfeba693435092b4affb641",
       "date": "2026-09-07"
     },
-    "ansible/kerbside-multi-node-2.yml": {
-      "sha": "694c7b26e4d2e023388efc3d3df4e35d78f5eb42",
-      "date": "2026-09-07"
-    },
-    "ansible/kerbside-multi-node.yml": {
-      "sha": "e70dcabeea03e24ae4d33ec0ac90c38ee60534e8",
-      "date": "2026-09-07"
-    },
-    "ansible/kerbside-single-node.yml": {
-      "sha": "95884b8513357e419f6beb0acc71f3da6fa8fc0a",
-      "date": "2026-09-07"
-    },
     "ansible/tasks/wait-for-cloud-init.yml": {
       "sha": "f879cb9fee4899a34e2374f8bf7c0fa96580832e",
       "date": "2026-09-07"
@@ -159,10 +147,6 @@
     },
     "docs/actions.md": {
       "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
-      "date": "2026-09-07"
-    },
-    "docs/ansible.md": {
-      "sha": "1a107101a0693f74dc996e2149f24620be5e00f5",
       "date": "2026-09-07"
     },
     "docs/ci.md": {

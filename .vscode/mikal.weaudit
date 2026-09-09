@@ -89,10 +89,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-dependencies.yml",
       "author": "mikal"
     },
@@ -138,18 +134,6 @@
     },
     {
       "path": "ansible/kerbside-create-instance.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-multi-node-2.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-multi-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-single-node.yml",
       "author": "mikal"
     },
     {
@@ -245,10 +229,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ci.md",
       "author": "mikal"
     },
@@ -321,15 +301,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
