@@ -439,6 +439,18 @@
     {
       "path": "tools/sync_component_docs.py",
       "author": "mikal"
+    },
+    {
+      "path": ".gitleaks.toml",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

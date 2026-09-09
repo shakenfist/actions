@@ -49,9 +49,21 @@
       "sha": "b4fcc840d18d8dcf306baf4eb8fb68b217294904",
       "date": "2026-09-09"
     },
+    ".gitleaks.toml": {
+      "sha": "6be5dc4d7c4b805de45535976696180385593cce",
+      "date": "2026-09-10"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "1fc734d303322b0aa108816e2a1283a3285446d3",
+      "date": "2026-09-10"
+    },
     "AGENTS.md": {
       "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
       "date": "2026-09-07"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "b14cd19d297ed1d1879307b75d30dee2c26e1104",
+      "date": "2026-09-10"
     },
     "README.md": {
       "sha": "44e645c02c975d08358d2c878665f497c7ce31f2",
@@ -277,6 +289,18 @@
       "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",
       "date": "2026-09-07"
     },
+    "tools/check-issue-links.py": {
+      "sha": "e485107a0b9494221469b15da0a2657def658416",
+      "date": "2026-09-10"
+    },
+    "tools/ci-make-inventory.py": {
+      "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
+      "date": "2026-09-10"
+    },
+    "tools/ci-prune-reviews.sh": {
+      "sha": "6c9c69ede22885182010ad72df865a9eaf6db5b5",
+      "date": "2026-09-10"
+    },
     "tools/ci_code_formatting.sh": {
       "sha": "ecda63158795fe4dd7462db66e5e2333182e1d78",
       "date": "2026-09-07"
@@ -288,6 +312,90 @@
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
+    },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "f0514ca051478511640d912b0143f5db56a69095",
+      "date": "2026-09-10"
+    },
+    "tools/ci_headroom_launch.sh": {
+      "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
+      "date": "2026-09-10"
+    },
+    "tools/ci_log_checks.sh": {
+      "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
+      "date": "2026-09-10"
+    },
+    "tools/ci_log_checks_loki.sh": {
+      "sha": "34a7cdd80ac2418dbe1c45ecb69f81702bce62c8",
+      "date": "2026-09-10"
+    },
+    "tools/ci_node_checks.sh": {
+      "sha": "9af141aea39f45ae3d9638a468a73d69f07988f0",
+      "date": "2026-09-10"
+    },
+    "tools/ci_sync_docs.sh": {
+      "sha": "70c3e4991523188a348ff5a0e718abf61deb3efa",
+      "date": "2026-09-10"
+    },
+    "tools/clone_with_depends.py": {
+      "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
+      "date": "2026-09-10"
+    },
+    "tools/deploy-collection.sh": {
+      "sha": "6d8fa3b6f3b368f343e1c5b1bb05e41980e25b90",
+      "date": "2026-09-10"
+    },
+    "tools/event_statistics.py": {
+      "sha": "4e22166ac4d4cbaf9bc4593b2a78fc68dc538a4e",
+      "date": "2026-09-10"
+    },
+    "tools/gitleaks-scan.sh": {
+      "sha": "9b977285ed648ba55848d242a5aab8ce73492bb1",
+      "date": "2026-09-10"
+    },
+    "tools/install-collection.sh": {
+      "sha": "b89d65d668077c899361278fb11349b37332dd78",
+      "date": "2026-09-10"
+    },
+    "tools/network_allocation_torture.sh": {
+      "sha": "0ca9739a3893579bb61787a014435b0dc38a7a1f",
+      "date": "2026-09-10"
+    },
+    "tools/ovirt-enable-el9-spice.sh": {
+      "sha": "00c0b8d655bc5bdc53818f228eefe1f224bc29a4",
+      "date": "2026-09-10"
+    },
+    "tools/ovirt-gather-artifacts.sh": {
+      "sha": "824e5045c3eb6f07d0c854595a796493566118ce",
+      "date": "2026-09-10"
+    },
+    "tools/ovirt-install-base.sh": {
+      "sha": "4f18af774d19f682334c8bbe896cf49971a7e779",
+      "date": "2026-09-10"
+    },
+    "tools/ovirt-patch-ovn.sh": {
+      "sha": "783dd1f7a84d63d54b87076fdc837c44891893e5",
+      "date": "2026-09-10"
+    },
+    "tools/ovirt-prepare-host.sh": {
+      "sha": "5669bb69a3c1ff56cbd19c50f149814a98bec1a8",
+      "date": "2026-09-10"
+    },
+    "tools/review-tracking.sh": {
+      "sha": "040c56e4d763109492f79f0f3cc796231047c68c",
+      "date": "2026-09-10"
+    },
+    "tools/run_remote": {
+      "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",
+      "date": "2026-09-10"
+    },
+    "tools/start-test-target.py": {
+      "sha": "cda05255a0848a4c554941fd662a7c6e1a9e4bc1",
+      "date": "2026-09-10"
+    },
+    "tools/sync_component_docs.py": {
+      "sha": "627e2680577a31ff72f21d056af3e0f74f8947be",
+      "date": "2026-09-10"
     }
   }
 }
