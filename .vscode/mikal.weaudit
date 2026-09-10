@@ -447,10 +447,6 @@
     {
       "path": "ARCHITECTURE.md",
       "author": "mikal"
-    },
-    {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
