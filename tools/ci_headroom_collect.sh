@@ -14,6 +14,17 @@
 # pass. See decisions D9 and D11 in
 # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
 #
+# A third instrument rides along, and this script does not produce it. The
+# functional suite's BaseTestCase.create_instance() wrapper appends one JSON
+# object per waited-out capacity refusal to
+# /srv/ci/traces/instance-waits.jsonl -- see decision D14 in
+# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-transient-capacity-refusals-phase-02-suite-wait.md
+# That file already reaches the 90 day bundle without any help from here,
+# because the workflow's "Gather logs" step scp's the whole of
+# /srv/ci/traces. All this script adds is a local copy, so the wait summary
+# is printed in the job log beside the other two rather than only being
+# readable by downloading the artifact afterwards.
+#
 # The filter is a regex, not a substring, because the scheduler emits TWO
 # message forms and the important one is the second: 'schedule at stage X'
 # when candidates survived, and 'schedule has no candidates at stage X,
@@ -191,7 +202,7 @@ if [ -s /srv/ci/traces/headroom-probe.log ]; then
 fi
 REMOTE_EOF
 
-# Both files stay in /srv/ci/traces on the primary as well, because the
+# All three files stay in /srv/ci/traces on the primary as well, because the
 # workflow's "Gather logs" step already scp's that whole directory into the
 # 90 day artifact bundle. These local copies exist only so the report can run
 # here, on the runner, under stock python3.
@@ -199,12 +210,19 @@ workdir="${TMPDIR:-/tmp}/ci-headroom"
 mkdir -p "${workdir}" || true
 series="${workdir}/headroom.jsonl"
 census="${workdir}/headroom-census.json"
-rm -f "${series}" "${census}" || true
+waits="${workdir}/instance-waits.jsonl"
+rm -f "${series}" "${census}" "${waits}" || true
 
 scp "${ssh_opts[@]}" \
     "${ssh_user}@${primary}:/srv/ci/traces/headroom.jsonl" "${series}" || true
 scp "${ssh_opts[@]}" \
     "${ssh_user}@${primary}:/srv/ci/traces/headroom-census.json" "${census}" \
+    || true
+# The suite writes this one only on its first wait, so on a run where nothing
+# was refused there is no such file and this scp fails. That is the expected
+# case, not an error -- as everywhere else here, it is tolerated.
+scp "${ssh_opts[@]}" \
+    "${ssh_user}@${primary}:/srv/ci/traces/instance-waits.jsonl" "${waits}" \
     || true
 
 report="${GITHUB_WORKSPACE:-}/shakenfist/tools/ci_headroom_report.py"
@@ -237,6 +255,19 @@ else
     # Deliberately not passed as an empty census: a report that printed zero
     # refusals when log shipping was simply broken is the dangerous reading.
     echo "No refusal census was collected; the summary will say so."
+fi
+if [ -s "${waits}" ] && grep -q -- '--waits' "${report}" 2>/dev/null; then
+    report_args+=(--waits "${waits}")
+elif [ ! -s "${waits}" ]; then
+    # Same reasoning as the census above, one step weaker. An absent file is
+    # usually "the suite waited for nothing", which is the good outcome -- but
+    # it is also what a component ref predating the wrapper looks like, and
+    # what a run whose writes all failed looks like, since the wrapper
+    # swallows every write error rather than failing the test it is measuring.
+    # The three are not distinguishable from here, so this says what is known
+    # and nothing more.
+    echo "No capacity waits were recorded; either nothing was refused or the"
+    echo "suite on this component ref does not write them."
 fi
 if [ -n "${label}" ]; then
     report_args+=(--label "${label}")
