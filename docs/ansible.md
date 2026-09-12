@@ -186,6 +186,35 @@ are unaffected, because the dnf tasks are skipped there entirely. The
 same reasoning, and the same flag, appears in
 `tools/ovirt-install-base.sh`.
 
+## Image extras and the docker client
+
+`ci-image.yml` takes an `extras` variable, a comma separated list of
+feature tags; today the only tag is `docker`, and the private-ci
+image builder passes it for the `debian-12-docker` and
+`debian-13-docker` labels. Those are the images that back the
+`*-docker` runner labels, which exist because static runners have no
+docker daemon.
+
+Installing the tag is not simply `docker.io`. Debian 13 split the
+packaging: `docker.io` is now the daemon alone, and the `docker`
+client binary moved to a separate `docker-cli` package which
+`docker.io` only Recommends. The CI base images are built from cloud
+images with recommends disabled, so naming `docker.io` on trixie
+installs a daemon and no client. Bookworm and older ship the client
+inside `docker.io` and have no `docker-cli` package at all, so the
+name cannot simply be added everywhere either. The play therefore
+asks apt whether `docker-cli` exists and installs it when it does,
+rather than keying on a release number -- one playbook builds Debian,
+Ubuntu and Rocky images, and Ubuntu has not made the split yet.
+
+This failure mode is quiet, which is why the play ends with a `docker
+version` check. An image missing its client builds, boots, snapshots
+and publishes its label exactly like a healthy one; nothing notices
+until a job on that label runs `docker` and gets `docker: command not
+found`, by which time the failure is showing up in somebody's pull
+request in another repository. The check moves the failure back to
+the build that caused it.
+
 ## Linting
 
 Neither `yamllint` nor `ansible-lint` is enabled against this directory

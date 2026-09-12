@@ -289,9 +289,30 @@
     # package managers. So the regex stays.
     - when: extras is match('(^|,)docker(,|$)')
       block:
+        # Debian 13 split the docker packaging: `docker.io` is the
+        # daemon alone now, and the `docker` client binary moved to a
+        # separate `docker-cli` package that `docker.io` merely
+        # Recommends. These images are built from cloud images with
+        # recommends disabled, so on trixie the daemon arrived and the
+        # client did not -- the image built, booted and passed its
+        # snapshot test, and then every job that shells out to
+        # `docker` failed with "docker: command not found".
+        #
+        # Bookworm and older ship the client inside `docker.io` and
+        # have no `docker-cli` package at all, and neither does Ubuntu
+        # yet, so ask apt what it has rather than keying on a release
+        # number: one playbook builds every one of those images, and a
+        # version test would break the day an Ubuntu docker image is
+        # added.
+        - name: Discover whether the docker client is packaged separately
+          shell: apt-cache show docker-cli > /dev/null 2>&1 && echo yes || echo no
+          register: docker_cli_packaged
+          changed_when: false
+          when: ansible_pkg_mgr == "apt"
+
         - name: Install docker (apt)
           apt:
-            name: docker.io
+            name: "{{ ['docker.io'] + (['docker-cli'] if docker_cli_packaged.stdout == 'yes' else []) }}"
             state: present
           when: ansible_pkg_mgr == "apt"
 
@@ -306,6 +327,19 @@
             name: docker
             enabled: yes
             state: started
+
+        # Fail the build here rather than in somebody's pull request.
+        # A docker image whose client is missing is indistinguishable
+        # from a healthy one until a job runs on it, and the label is
+        # published either way; the whole point of the `docker` extra
+        # is that this command works.
+        #
+        # `docker version` reports both halves and exits non-zero if
+        # either is missing, so it covers the client binary and the
+        # daemon socket in one command.
+        - name: Verify the docker client is usable
+          command: docker version
+          changed_when: false
 
     # Debian 13 mounts /tmp as a tmpfs sized at half of RAM by default.
     # CI runners are generally RAM constrained and their disks are on
