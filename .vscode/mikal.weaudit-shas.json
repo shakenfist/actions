@@ -41,10 +41,6 @@
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "b4fcc840d18d8dcf306baf4eb8fb68b217294904",
-      "date": "2026-09-09"
-    },
     ".gitleaks.toml": {
       "sha": "6be5dc4d7c4b805de45535976696180385593cce",
       "date": "2026-09-10"
@@ -296,10 +292,6 @@
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
-    },
-    "tools/ci_headroom_collect.sh": {
-      "sha": "f0514ca051478511640d912b0143f5db56a69095",
-      "date": "2026-09-10"
     },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",

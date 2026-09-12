@@ -265,10 +265,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/smoke-cluster.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
       "author": "mikal"
     },
@@ -318,10 +314,6 @@
     },
     {
       "path": "tools/check-issue-links.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
     },
     {
