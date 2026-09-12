@@ -77,10 +77,6 @@
       "sha": "98a20b9c3c5941fcf506bd1a887c84ed37ecee96",
       "date": "2026-09-07"
     },
-    "ansible/ci-image.yml": {
-      "sha": "794f7d97ffa3362433383cff18ab19087e7bbd35",
-      "date": "2026-09-07"
-    },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
@@ -168,10 +164,6 @@
     "docs/actions.md": {
       "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
       "date": "2026-09-07"
-    },
-    "docs/ansible.md": {
-      "sha": "016497de60ff8c30da0e462e6add32adbc62c33d",
-      "date": "2026-09-10"
     },
     "docs/ci.md": {
       "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",

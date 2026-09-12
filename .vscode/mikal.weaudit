@@ -101,10 +101,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-include-common-localhost.yml",
       "author": "mikal"
     },
@@ -318,18 +314,6 @@
     },
     {
       "path": "ansible/kerbside-single-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
