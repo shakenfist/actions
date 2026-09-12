@@ -2,8 +2,8 @@
 
 # Copyright 2019 Michael Still and contributors
 #
-# Stop the CI headroom probe, take the refusal census, bring both back to the
-# runner and print the summary.
+# Stop the CI headroom probe, take the refusal census, bring those and the
+# suite's capacity wait log back to the runner and print the summary.
 #
 # Two separate instruments, deliberately not merged into one number. The
 # headroom SERIES is what tools/ci_headroom_launch.sh started: a poll of
@@ -13,6 +13,17 @@
 # every candidate node the scheduler dropped, per stage, including on runs that
 # pass. See decisions D9 and D11 in
 # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
+#
+# A third instrument rides along, and this script does not produce it. The
+# functional suite's BaseTestCase.create_instance() wrapper appends one JSON
+# object per waited-out capacity refusal to
+# /srv/ci/traces/instance-waits.jsonl -- see decision D14 in
+# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-transient-capacity-refusals-phase-02-suite-wait.md
+# That file already reaches the 90 day bundle without any help from here,
+# because the workflow's "Gather logs" step scp's the whole of
+# /srv/ci/traces. All this script adds is a local copy, so the wait summary
+# is printed in the job log beside the other two rather than only being
+# readable by downloading the artifact afterwards.
 #
 # The filter is a regex, not a substring, because the scheduler emits TWO
 # message forms and the important one is the second: 'schedule at stage X'
@@ -107,7 +118,7 @@ census_limit=5000
 
 if [ -z "${primary}" ]; then
     echo "usage: $0 <primary> <ssh-user> [label]"
-    echo "SKIPPING: no headroom series or census collected."
+    echo "SKIPPING: no headroom series, census or capacity waits collected."
     exit 0
 fi
 
@@ -191,7 +202,7 @@ if [ -s /srv/ci/traces/headroom-probe.log ]; then
 fi
 REMOTE_EOF
 
-# Both files stay in /srv/ci/traces on the primary as well, because the
+# All three files stay in /srv/ci/traces on the primary as well, because the
 # workflow's "Gather logs" step already scp's that whole directory into the
 # 90 day artifact bundle. These local copies exist only so the report can run
 # here, on the runner, under stock python3.
@@ -199,25 +210,65 @@ workdir="${TMPDIR:-/tmp}/ci-headroom"
 mkdir -p "${workdir}" || true
 series="${workdir}/headroom.jsonl"
 census="${workdir}/headroom-census.json"
-rm -f "${series}" "${census}" || true
+waits="${workdir}/instance-waits.jsonl"
+rm -f "${series}" "${census}" "${waits}" || true
 
 scp "${ssh_opts[@]}" \
     "${ssh_user}@${primary}:/srv/ci/traces/headroom.jsonl" "${series}" || true
 scp "${ssh_opts[@]}" \
     "${ssh_user}@${primary}:/srv/ci/traces/headroom-census.json" "${census}" \
     || true
+# The suite writes this one only on its first wait, so on a run where nothing
+# was refused there is no such file and this scp fails. That is the expected
+# case, not an error -- as everywhere else here, it is tolerated, and unlike
+# the two above its stderr is dropped rather than printed. A "No such file or
+# directory" above a line saying everything is fine is worse than useless in a
+# log this script exists to make readable. The cost is that a genuine ssh
+# failure is silent on this file alone; the two scps above would still say so.
+scp "${ssh_opts[@]}" \
+    "${ssh_user}@${primary}:/srv/ci/traces/instance-waits.jsonl" "${waits}" \
+    2>/dev/null || true
+
+# Say what is known about the waits file without the report's help. Used on
+# every path where the report will not print the wait summary itself: it is
+# an independent instrument, but ci_headroom_report.py requires --series, so
+# it cannot be asked to summarise waits alone.
+describe_waits() {
+    if [ ! -s "${waits}" ]; then
+        # Same reasoning as the census below, one step weaker. An absent file
+        # is usually "the suite waited for nothing", which is the good
+        # outcome -- but it is also what a component ref predating the wrapper
+        # looks like, and what a run whose writes all failed looks like, since
+        # the wrapper swallows every write error rather than failing the test
+        # it is measuring. The three are not distinguishable from here, so
+        # this says what is known and nothing more.
+        echo "No capacity waits were recorded; either nothing was refused"
+        echo "or the suite on this component ref does not write them."
+    else
+        # Never silence: a run that waited and says nothing reads exactly like
+        # a run that never waited, which is the misleading direction.
+        echo "Capacity waits recorded: $(wc -l < "${waits}"), but they are"
+        echo "not summarised here. The raw trace is in the bundle as"
+        echo "traces/instance-waits.jsonl."
+    fi
+}
 
 report="${GITHUB_WORKSPACE:-}/shakenfist/tools/ci_headroom_report.py"
 if [ ! -f "${report}" ]; then
     echo "${report} is not in this checkout, so there is nothing to report"
     echo "with. That is expected on a component ref predating the headroom"
     echo "probe. The raw series and census are still in the bundle."
+    describe_waits
     exit 0
 fi
 
 if [ ! -s "${series}" ]; then
     echo "No headroom series was collected from ${primary}, so there is"
     echo "nothing to summarise."
+    # A run whose probe never started can still have waited out refusals, and
+    # is arguably the run those waits matter most on, so do not leave without
+    # saying so.
+    describe_waits
     exit 0
 fi
 
@@ -237,6 +288,18 @@ else
     # Deliberately not passed as an empty census: a report that printed zero
     # refusals when log shipping was simply broken is the dangerous reading.
     echo "No refusal census was collected; the summary will say so."
+fi
+# Guarded like --census-limit above, and for the same reason: the report
+# comes from the triggering component ref and may predate --waits. The else
+# covers both remaining cases -- no waits, and waits this report cannot read
+# -- because a waits file that produces no output at all is indistinguishable
+# from a run where nothing was ever refused. The flag is spelled --waits in
+# ci_headroom_report.py as of shakenfist a7217a7f2, and a future rename would
+# land in the else and be reported rather than silently doing nothing.
+if [ -s "${waits}" ] && grep -q -- '--waits' "${report}" 2>/dev/null; then
+    report_args+=(--waits "${waits}")
+else
+    describe_waits
 fi
 if [ -n "${label}" ]; then
     report_args+=(--label "${label}")

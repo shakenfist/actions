@@ -386,14 +386,17 @@ jobs:
       # an hour (D9). The census is its own filtered Loki query rather than the
       # unfiltered dump ci-gather-logs-loki.yml already puts in the bundle,
       # which returns the first 5000 lines of the deploy and never reaches the
-      # test window (D11).
+      # test window (D11). A third instrument is reported beside them but not
+      # produced here: the capacity waits the functional suite itself recorded
+      # (D14 of PLAN-transient-capacity-refusals phase 2). See the header of
+      # tools/ci_headroom_collect.sh.
       #
-      # Both outputs stay in /srv/ci/traces on the primary, which the "Gather
-      # logs" step below already collects into the 90 day bundle, so this adds
-      # no artifact upload of its own. always(), because the runs worth
-      # measuring are the ones whose tests failed; continue-on-error and a
-      # script that always exits 0, for the same reason as the start step.
-      - name: Collect the cluster headroom series and refusal census
+      # All three outputs stay in /srv/ci/traces on the primary, which the
+      # "Gather logs" step below already collects into the 90 day bundle, so
+      # this adds no artifact upload of its own. always(), because the runs
+      # worth measuring are the ones whose tests failed; continue-on-error and
+      # a script that always exits 0, for the same reason as the start step.
+      - name: Collect the cluster headroom series, refusal census and capacity waits
         if: always() && inputs.test_kind == 'functional'
         continue-on-error: true
         run: |
