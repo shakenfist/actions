@@ -97,12 +97,20 @@
 # one-line path to root -- a separate account buys nothing real.
 #
 # ExecStartPre waits for the hostname, and that is load bearing. The
-# `host` label comes from constants.hostname, evaluated once when the
-# config is loaded, and it is the only thing that joins these logs to
+# `host` label is derived from constants.hostname, evaluated once when
+# the config is loaded, and it is the only thing that joins these logs to
 # conductor's own `is offline but still holds job` warning for the same
 # runner. Starting before cloud-init has applied the instance name would
 # ship a whole runner's logs under "debian" or "localhost" -- silently,
 # because Alloy would be perfectly healthy.
+#
+# The `sfcbr-*` glob matches both sfcbr-XXXXXXXX and the
+# sfcbr-XXXXXXXX.local that the rocky images end up with, and that is
+# deliberate. .local is rocky's settled hostname, not a stage on the way
+# to the short name, so a stricter test here would poll for the full
+# twenty minutes and then never ship on any rocky runner. The domain is
+# stripped where the label is built instead -- see the host label note in
+# files/ci-runner-alloy.alloy.
 #
 # This is a RETRY LOOP, not a fail-fast gate: the poll exits non-zero
 # after twenty minutes and Restart=on-failure brings it straight back,

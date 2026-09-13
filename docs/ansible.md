@@ -255,7 +255,10 @@ concluding that CI got busier.
 
 Logs land in the **`sfcbr`** Loki tenant as `job="ci-runner"`, with
 `stream` set to `listener` or `journal` and `host` set to the Shaken
-Fist instance name.
+Fist instance name -- the short name, `sfcbr-XXXXXXXX`, never an FQDN.
+The rocky images pick up a domain from the DHCP lease and report
+`sfcbr-XXXXXXXX.local` from `hostname`, so the config strips everything
+from the first dot on; see below.
 
 Correlating a runner with the conductor's own view of it is a
 **two-query job**, because conductor logs to the `home` tenant and Loki
@@ -279,18 +282,24 @@ rather than `apt.grafana.com` and `rpm.grafana.com` because one artifact
 covers both package managers here, and because a repository key expiry
 would fail the nightly image rebuild for every label at once.
 
-Two things about the config resist casual editing, and both fail
-silently rather than loudly:
+Three things about the config resist casual editing, and all of them
+fail silently rather than loudly:
 
 - The `job` label is set through `relabel_rules`, not through `labels`.
   `loki.source.journal` overrides any `job` in `labels` with its own
   component ID.
 - `loki.source.file` needs its `file_match` block to expand the glob.
   Without it the path is stat'd as a literal filename and nothing ships.
+- `host` is `string.split(constants.hostname, ".")[0]`, not
+  `constants.hostname`. Using the latter ships every rocky runner under
+  an FQDN that no conductor log line will ever match, breaking the only
+  join between the two tenants -- for rocky runners only, so a spot
+  check on a debian runner looks perfectly healthy.
 
-`alloy validate` returns zero for both mistakes, and the build-time
-validate task in the install file will not catch either. Prove changes
-by running the built image and reading the labels back out of Loki.
+`alloy validate` returns zero for all three mistakes, and the build-time
+validate task in the install file will not catch any of them. Prove
+changes by running the built image and reading the labels back out of
+Loki.
 
 ## Linting
 
