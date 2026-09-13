@@ -17,6 +17,22 @@
 // lives in home/conductor -- is two queries, because Loki cannot join
 // across tenants. Join on the `host` label, which is the Shaken Fist
 // instance name (sfcbr-XXXXXXXX) on both sides.
+//
+// That join is why both sources below set `host` to the FIRST dot
+// separated component of the hostname rather than to constants.hostname
+// itself. On the rocky images NetworkManager takes a domain from the
+// DHCP lease and sets the FQDN, so `hostname` returns
+// sfcbr-XXXXXXXX.local; on the debian images it returns the short name.
+// Conductor only ever writes the short name, so shipping the FQDN
+// silently makes every rocky runner unjoinable -- observed 2026-09-14,
+// when both of the rocky runners in the first day of shipping arrived as
+// host="sfcbr-....local" and the other thirteen joined fine.
+//
+// Stripping is the correct fix rather than waiting longer for the
+// hostname to settle, because .local is the rocky hostname permanently,
+// not a pre-cloud-init transient. See the ExecStartPre note in
+// tasks/install-ci-log-shipper.yml, whose `sfcbr-*` glob deliberately
+// still matches the FQDN form for exactly this reason.
 
 logging {
 	level  = "warn"
@@ -63,7 +79,7 @@ loki.source.file "runner_listener" {
 	targets = [{
 		__address__ = "localhost",
 		__path__    = "/srv/ci/runner/_diag/Runner_*.log",
-		host        = constants.hostname,
+		host        = string.split(constants.hostname, ".")[0],
 		job         = "ci-runner",
 		stream      = "listener",
 	}]
@@ -143,6 +159,6 @@ loki.source.journal "ci_runner" {
 	forward_to    = [loki.process.ci_runner.receiver]
 
 	labels = {
-		host = constants.hostname,
+		host = string.split(constants.hostname, ".")[0],
 	}
 }
