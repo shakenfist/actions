@@ -215,6 +215,83 @@ found`, by which time the failure is showing up in somebody's pull
 request in another repository. The check moves the failure back to
 the build that caused it.
 
+## CI runner log shipping
+
+`ci-image.yml` can bake a Grafana Alloy log shipper into the image, via
+`ansible/tasks/install-ci-log-shipper.yml` and the config in
+`ansible/files/ci-runner-alloy.alloy`. It is gated on `ci_log_shipper`,
+which **defaults to false**, so a local run of the playbook installs
+nothing.
+
+Conductor turns it on, and only for the images runners boot: it passes
+`ci_log_shipper` derived from `provisioner.CI_IMAGES`, which is a subset
+of its own `IMAGE_BUILDS`. The ubuntu and desktop labels exist for
+nested CI clusters to consume rather than for runners to boot, and a
+nested cluster shipping as `job="ci-runner"` would be noise on a stream
+whose value is that every line in it came from a runner.
+
+This exists because an ephemeral runner is deleted seconds after its job
+ends -- private-ci's cloud-init runs `run.sh` in the foreground and then
+`sleep 30; sf-client instance poweroff` -- so nothing it wrote survives.
+Shipping is therefore continuous; there is no teardown hook to hang it
+off.
+
+### What ships
+
+| Source | Shipped | Why |
+|---|---|---|
+| `_diag/Runner_*.log` | yes | the listener log, which records the agent's own disconnects and retries |
+| `_diag/Worker_*.log` | no | the job's output, which GitHub already keeps; 93% of `_diag` by volume |
+| journal | yes | cloud-init, apt, resolved, kernel, docker |
+| journal, `actions.runner.*` unit | no | job output again, at 60 MB/hour -- 90% of a runner's journal |
+
+Dropping that one unit is what keeps this feed at roughly 150 MB/day
+across the fleet instead of roughly 10 GB/day. If the
+`mach33labs/33fl` ingest ratchet starts reporting `sfcbr/ci-runner` over
+budget, suspect that the drop rule has stopped matching before
+concluding that CI got busier.
+
+### Reading it back
+
+Logs land in the **`sfcbr`** Loki tenant as `job="ci-runner"`, with
+`stream` set to `listener` or `journal` and `host` set to the Shaken
+Fist instance name.
+
+Correlating a runner with the conductor's own view of it is a
+**two-query job**, because conductor logs to the `home` tenant and Loki
+cannot join across tenants. Join them on `host`, which is the instance
+name at both ends:
+
+```
+# home tenant -- what the conductor saw from outside
+{job="conductor"} |= "is offline but still holds job"
+
+# sfcbr tenant -- what that runner saw from inside
+{job="ci-runner", host="sfcbr-XXXXXXXX"}
+```
+
+### Pinning
+
+`ci_alloy_version` and `ci_alloy_sha256` are a pair and must be bumped
+together; the checksum is cross-checked against Grafana's published
+`SHA256SUMS` for that tag. Alloy comes from the upstream release zip
+rather than `apt.grafana.com` and `rpm.grafana.com` because one artifact
+covers both package managers here, and because a repository key expiry
+would fail the nightly image rebuild for every label at once.
+
+Two things about the config resist casual editing, and both fail
+silently rather than loudly:
+
+- The `job` label is set through `relabel_rules`, not through `labels`.
+  `loki.source.journal` overrides any `job` in `labels` with its own
+  component ID.
+- `loki.source.file` needs its `file_match` block to expand the glob.
+  Without it the path is stat'd as a literal filename and nothing ships.
+
+`alloy validate` returns zero for both mistakes, and the build-time
+validate task in the install file will not catch either. Prove changes
+by running the built image and reading the labels back out of Loki.
+
 ## Linting
 
 Neither `yamllint` nor `ansible-lint` is enabled against this directory

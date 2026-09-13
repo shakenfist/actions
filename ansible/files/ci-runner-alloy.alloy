@@ -1,0 +1,148 @@
+// Log shipping for ephemeral CI runners.
+//
+// An ephemeral runner is deleted seconds after its job ends --
+// userdata.yaml.j2 in shakenfist/private-ci runs run.sh in the
+// foreground and then `sleep 30; sf-client instance poweroff`. Anything
+// not already off the box is gone, which is why the 2026-09-13 runner
+// flapping (33 workers offline while holding a job, against 0-3 a day
+// for the preceding fortnight) could not be diagnosed: the listener log
+// that records connection loss and retry died with all 33 VMs.
+//
+// Shipping is therefore CONTINUOUS, not at teardown. There is no
+// teardown hook to hang it off.
+//
+// Tenant is `sfcbr`, not `home`: these are CI-cluster logs and belong
+// beside the cluster they ran on. The cost is that correlating a runner
+// with conductor's own `is offline but still holds job` warning -- which
+// lives in home/conductor -- is two queries, because Loki cannot join
+// across tenants. Join on the `host` label, which is the Shaken Fist
+// instance name (sfcbr-XXXXXXXX) on both sides.
+
+logging {
+	level  = "warn"
+	format = "logfmt"
+}
+
+loki.write "sfcbr" {
+	endpoint {
+		// maui, by address rather than name. The runner resolves through
+		// whatever DNS its DHCP lease names, and a shipper that cannot
+		// resolve its destination fails in exactly the situation we most
+		// want logs for. This is the same host and the same literal
+		// address the cloud-init already hardcodes as its apt proxy.
+		url       = "http://192.168.1.15:3100/loki/api/v1/push"
+		tenant_id = "sfcbr"
+	}
+}
+
+// Loki's limits_config.max_line_size is 262144 bytes and a line over it
+// is rejected outright -- the whole entry vanishes rather than being
+// truncated. Cap client-side, comfortably under, so an oversized line
+// ships truncated instead of disappearing. Same reasoning and the same
+// limit as the fleet shipper in mach33labs/33fl templates/alloy.config.j2.
+loki.process "ci_runner" {
+	forward_to = [loki.write.sfcbr.receiver]
+
+	stage.truncate {
+		rule {
+			limit = "250KiB"
+		}
+	}
+}
+
+// The GitHub Actions listener log. This is the file that answers the
+// question the flapping raised -- whether the agent lost its connection
+// to GitHub, was starved of CPU, or crashed -- because the listener
+// records its own disconnects and retries with timestamps.
+//
+// Runner_*.log ONLY. Worker_*.log is deliberately excluded: it is the
+// job's own output, which GitHub already retains, and it is 93% of the
+// _diag directory by volume (83 MB across 416 jobs against 5.8 MB of
+// listener log, measured on shakenfist-static-1 on 2026-09-13).
+loki.source.file "runner_listener" {
+	targets = [{
+		__address__ = "localhost",
+		__path__    = "/srv/ci/runner/_diag/Runner_*.log",
+		host        = constants.hostname,
+		job         = "ci-runner",
+		stream      = "listener",
+	}]
+	forward_to = [loki.process.ci_runner.receiver]
+
+	// Required for the glob above to be expanded. Without it
+	// loki.source.file stats __path__ as a literal filename and logs
+	// `failed to tail file, stat failed: ... Runner_*.log: no such file
+	// or directory` once at startup, then ships nothing for the life of
+	// the runner. Same switch the fleet shipper in mach33labs/33fl uses
+	// for its own globbed sources.
+	file_match {
+		enabled = true
+	}
+}
+
+// The journal, minus the runner service unit.
+//
+// `job` MUST be set through relabel_rules and not through `labels`:
+// loki.source.journal overrides any `job` in `labels` with its own
+// component ID. In mach33labs/33fl that mistake shipped the kernel
+// stream as job="loki.source.journal.kernel" from the Alloy cutover
+// until 2026-09-12, silently, because every other label came through
+// intact and the component reported healthy. Do not move `job` into the
+// labels block below.
+//
+// The unit drop is the volume control for this whole file. The runner
+// service echoes job output to the journal at 60 MB/hour, measured on
+// shakenfist-static-1 on 2026-09-13 -- 90% of that host's total journal
+// volume, and a third copy of output GitHub and Worker_*.log already
+// hold. Unfiltered, the fleet would ship on the order of 10 GB/day
+// against an sfcbr tenant budget of 600 MB/day. Everything else on that
+// host combined was under half a megabyte an hour.
+//
+// This mirrors what 33fl's shipper already does for static runners,
+// where CI job output is dropped from syslog on the same grounds: "the
+// job output is already retained by GitHub and on the runner's own
+// disk, and it says nothing about the health of the machine."
+//
+// Journal `matches` cannot express negation, so the exclusion has to be
+// a drop rule here rather than a match argument on the source.
+discovery.relabel "journal_ci_runner" {
+	targets = []
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		regex         = "actions\\.runner\\..*"
+		action        = "drop"
+	}
+
+	rule {
+		target_label = "job"
+		replacement  = "ci-runner"
+	}
+
+	rule {
+		target_label = "stream"
+		replacement  = "journal"
+	}
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		target_label  = "unit"
+	}
+}
+
+// No `matches` argument on purpose: this stream is the whole journal
+// except the drop rule above. Note that an empty `matches` here is the
+// correct configuration, unlike the fleet shipper's kernel and conductor
+// streams where a lost `matches` would ship everything under the wrong
+// job name.
+loki.source.journal "ci_runner" {
+	// A runner lives tens of minutes, so a long backfill window only
+	// costs a re-read of the boot journal after an Alloy restart.
+	max_age       = "12h0m0s"
+	relabel_rules = discovery.relabel.journal_ci_runner.rules
+	forward_to    = [loki.process.ci_runner.receiver]
+
+	labels = {
+		host = constants.hostname,
+	}
+}

@@ -106,6 +106,17 @@
     NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
   vars:
     extras: ""
+    # Install the ephemeral runner log shipper. Off by default because
+    # this playbook also builds images for nested CI clusters to consume
+    # rather than for runners to boot; conductor turns it on for the
+    # labels in provisioner.CI_IMAGES. See
+    # tasks/install-ci-log-shipper.yml.
+    ci_log_shipper: false
+    # Pinned together: ci_alloy_sha256 is the sha256 of that tag's
+    # alloy-linux-amd64.zip, cross-checked against Grafana's published
+    # SHA256SUMS. Bump both or the build fails at the checksum.
+    ci_alloy_version: "1.19.2"
+    ci_alloy_sha256: "3694ea4e1044b367e1c21ffe28117f209c5989fa5e604d000321809f871ab701"
 
   tasks:
     # Debian derived distributions
@@ -277,6 +288,13 @@
           - python3-filelock
         state: present
       when: ansible_pkg_mgr == "dnf"
+
+    # An ephemeral runner is deleted seconds after its job ends, so
+    # anything not already shipped is lost -- which is why the
+    # 2026-09-13 runner flapping could not be diagnosed.
+    - name: Install the ephemeral runner log shipper
+      include_tasks: tasks/install-ci-log-shipper.yml
+      when: ci_log_shipper | bool
 
     # Optional extras. `extras` is a comma-separated list of feature
     # tags (e.g. "docker", "docker,foo"); each block gates on its tag

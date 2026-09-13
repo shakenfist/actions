@@ -1,0 +1,159 @@
+---
+# Install Grafana Alloy into a CI runner boot image, so an ephemeral
+# runner ships its listener log and journal continuously instead of
+# taking them to the grave. See ansible/files/ci-runner-alloy.alloy for
+# what is shipped and why, and shakenfist/private-ci#50 for the
+# complementary "capture more when a runner actually fails" work.
+#
+# Included only for images runners boot from. The ubuntu and desktop
+# labels in conductor's IMAGE_BUILDS are built for nested CI clusters to
+# consume, and a nested cluster shipping as job="ci-runner" would be
+# noise, so the caller gates this on ci_log_shipper.
+#
+# Installed from the upstream release archive rather than from
+# apt.grafana.com and rpm.grafana.com, which is what mach33labs/33fl
+# uses on the managed fleet. Two reasons:
+#
+#   - One artifact covers both package managers. These images span
+#     debian and rocky, and the alternative is maintaining two
+#     third-party repositories and their keys.
+#   - A repository key expiring would fail the nightly image rebuild for
+#     the whole fleet at once. That has happened before on the managed
+#     fleet (33fl commit 68378cbe, "Stop an expired apt key failing the
+#     fleet"); here the blast radius is every CI image rather than one
+#     deploy.
+#
+# It is not a new supply chain. The release zip is Grafana's own build of
+# the same revision the fleet's deb carries -- verified 2026-09-13, both
+# report `v1.19.2 (revision: becfd48)` with identical build tags,
+# including promtail_journal_enabled, which loki.source.journal needs and
+# whose absence would fail silently.
+
+- name: Fetch the Alloy release archive
+  ansible.builtin.get_url:
+    url: "https://github.com/grafana/alloy/releases/download/v{{ ci_alloy_version }}/alloy-linux-amd64.zip"
+    dest: /tmp/alloy-linux-amd64.zip
+    # Cross-checked against Grafana's published SHA256SUMS for this tag.
+    # Bumping ci_alloy_version means bumping this too; a stale checksum
+    # fails the build loudly, which is the intent.
+    checksum: "sha256:{{ ci_alloy_sha256 }}"
+    mode: "0644"
+  retries: 5
+  delay: 15
+  register: ci_alloy_download
+  until: ci_alloy_download is success
+
+- name: Unpack the Alloy binary
+  ansible.builtin.unarchive:
+    src: /tmp/alloy-linux-amd64.zip
+    dest: /usr/local/bin
+    remote_src: true
+    include:
+      - alloy-linux-amd64
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Put the binary on its expected name
+  ansible.builtin.command:
+    cmd: mv /usr/local/bin/alloy-linux-amd64 /usr/local/bin/alloy
+    creates: /usr/local/bin/alloy
+
+- name: Remove the release archive
+  ansible.builtin.file:
+    path: /tmp/alloy-linux-amd64.zip
+    state: absent
+
+- name: Create the Alloy configuration directory
+  ansible.builtin.file:
+    path: /etc/alloy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the CI runner Alloy configuration
+  ansible.builtin.copy:
+    src: ci-runner-alloy.alloy
+    dest: /etc/alloy/config.alloy
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create the Alloy state directory
+  ansible.builtin.file:
+    path: /var/lib/alloy
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+# Runs as root deliberately. It reads the system journal and
+# /srv/ci/runner/_diag, which is owned by the runner user and created
+# after boot, so a dedicated account would need both systemd-journal
+# membership and a group on a directory that does not exist yet. On a
+# single-job throwaway VM whose own bootstrap does
+# `chmod ugo+rw /var/run/docker.sock` -- i.e. where any job already has a
+# one-line path to root -- a separate account buys nothing real.
+#
+# ExecStartPre waits for the hostname, and that is load bearing. The
+# `host` label comes from constants.hostname, evaluated once when the
+# config is loaded, and it is the only thing that joins these logs to
+# conductor's own `is offline but still holds job` warning for the same
+# runner. Starting before cloud-init has applied the instance name would
+# ship a whole runner's logs under "debian" or "localhost" -- silently,
+# because Alloy would be perfectly healthy.
+#
+# This is a RETRY LOOP, not a fail-fast gate: the poll exits non-zero
+# after twenty minutes and Restart=on-failure brings it straight back,
+# so a host that never gets an sfcbr- hostname retries roughly every
+# twenty minutes for as long as it lives. That is deliberate on both
+# branches. A slow boot on a loaded hypervisor still gets its logs --
+# docs/ansible.md budgets about twenty minutes for the readiness gate on
+# one host, so a couple of minutes is not a safe ceiling. And a host
+# that is not a runner at all never starts Alloy, which is exactly what
+# should happen if this image is ever booted somewhere else: no logs
+# beats mislabelled logs.
+#
+# TimeoutStartSec has to cover the poll. systemd's default is 90s, which
+# would SIGTERM the ExecStartPre long before it gave up and turn the
+# considered ceiling below into a silent ninety second one.
+- name: Install the Alloy systemd unit
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/alloy.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Grafana Alloy log shipper for CI runners
+      Documentation=https://github.com/shakenfist/actions/blob/main/ansible/files/ci-runner-alloy.alloy
+      After=cloud-init.service network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      TimeoutStartSec=1500
+      ExecStartPre=/bin/bash -c 'for i in $(seq 1 600); do case "$(hostname)" in sfcbr-*) exit 0 ;; esac; sleep 2; done; echo "hostname still not sfcbr-* after 20m; refusing to ship mislabelled logs, will retry" >&2; exit 1'
+      ExecStart=/usr/local/bin/alloy run --storage.path=/var/lib/alloy --server.http.listen-addr=127.0.0.1:12345 /etc/alloy/config.alloy
+      Restart=on-failure
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable Alloy at boot
+  ansible.builtin.systemd:
+    name: alloy
+    enabled: true
+    daemon_reload: true
+
+# Proves the config parses at image build time rather than at 3am on a
+# runner nobody is watching. Note the limit of this check: `alloy
+# validate` returns 0 for a config whose journal stream is mislabelled or
+# whose file glob matches nothing, both of which were caught during
+# development only by running it and reading the labels back out of Loki.
+- name: Validate the Alloy configuration
+  ansible.builtin.command:
+    cmd: /usr/local/bin/alloy validate /etc/alloy/config.alloy
+  changed_when: false
