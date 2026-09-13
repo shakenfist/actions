@@ -81,6 +81,10 @@
       "sha": "98a20b9c3c5941fcf506bd1a887c84ed37ecee96",
       "date": "2026-09-07"
     },
+    "ansible/ci-image.yml": {
+      "sha": "48426ef8e51556e2b4e528299fdb3ddd8aa14e1e",
+      "date": "2026-09-14"
+    },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
@@ -140,6 +144,10 @@
     "ansible/kerbside-single-node.yml": {
       "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
       "date": "2026-09-10"
+    },
+    "ansible/tasks/install-ci-log-shipper.yml": {
+      "sha": "16b6a63dab18cca396a743d103a4abc6ac0e6cec",
+      "date": "2026-09-14"
     },
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",

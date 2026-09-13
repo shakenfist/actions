@@ -427,6 +427,22 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/install-ci-log-shipper.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
