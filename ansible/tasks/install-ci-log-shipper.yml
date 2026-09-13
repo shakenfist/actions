@@ -102,9 +102,22 @@
 # conductor's own `is offline but still holds job` warning for the same
 # runner. Starting before cloud-init has applied the instance name would
 # ship a whole runner's logs under "debian" or "localhost" -- silently,
-# because Alloy would be perfectly healthy. Failing loudly after two
-# minutes is the better outcome: the unit is then visibly failed on a
-# machine somebody can look at.
+# because Alloy would be perfectly healthy.
+#
+# This is a RETRY LOOP, not a fail-fast gate: the poll exits non-zero
+# after twenty minutes and Restart=on-failure brings it straight back,
+# so a host that never gets an sfcbr- hostname retries roughly every
+# twenty minutes for as long as it lives. That is deliberate on both
+# branches. A slow boot on a loaded hypervisor still gets its logs --
+# docs/ansible.md budgets about twenty minutes for the readiness gate on
+# one host, so a couple of minutes is not a safe ceiling. And a host
+# that is not a runner at all never starts Alloy, which is exactly what
+# should happen if this image is ever booted somewhere else: no logs
+# beats mislabelled logs.
+#
+# TimeoutStartSec has to cover the poll. systemd's default is 90s, which
+# would SIGTERM the ExecStartPre long before it gave up and turn the
+# considered ceiling below into a silent ninety second one.
 - name: Install the Alloy systemd unit
   ansible.builtin.copy:
     dest: /etc/systemd/system/alloy.service
@@ -120,7 +133,8 @@
 
       [Service]
       Type=simple
-      ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do case "$(hostname)" in sfcbr-*) exit 0 ;; esac; sleep 2; done; echo "hostname never became sfcbr-*; refusing to ship mislabelled logs" >&2; exit 1'
+      TimeoutStartSec=1500
+      ExecStartPre=/bin/bash -c 'for i in $(seq 1 600); do case "$(hostname)" in sfcbr-*) exit 0 ;; esac; sleep 2; done; echo "hostname still not sfcbr-* after 20m; refusing to ship mislabelled logs, will retry" >&2; exit 1'
       ExecStart=/usr/local/bin/alloy run --storage.path=/var/lib/alloy --server.http.listen-addr=127.0.0.1:12345 /etc/alloy/config.alloy
       Restart=on-failure
       RestartSec=10
