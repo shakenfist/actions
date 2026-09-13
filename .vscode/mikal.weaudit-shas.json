@@ -41,9 +41,21 @@
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "ea369919f6c43a5929e5ef8df232a9d5a06e958a",
+      "date": "2026-09-14"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "c655a8ca69cc427fbbca49c6a22d344679ec96f9",
+      "date": "2026-09-14"
+    },
     ".gitleaks.toml": {
       "sha": "6be5dc4d7c4b805de45535976696180385593cce",
       "date": "2026-09-10"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "002aaacff1953ac68765f10e10e90de40558dde5",
+      "date": "2026-09-14"
     },
     "AGENTS.md": {
       "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
@@ -72,6 +84,10 @@
     "ansible/ci-image-desktop.yml": {
       "sha": "98a20b9c3c5941fcf506bd1a887c84ed37ecee96",
       "date": "2026-09-07"
+    },
+    "ansible/ci-image.yml": {
+      "sha": "48426ef8e51556e2b4e528299fdb3ddd8aa14e1e",
+      "date": "2026-09-14"
     },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
@@ -133,6 +149,10 @@
       "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
       "date": "2026-09-10"
     },
+    "ansible/tasks/install-ci-log-shipper.yml": {
+      "sha": "16b6a63dab18cca396a743d103a4abc6ac0e6cec",
+      "date": "2026-09-14"
+    },
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
       "date": "2026-09-10"
@@ -160,6 +180,10 @@
     "docs/actions.md": {
       "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
       "date": "2026-09-07"
+    },
+    "docs/ansible.md": {
+      "sha": "3affd952a3f91fa27fbfcae595b9c3f67457ac49",
+      "date": "2026-09-14"
     },
     "docs/ci.md": {
       "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",
@@ -292,6 +316,10 @@
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
+    },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "e21c9052ec93cb2ecf3b67266e199c5e6b9addeb",
+      "date": "2026-09-14"
     },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
