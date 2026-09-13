@@ -313,6 +313,10 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "e21c9052ec93cb2ecf3b67266e199c5e6b9addeb",
+      "date": "2026-09-14"
+    },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
       "date": "2026-09-10"

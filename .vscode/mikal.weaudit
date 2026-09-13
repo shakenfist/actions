@@ -451,6 +451,10 @@
     {
       "path": "docs",
       "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
