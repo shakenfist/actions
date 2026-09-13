@@ -149,10 +149,6 @@
       "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
       "date": "2026-09-10"
     },
-    "ansible/tasks/install-ci-log-shipper.yml": {
-      "sha": "16b6a63dab18cca396a743d103a4abc6ac0e6cec",
-      "date": "2026-09-14"
-    },
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
       "date": "2026-09-10"
@@ -180,10 +176,6 @@
     "docs/actions.md": {
       "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
       "date": "2026-09-07"
-    },
-    "docs/ansible.md": {
-      "sha": "3affd952a3f91fa27fbfcae595b9c3f67457ac49",
-      "date": "2026-09-14"
     },
     "docs/ci.md": {
       "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",

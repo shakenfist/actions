@@ -269,10 +269,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/files",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-gather-logs-loki.yml",
       "author": "mikal"
     },
@@ -294,10 +290,6 @@
     },
     {
       "path": "ansible/tasks/install-kolla-prerequisites.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks",
       "author": "mikal"
     },
     {
@@ -429,27 +421,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/tasks/install-ci-log-shipper.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
