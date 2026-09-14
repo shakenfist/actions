@@ -296,6 +296,17 @@
       include_tasks: tasks/install-ci-log-shipper.yml
       when: ci_log_shipper | bool
 
+    # The verification play below gates on these facts rather than
+    # reading `extras` and `ci_log_shipper` a second time. Two copies
+    # of one gate can disagree, and the direction they fail in is the
+    # quiet one: the thing gets installed and the check that it works
+    # is skipped. Recording what was actually done makes that
+    # impossible, and means the extra var has to be passed to only one
+    # of the two plays to be obeyed by both.
+    - name: Record that the log shipper was installed
+      set_fact:
+        ci_verify_log_shipper: "{{ ci_log_shipper | bool }}"
+
     # Optional extras. `extras` is a comma-separated list of feature
     # tags (e.g. "docker", "docker,foo"); each block gates on its tag
     # appearing in that list. We use a regex rather than the `split`
@@ -358,6 +369,10 @@
         - name: Verify the docker client is usable
           command: docker version
           changed_when: false
+
+        - name: Record that docker was installed
+          set_fact:
+            ci_verify_docker: true
 
     # Debian 13 mounts /tmp as a tmpfs sized at half of RAM by default.
     # CI runners are generally RAM constrained and their disks are on
@@ -488,12 +503,6 @@
 - hosts: imagetest
   gather_facts: yes
   become: true
-  vars:
-    # Defaults for a hand run. conductor passes both as extra vars,
-    # which win over these, so in production these values are never
-    # the ones used.
-    extras: ""
-    ci_log_shipper: false
   environment:
     http_proxy: http://192.168.1.15:3128
     https_proxy: http://192.168.1.15:3128
@@ -550,6 +559,28 @@
       command: tox --version
       changed_when: false
 
+    # The other half of what a CI image is for. Every smoke cluster
+    # these images run reaches libvirt through its python bindings,
+    # and those arrive from a hand-maintained package list that is
+    # written out twice, once per package manager, with names that
+    # mostly do not match: libvirt-daemon-system and libvirt-dev on
+    # apt against libvirt on dnf, ovmf against edk2-ovmf,
+    # python3-venv against python3-virtualenv. python3-libvirt is
+    # spelled the same in both, which is luck rather than a rule, and
+    # the list is edited by hand on both sides. That is the same shape
+    # of failure as #66: a packaging difference nothing notices until
+    # a deploy fails in a consumer's pull request.
+    #
+    # Deliberately an import and not a connection. `virsh version` or
+    # libvirt.open() would also prove the daemon is up, which is a
+    # stronger claim and a riskier check: it races socket activation
+    # at boot, it cannot be exercised before merge (AGENTS.md), and a
+    # false failure here blocks every image the fleet builds. The
+    # import catches the packaging failure with no race at all.
+    - name: Confirm the libvirt python bindings are present
+      command: python3 -c "import libvirt"
+      changed_when: false
+
     # The log shipper is checked for being enabled rather than for
     # running, and the distinction is deliberate. Its unit refuses to
     # start until the hostname matches sfcbr-*, so that a host which
@@ -566,13 +597,14 @@
       register: ci_alloy_enabled
       changed_when: false
       failed_when: ci_alloy_enabled.stdout | trim != 'enabled'
-      when: ci_log_shipper | bool
+      when: hostvars['imagerebuild'].ci_verify_log_shipper | default(false)
 
     # The same command #66 added on the builder, run again on the
     # artifact. It is not redundant: the builder started docker by
     # hand in the play that installed it, and this is the first time
     # the daemon has had to come up on its own from a cold boot of the
     # published image.
+    #
     # Retried because this is the one check here with a race in it:
     # the daemon is started by systemd at boot rather than by a task
     # that waited for it, so a loaded hypervisor can have it still
@@ -584,7 +616,7 @@
       retries: 10
       delay: 6
       until: ci_docker_version is success
-      when: extras is match('(^|,)docker(,|$)')
+      when: hostvars['imagerebuild'].ci_verify_docker | default(false)
 
 - hosts: localhost
   gather_facts: no
