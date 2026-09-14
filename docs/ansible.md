@@ -215,6 +215,61 @@ found`, by which time the failure is showing up in somebody's pull
 request in another repository. The check moves the failure back to
 the build that caused it.
 
+## Verifying what an image provides
+
+The `docker version` check above generalises, and every image build
+playbook now ends the same way: assert that the artifact does the
+thing it exists to do, and fail the build when it does not.
+
+The reason is that the checks these playbooks already had are much
+weaker than they look. Each one ends by booting the snapshot and
+running a `dist-upgrade` or a `dnf update` on it, which establishes
+that the image boots, can sudo and can manage packages. A docker
+image with no docker client passes all three. So does a desktop image
+with no desktop, and a cache disk whose downloads all returned a
+proxy error page.
+
+Where the checks run matters as much as what they assert. They run on
+the **test** instance, the one booted from the snapshot, not on the
+builder. The builder was booted from the base image and then modified
+in place, so it can only answer for the machine the playbook built --
+which is why `debian-gnome:12` could be inspected on a builder for two
+years without anybody noticing it was Debian 11. Only an instance
+booted from the snapshot speaks for the artifact that will carry the
+label.
+
+| Playbook | What the image exists to provide | How it is exercised |
+|----------|----------------------------------|---------------------|
+| `ci-image.yml` | A toolchain that can run tests | `tox --version` |
+| `ci-image.yml` | Runner logs that reach Loki | `systemctl is-enabled alloy`, when `ci_log_shipper` |
+| `ci-image.yml` | A working docker, for the `docker` extra | `docker version`, on the builder and again from a cold boot |
+| `ci-image-desktop.yml` | A graphical session a console can see | `systemctl get-default`, `systemctl is-active display-manager`, and `loginctl` reporting the desktop user logged in |
+| `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a kilobyte |
+
+Two of those are deliberately weaker than they first appear, and both
+are worth knowing before you tighten them:
+
+* **Alloy is checked for being enabled, not for running.** Its unit
+  refuses to start until the hostname matches `sfcbr-*`, so that a
+  host which is not a runner ships nothing rather than shipping
+  mislabelled logs. The test instance is called `test`, so on a
+  correctly built image Alloy is sitting in its `ExecStartPre` poll
+  and `systemctl is-active` would fail on every image that is working
+  properly.
+* **The cache disk check is a size floor, not an inventory.** Every
+  top level entry is a cloud image, a release tarball or a desktop
+  snapshot, so anything under a kilobyte is a failed download rather
+  than a small file. It does not check that a given image is
+  *present*, because the list of what should be there lives in the
+  `get_url` loop and would have to be kept in step by hand.
+
+The desktop check is the one to copy if you add a playbook. It asserts
+the end state a user would see -- gdm3 has actually logged the desktop
+user in -- rather than that the packages are installed, because every
+failure this has actually had was a session that would not start on a
+package set that was present and correct. It polls, because autologin
+races the rest of boot.
+
 ## CI runner log shipping
 
 `ci-image.yml` can bake a Grafana Alloy log shipper into the image, via

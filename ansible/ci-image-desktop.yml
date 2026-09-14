@@ -238,6 +238,11 @@
 - hosts: imagetest
   gather_facts: yes
   become: true
+  vars:
+    # The account gdm3 logs in automatically. The gnome-desktop
+    # element in shakenfist/images hardcodes "debian"; conductor
+    # passes the same value as base_image_user, which wins over this.
+    base_image_user: "debian"
   environment:
     http_proxy: http://192.168.1.15:3128
     https_proxy: http://192.168.1.15:3128
@@ -257,6 +262,45 @@
       delay: 30
       until: apt_action is success
       when: ansible_pkg_mgr == "apt"
+
+    # The actions#66 pattern: end the build by exercising the thing
+    # the image exists to provide. Here that is a graphical session --
+    # gdm3 logging the desktop user in, on the Xorg and QXL stack a
+    # SPICE console can see -- and every part of it can break while
+    # the image still boots, sudos and dist-upgrades perfectly well.
+    # The label is published either way, so the failure surfaces when
+    # a human opens a console and finds a black screen.
+    #
+    # These run on the test instance rather than the builder. The
+    # builder was booted from the base image, which already had a
+    # working desktop before this playbook touched anything, so it
+    # would pass whatever the snapshot ended up containing. Only an
+    # instance booted from the snapshot speaks for the artifact.
+    - name: Confirm the image boots into the graphical target
+      command: systemctl get-default
+      register: desktop_default_target
+      changed_when: false
+      failed_when: desktop_default_target.stdout | trim != 'graphical.target'
+
+    - name: Confirm the display manager is running
+      command: systemctl is-active display-manager.service
+      register: desktop_display_manager
+      changed_when: false
+      failed_when: desktop_display_manager.stdout | trim != 'active'
+
+    # The end to end assertion. The two checks above both pass on an
+    # image whose session dies the moment it starts, which is the
+    # failure the xorg and qxl packages are there to prevent; this one
+    # does not. Autologin races the rest of boot, so it is polled
+    # rather than sampled once.
+    - name: Wait for the automatic login to produce a session
+      command: loginctl show-user {{ base_image_user }} --property=State --value
+      register: desktop_session
+      changed_when: false
+      failed_when: false
+      retries: 30
+      delay: 10
+      until: desktop_session.stdout | trim in ['active', 'online']
 
 - hosts: localhost
   gather_facts: no

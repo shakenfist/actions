@@ -488,6 +488,12 @@
 - hosts: imagetest
   gather_facts: yes
   become: true
+  vars:
+    # Defaults for a hand run. conductor passes both as extra vars,
+    # which win over these, so in production these values are never
+    # the ones used.
+    extras: ""
+    ci_log_shipper: false
   environment:
     http_proxy: http://192.168.1.15:3128
     https_proxy: http://192.168.1.15:3128
@@ -523,6 +529,62 @@
       delay: 30
       until: dnf_action is success
       when: ansible_pkg_mgr == "dnf"
+
+    # Everything below is the actions#66 pattern, generalised: end the
+    # build by exercising the thing the image exists to provide, so a
+    # broken image fails here rather than in somebody's pull request.
+    #
+    # The checks above establish that the image boots, can sudo and
+    # can manage packages. That is necessary and nowhere near
+    # sufficient: #66 was a docker image with a working daemon and no
+    # docker binary, which passed every one of those, published its
+    # label, and then failed for every job that shelled out to
+    # `docker`.
+    #
+    # These run on the test instance rather than the builder because
+    # the builder can lie. It was booted from the base image and then
+    # modified in place, so it answers for the machine the playbook
+    # built and not for the snapshot taken of it. Only an instance
+    # booted from the snapshot speaks for the artifact.
+    - name: Confirm the test toolchain works
+      command: tox --version
+      changed_when: false
+
+    # The log shipper is checked for being enabled rather than for
+    # running, and the distinction is deliberate. Its unit refuses to
+    # start until the hostname matches sfcbr-*, so that a host which
+    # is not a runner ships nothing rather than shipping mislabelled
+    # logs -- see the retry loop note in
+    # tasks/install-ci-log-shipper.yml. This instance is called
+    # "test", so a correctly built image has Alloy sitting in its
+    # ExecStartPre poll right now, and "is-active" would fail on every
+    # image that is working. What can actually be lost between the
+    # build and the snapshot is the enablement, so that is what is
+    # asserted.
+    - name: Confirm the runner log shipper survived the snapshot
+      command: systemctl is-enabled alloy
+      register: ci_alloy_enabled
+      changed_when: false
+      failed_when: ci_alloy_enabled.stdout | trim != 'enabled'
+      when: ci_log_shipper | bool
+
+    # The same command #66 added on the builder, run again on the
+    # artifact. It is not redundant: the builder started docker by
+    # hand in the play that installed it, and this is the first time
+    # the daemon has had to come up on its own from a cold boot of the
+    # published image.
+    # Retried because this is the one check here with a race in it:
+    # the daemon is started by systemd at boot rather than by a task
+    # that waited for it, so a loaded hypervisor can have it still
+    # coming up. Everything else being asserted is already on disk.
+    - name: Confirm the docker client and daemon work from a cold boot
+      command: docker version
+      register: ci_docker_version
+      changed_when: false
+      retries: 10
+      delay: 6
+      until: ci_docker_version is success
+      when: extras is match('(^|,)docker(,|$)')
 
 - hosts: localhost
   gather_facts: no
