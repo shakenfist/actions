@@ -403,6 +403,18 @@
     {
       "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image-desktop.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image.yml",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
