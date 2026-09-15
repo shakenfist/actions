@@ -415,6 +415,38 @@
     {
       "path": "ansible/ci-image.yml",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/files/ci-runner-alloy.alloy",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/install-ci-log-shipper.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

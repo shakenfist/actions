@@ -41,6 +41,10 @@
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "b5e64636c5738c8c5433bbc1ed5ebae2121ac947",
+      "date": "2026-09-16"
+    },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "c655a8ca69cc427fbbca49c6a22d344679ec96f9",
       "date": "2026-09-14"
@@ -113,6 +117,10 @@
       "sha": "89a8b7537e84dcdac57d6cc8d9c5de722172f546",
       "date": "2026-09-07"
     },
+    "ansible/files/ci-runner-alloy.alloy": {
+      "sha": "b4cb1ddd3e403fb8cc8d85aa349a4ebfc1737970",
+      "date": "2026-09-16"
+    },
     "ansible/files/netplan-eth1.yaml": {
       "sha": "ee42fcd72bee037f6df556ae1acaeb7f075697c7",
       "date": "2026-09-04"
@@ -140,6 +148,10 @@
     "ansible/kerbside-single-node.yml": {
       "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
       "date": "2026-09-10"
+    },
+    "ansible/tasks/install-ci-log-shipper.yml": {
+      "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
+      "date": "2026-09-16"
     },
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
