@@ -21,8 +21,17 @@
 # the oVirt CI nodes install from at vault.centos.org baseurls, so it
 # decides where those nodes fetch packages from. A genuinely vendored
 # third-party diff would be a fresh decision and belongs in the
-# exclude list by name. run_remote and user-data have no extension
-# and are named explicitly for that reason.
+# exclude list by name. run_remote has no extension and is named
+# explicitly for that reason.
+#
+# ansible/files/ is in scope as a directory rather than by
+# extension. Everything in it is copied verbatim onto a CI node and
+# then consumed by something that acts on it -- cloud-init user-data,
+# a netplan, an alloy log shipper configuration, a clingwrap gather
+# bundle -- so the file extension says nothing about whether the
+# content is executable in practice, and a new file there is in scope
+# from the moment it lands rather than only once somebody remembers
+# to add its extension here.
 include = [
     '*.py',
     '*.sh',
@@ -35,7 +44,7 @@ include = [
     '*.cwd',
     '*.patch',
     'tools/run_remote',
-    'ansible/files/user-data',
+    'ansible/files/*',
 ]
 
 # Named here rather than merely left out of include above, so that

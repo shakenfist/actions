@@ -41,6 +41,10 @@
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "b5e64636c5738c8c5433bbc1ed5ebae2121ac947",
+      "date": "2026-09-16"
+    },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "c655a8ca69cc427fbbca49c6a22d344679ec96f9",
       "date": "2026-09-14"
@@ -48,6 +52,10 @@
     ".gitleaks.toml": {
       "sha": "6be5dc4d7c4b805de45535976696180385593cce",
       "date": "2026-09-10"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "e3dfd65f4fe369bc94a4dc14b7fbb785c6eb1edd",
+      "date": "2026-09-16"
     },
     "AGENTS.md": {
       "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
@@ -61,6 +69,10 @@
       "sha": "44e645c02c975d08358d2c878665f497c7ce31f2",
       "date": "2026-09-07"
     },
+    "ansible/ci-dependencies.yml": {
+      "sha": "080d08403bab2e3969104e8a175c80485f5b70e3",
+      "date": "2026-09-16"
+    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "668fff5e2d83203244e09ec79e6f5c72453fc1f6",
       "date": "2026-09-09"
@@ -68,6 +80,14 @@
     "ansible/ci-gather-logs.yml": {
       "sha": "8f72cef07419e05672c015976536ec6132663911",
       "date": "2026-09-07"
+    },
+    "ansible/ci-image-desktop.yml": {
+      "sha": "6b1e943300e1cdbcff0deb87042a63293191d00b",
+      "date": "2026-09-16"
+    },
+    "ansible/ci-image.yml": {
+      "sha": "dbdf1030a8c17915f789e6869438c1320f505337",
+      "date": "2026-09-16"
     },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
@@ -101,6 +121,10 @@
       "sha": "89a8b7537e84dcdac57d6cc8d9c5de722172f546",
       "date": "2026-09-07"
     },
+    "ansible/files/ci-runner-alloy.alloy": {
+      "sha": "b4cb1ddd3e403fb8cc8d85aa349a4ebfc1737970",
+      "date": "2026-09-16"
+    },
     "ansible/files/netplan-eth1.yaml": {
       "sha": "ee42fcd72bee037f6df556ae1acaeb7f075697c7",
       "date": "2026-09-04"
@@ -129,6 +153,10 @@
       "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
       "date": "2026-09-10"
     },
+    "ansible/tasks/install-ci-log-shipper.yml": {
+      "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
+      "date": "2026-09-16"
+    },
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
       "date": "2026-09-10"
@@ -156,6 +184,10 @@
     "docs/actions.md": {
       "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
       "date": "2026-09-07"
+    },
+    "docs/ansible.md": {
+      "sha": "064f9378ce856cf577149a16931dfd1fe7e089d3",
+      "date": "2026-09-16"
     },
     "docs/ci.md": {
       "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",
@@ -260,6 +292,10 @@
     "tests/test_workflow_references.py": {
       "sha": "570c9811fe57225d0a2287f492d167cd4a71c015",
       "date": "2026-09-07"
+    },
+    "tools/ansible-syntax-check.sh": {
+      "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
+      "date": "2026-09-16"
     },
     "tools/buffer.py": {
       "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",
