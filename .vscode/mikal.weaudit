@@ -89,15 +89,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-gather-logs.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-image-desktop.yml",
       "author": "mikal"
     },
     {
@@ -409,15 +401,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_collect.sh",
-      "author": "mikal"
-    },
-    {
-      "path": ".pre-commit-config.yaml",
       "author": "mikal"
     }
   ],
