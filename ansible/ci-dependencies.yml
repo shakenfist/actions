@@ -285,6 +285,49 @@
     - name: List contents of /srv/ci/cached
       shell: ls -lrth /srv/ci/cached
 
+    # The actions#66 pattern: end the build by exercising the thing
+    # the artifact exists to provide. For this disk that is the cache
+    # entries themselves, and until now the only thing looking at them
+    # was the `ls` above, whose output nobody reads.
+    #
+    # Every top level entry here is a cloud image, a release tarball or
+    # a desktop snapshot, so all of them are tens of megabytes at the
+    # smallest. Anything under a megabyte is not a small file, it is a
+    # proxy error page that get_url saved with a 200, or a push that
+    # stopped half way. Either publishes as a label and then fails
+    # every job that reads it, which is a much more expensive place to
+    # find out.
+    #
+    # A megabyte rather than a kilobyte because the failure this is
+    # named after is not a zero byte file: squid returns two to four
+    # kilobytes of HTML, which sails past a kilobyte floor and would
+    # have made this check a detector of empty files and nothing else.
+    # It is still a floor and not an inventory -- a missing entry
+    # passes, because what belongs here lives in the get_url loop
+    # above and matching the two by hand would rot.
+    #
+    # Not recursive: imago-testdata is a git clone and is legitimately
+    # full of small files.
+    - name: Look for cache entries that arrived empty or truncated
+      find:
+        paths: /srv/ci/cached
+        file_type: file
+        size: -1m
+      register: cached_truncated
+
+    - name: Confirm every cache entry has content
+      assert:
+        that:
+          - cached_truncated.files | length == 0
+        fail_msg: >-
+          {{ cached_truncated.files | map(attribute='path') | join(', ') }}
+          are under a megabyte, which for a cloud image or a release
+          tarball means the download did not happen. Publishing this
+          disk would give every CI job a cache entry it cannot use.
+        success_msg: >-
+          Checked {{ cached_truncated.examined }} entries under
+          /srv/ci/cached; none were under a megabyte.
+
     - name: Unmount the dependencies disk
       mount:
         path: /srv/ci/cached

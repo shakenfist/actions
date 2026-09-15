@@ -44,6 +44,17 @@ repos:
         exclude: ^\.vscode/.*\.weaudit
       - id: check-merge-conflict
       - id: check-json
+      # Catches a malformed playbook before it reaches a nightly image
+      # build. Nothing in this repository calls the files in ansible/
+      # -- conductor runs them out of band -- so until this they had
+      # no gate at all. It is only a parse, not ansible's own
+      # --syntax-check, which cannot run here: that resolves module
+      # names, and doing so needs both ansible.posix and the
+      # shakenfist.shakenfist collection, the latter built from a
+      # deploy mirror rather than installable from PyPI.
+      # tools/ansible-syntax-check.sh is the full check, for a machine
+      # that has them.
+      - id: check-yaml
       - id: check-executables-have-shebangs
 
   # GitHub Actions workflow linter. This repository is a library of

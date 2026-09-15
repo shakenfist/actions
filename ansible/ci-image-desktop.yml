@@ -258,6 +258,101 @@
       until: apt_action is success
       when: ansible_pkg_mgr == "apt"
 
+    # The actions#66 pattern: end the build by exercising the thing
+    # the image exists to provide. Here that is a graphical session on
+    # the console -- gdm3 up on seat0, driving the Xorg/wayland and
+    # QXL stack a SPICE console can see -- and every part of it can
+    # break while the image still boots, sudos and dist-upgrades
+    # perfectly well. The label is published either way, so the
+    # failure surfaces when a human opens a console and finds a black
+    # screen.
+    #
+    # None of that stack is installed by this playbook. It arrives in
+    # the base image, from the gnome-desktop element in
+    # shakenfist/images, which is exactly why checking it here is
+    # worth the time: this playbook cannot see a regression in
+    # something it does not install, and neither can that repository
+    # see what its element produced once it is snapshotted.
+    #
+    # These run on the test instance rather than the builder. The
+    # builder was booted from the base image, which already had a
+    # working desktop before this playbook touched anything, so it
+    # would pass whatever the snapshot ended up containing. Only an
+    # instance booted from the snapshot speaks for the artifact.
+    - name: Confirm the image boots into the graphical target
+      command: systemctl get-default
+      register: desktop_default_target
+      changed_when: false
+      failed_when: desktop_default_target.stdout | trim != 'graphical.target'
+
+    - name: Confirm the display manager is running
+      command: systemctl is-active display-manager.service
+      register: desktop_display_manager
+      changed_when: false
+      failed_when: desktop_display_manager.stdout | trim != 'active'
+
+    # The end to end assertion: seat0 -- the physical console -- has an
+    # active session, and it is a graphical one. The two checks above
+    # both pass on an image whose session dies the moment it starts;
+    # this one does not.
+    #
+    # It deliberately asks the *seat* rather than a user. Measured on
+    # the published debian-gnome:13 image, booted under KVM with gdm3
+    # running and then stopped:
+    #
+    #   check                                   gdm3 up   gdm3 stopped
+    #   loginctl show-user <u> -p State          active   active
+    #   loginctl show-user <u> -p Display        9        9
+    #   loginctl show-seat seat0 -p ActiveSession c1       (empty)
+    #
+    # Both user-scoped forms are satisfied by ansible's own ssh
+    # login: pam_systemd registers a session for it, a session with no
+    # seat is unconditionally active, and logind will happily nominate
+    # that session as the user's Display when there is no graphical
+    # one. Either would pass on an image with no desktop at all.
+    #
+    # Asking the seat also sidesteps autologin, which does not fire on
+    # these images -- the gnome-desktop element creates the desktop
+    # account with no password, so it is locked, and gdm3 stops at the
+    # greeter. The greeter is a graphical session on seat0 and proves
+    # the stack works, which is what this is here to establish.
+    #
+    # No failed_when here, and that is load bearing. Both loginctl
+    # calls exit 0 and print nothing when there is no session, so
+    # there is no non-zero rc to suppress -- and adding
+    # "failed_when: false" anyway suppresses the failure ansible
+    # raises when the retries are exhausted, which was measured: the
+    # poll went thirty rounds, reported ok, and let the play carry on
+    # to the task below with an empty session id.
+    - name: Wait for a graphical session on the console seat
+      command: loginctl show-seat seat0 --property=ActiveSession --value
+      register: desktop_seat_session
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: desktop_seat_session.stdout | trim | length > 0
+
+    # The session id is asserted before it is interpolated. An empty
+    # one does not make this command fail, it makes it a different
+    # command: "loginctl show-session --property=Type" with no id
+    # reports on the caller's own session, which is ansible's ssh
+    # login. Failing here on the id rather than on its output keeps
+    # that from ever being the thing under test.
+    - name: Confirm the console session is a graphical one
+      assert:
+        that:
+          - desktop_seat_session.stdout | trim | length > 0
+        fail_msg: >-
+          seat0 has no active session, so this image has no desktop.
+
+    - name: Confirm the console session type
+      command: >-
+        loginctl show-session {{ desktop_seat_session.stdout | trim }}
+        --property=Type --value
+      register: desktop_session_type
+      changed_when: false
+      failed_when: desktop_session_type.stdout | trim not in ['x11', 'wayland']
+
 - hosts: localhost
   gather_facts: no
   connection: ssh

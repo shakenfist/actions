@@ -215,6 +215,122 @@ found`, by which time the failure is showing up in somebody's pull
 request in another repository. The check moves the failure back to
 the build that caused it.
 
+## Verifying what an image provides
+
+The `docker version` check above generalises, and every image build
+playbook now ends the same way: assert that the artifact does the
+thing it exists to do, and fail the build when it does not.
+
+The reason is that the checks these playbooks already had are much
+weaker than they look. Each one ends by booting the snapshot and
+running a `dist-upgrade` or a `dnf update` on it, which establishes
+that the image boots, can sudo and can manage packages. A docker
+image with no docker client passes all three. So does a desktop image
+with no desktop, and a cache disk whose downloads all returned a
+proxy error page.
+
+Where the checks run matters as much as what they assert. For the two
+playbooks that build bootable images they run on the **test**
+instance, the one booted from the snapshot, not on the builder. The
+builder was booted from the base image and then modified in place, so
+it can only answer for the machine the playbook built -- which is why
+`debian-gnome:12` could be inspected on a builder for two years
+without anybody noticing it was Debian 11. Only an instance booted
+from the snapshot speaks for the artifact that will carry the label.
+
+`ci-dependencies.yml` is the exception, and has to be. Its artifact is
+a data disk rather than a bootable image, so there is no test instance
+to boot; its check runs in the `allsf` play on the builder, against
+the mounted filesystem, immediately before the unmount and snapshot.
+That is a real limitation and not a preference: it speaks for the
+filesystem as the builder saw it, not for the blob that gets labelled.
+
+| Playbook | What the image exists to provide | How it is exercised | Where |
+|----------|----------------------------------|---------------------|-------|
+| `ci-image.yml` | A toolchain that can run tests | `tox --version` | test instance |
+| `ci-image.yml` | The libvirt python bindings every smoke cluster needs | `python3 -c "import libvirt"` | test instance |
+| `ci-image.yml` | Runner logs that reach Loki | `systemctl is-enabled alloy`, when the builder installed it | test instance |
+| `ci-image.yml` | A working docker, for the `docker` extra | `docker version`, on the builder and again from a cold boot | both |
+| `ci-image-desktop.yml` | A graphical session a console can see | `systemctl get-default`, `systemctl is-active display-manager`, and an active graphical session on `seat0` | test instance |
+| `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a megabyte | builder, pre-unmount |
+
+Three of those are deliberately weaker than they first appear, and all
+three are worth knowing before you tighten them:
+
+* **Alloy is checked for being enabled, not for running.** Its unit
+  refuses to start until the hostname matches `sfcbr-*`, so that a
+  host which is not a runner ships nothing rather than shipping
+  mislabelled logs. The test instance is called `test`, so on a
+  correctly built image Alloy is sitting in its `ExecStartPre` poll
+  and `systemctl is-active` would fail on every image that is working
+  properly.
+* **libvirt is imported, not connected to.** `virsh version` or
+  `libvirt.open()` would also prove the daemon is up, which is both a
+  stronger claim and a riskier check: it races socket activation at
+  boot, it cannot be exercised before merge, and a false failure here
+  blocks every image the fleet builds. The import catches the
+  packaging failure -- the one that actually differs between apt and
+  dnf -- with no race at all.
+* **The cache disk check is a size floor, not an inventory.** Every
+  top level entry is a cloud image, a release tarball or a desktop
+  snapshot, so anything under a megabyte is a failed download rather
+  than a small file. A megabyte and not a kilobyte because a squid
+  error page is two to four kilobytes, which a kilobyte floor would
+  wave through. It does not check that a given entry is *present*,
+  because the list of what should be there lives in the `get_url` loop
+  and would have to be kept in step by hand.
+
+The desktop check is the one to copy if you add a playbook, and the
+reason is in what it does *not* ask. It asks **seat0** -- the physical
+console -- for its active session and requires that session to be
+`x11` or `wayland`. The obvious alternatives, asking whether the
+desktop user is logged in, are both satisfied by ansible's own SSH
+connection. Measured on the published `debian-gnome:13` image booted
+under KVM, with gdm3 running and then stopped:
+
+| Check | gdm3 up | gdm3 stopped |
+|---|---|---|
+| `loginctl show-user <u> --property=State` | `active` | `active` |
+| `loginctl show-user <u> --property=Display` | `9` | `9` |
+| `loginctl show-seat seat0 --property=ActiveSession` | `c1` | *(empty)* |
+
+`pam_systemd` registers a session for the SSH login, a session with no
+seat is unconditionally active, and logind will nominate that session
+as the user's `Display` when there is no graphical one. Either
+user-scoped form passes on an image with no desktop at all.
+
+Asking the seat also sidesteps autologin, which does not fire on these
+images: the `gnome-desktop` element creates the desktop account with
+no password, so it is locked, and gdm3 stops at the greeter. The
+greeter is a graphical session on `seat0`, and it proves the stack
+works -- which is the claim worth making here.
+
+One trap is worth carrying away from that poll, because it is not what
+the documentation implies. **`failed_when: false` on a task with
+`until` also suppresses the failure when the retries run out.** It is
+easy to assume the retry loop gets the last word; measured, the poll
+went its full thirty rounds against a broken image, reported `ok`, and
+let the play continue. Neither `loginctl` call here exits non-zero
+when there is nothing to report, so there was never a return code to
+suppress and the flag is simply absent. If you add a poll that does
+need it, put a real assertion after the loop.
+
+## When a check fails
+
+The label is not updated. `sf-client label update` runs in a later
+play, so an image that fails verification leaves the previous label
+pointing at the last blob that passed; conductor sees the playbook
+exit non-zero, files a build-failure issue and moves on. Yesterday's
+image beats a broken one.
+
+The builder instance, the test instance and the intermediate snapshot
+are all left behind, because the cleanup lives in that same later
+play. That is deliberate rather than overlooked: they are the only
+thing left to inspect when a build fails, and conductor's
+`cleanup_stale_builders()` and `cleanup_stale_snapshots()` run before
+every build, so the capacity comes back at the next attempt rather
+than being held indefinitely.
+
 ## CI runner log shipping
 
 `ci-image.yml` can bake a Grafana Alloy log shipper into the image, via
@@ -307,3 +423,24 @@ Neither `yamllint` nor `ansible-lint` is enabled against this directory
 yet. Both report large backlogs -- 191 and 732 findings respectively --
 that are mostly stylistic, and the reasoning for leaving them off is in
 [ci.md](ci.md).
+
+What does run is `check-yaml`, in pre-commit. That is only a parse, but
+until it was added these files had no gate whatsoever: nothing in this
+repository calls them, conductor runs them out of band, so the first
+execution of a change was a nightly image build on the CI cluster.
+
+The fuller check is `tools/ansible-syntax-check.sh`, which runs
+`ansible-playbook --syntax-check` over every file in `ansible/` that
+contains a play. It is not wired into pre-commit, and the reason is
+worth recording: modern `ansible-core` resolves module names during a
+syntax check, so passing needs both `ansible.posix` and the
+`shakenfist.shakenfist` collection present. The latter is built from a
+deploy mirror rather than installed from PyPI, so a pre-commit
+environment cannot assemble it, and a hook depending on whatever the
+runner happens to have installed would be a lint that reds the build
+for reasons unrelated to the change. Run it by hand on a machine with
+the collections:
+
+```
+tools/ansible-syntax-check.sh
+```
