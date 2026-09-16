@@ -5,7 +5,7 @@
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
-    base_image: "debian:11"
+    base_image: "debian:13"
     base_image_user: "debian"
     # When this playbook runs on a CI runner, the runner shares the
     # builder instance's virtual network and can ssh to its inner
@@ -37,19 +37,13 @@
       debug:
         msg: "{{imagerebuild_instance}}"
 
-    - name: Add to ansible (force python3)
-      add_host:
-        hostname: imagerebuild
-        ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
-        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-        ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
-        ansible_python_interpreter: "/usr/bin/python3"
-        sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
-        groups: allsf
-      when: base_image == "debian:11"
-
-    - name: Add to ansible (detect system python)
+    # This playbook is only ever invoked to build the `dependencies`
+    # image, which is moving to debian:13, so nothing will pass
+    # base_image: debian:11 again. A python-interpreter branch that
+    # exists for a base image this playbook can no longer receive is
+    # still something the next reader has to rule out, so it is gone
+    # rather than left dormant.
+    - name: Add to ansible
       add_host:
         hostname: imagerebuild
         ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
@@ -58,7 +52,6 @@
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
         groups: allsf
-      when: base_image != "debian:11"
 
     - name: Log instance
       debug:
@@ -105,8 +98,22 @@
         state: directory
         mode: "0755"
 
+    # This disk is snapshotted and becomes the `dependencies` label, which
+    # every runner attaches as its second disk and mounts read-write at
+    # /srv/ci with no special options (see the `Mount /srv/ci` tasks in
+    # the ci-topology-*.yml playbooks in this directory, which mount
+    # /dev/vdc as-is). A bare mkfs.ext4 picks up whatever defaults the
+    # builder distribution ships, and moving the builder from Debian 11
+    # to Debian 13 changes them: e2fsprogs 1.47 turns on the orphan_file
+    # feature by default, and man 5 ext4 says that feature needs Linux
+    # 5.15 or newer. The oldest consumers of this disk predate that --
+    # one topology still boots ubuntu2004-ci-template.qcow2, which runs
+    # kernel 5.4, and the debian-11 and rocky-9 boot labels run 5.10 and
+    # 5.14 respectively. So the feature set is pinned explicitly here,
+    # to keep a future bump of the builder's OS from silently changing
+    # the on-disk format of this shared disk.
     - name: Make a filesystem on the dependencies disk
-      shell: mkfs.ext4 /dev/vdc
+      shell: mkfs.ext4 -O ^orphan_file /dev/vdc
 
     - name: Mount the dependencies disk
       mount:
@@ -156,6 +163,10 @@
             name: "debian:12",
           }
         - {
+            url: "https://images.shakenfist.com/debian:13/latest.qcow2",
+            name: "debian:13",
+          }
+        - {
             url: "https://images.shakenfist.com/centos:9-stream/latest.qcow2",
             name: "centos:9-stream",
           }
@@ -170,6 +181,10 @@
         - {
             url: "https://images.shakenfist.com/rocky:9/latest.qcow2",
             name: "rocky:9",
+          }
+        - {
+            url: "https://images.shakenfist.com/rocky:10/latest.qcow2",
+            name: "rocky:10",
           }
         - {
             url: "{{ actions_url }}",
