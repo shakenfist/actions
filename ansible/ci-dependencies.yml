@@ -102,18 +102,46 @@
     # every runner attaches as its second disk and mounts read-write at
     # /srv/ci with no special options (see the `Mount /srv/ci` tasks in
     # the ci-topology-*.yml playbooks in this directory, which mount
-    # /dev/vdc as-is). A bare mkfs.ext4 picks up whatever defaults the
-    # builder distribution ships, and moving the builder from Debian 11
-    # to Debian 13 changes them: e2fsprogs 1.47 turns on the orphan_file
-    # feature by default, and man 5 ext4 says that feature needs Linux
-    # 5.15 or newer. The oldest consumers of this disk predate that --
-    # one topology still boots ubuntu2004-ci-template.qcow2, which runs
-    # kernel 5.4, and the debian-11 and rocky-9 boot labels run 5.10 and
-    # 5.14 respectively. So the feature set is pinned explicitly here,
-    # to keep a future bump of the builder's OS from silently changing
-    # the on-disk format of this shared disk.
+    # /dev/vdc as-is). The oldest consumer still boots
+    # ubuntu2004-ci-template.qcow2 on kernel 5.4, and the debian-11 and
+    # rocky-9 boot labels run 5.10 and 5.14, so this one filesystem has
+    # to be readable across a wide span of kernels. That makes its
+    # on-disk format a decision worth making, and a bare mkfs.ext4 does
+    # not make it: the format is then whatever the builder
+    # distribution's mke2fs.conf happens to ship, so moving the builder
+    # from Debian 11 to Debian 13 changed it as a side effect. Debian 13
+    # ships e2fsprogs 1.47, which enables orphan_file (Linux 5.15) by
+    # default. Nothing here would have broken over that -- orphan_file
+    # is a COMPAT feature, so a kernel that does not implement it
+    # ignores it and still mounts read-write, and the
+    # RO_COMPAT_ORPHAN_PRESENT bit that would actually hold such a
+    # kernel back is only set while the orphan file holds entries and
+    # is cleared by the clean unmount this playbook does before
+    # snapshotting. The objection is not that it was dangerous, it is
+    # that nobody chose it.
+    #
+    # So the feature set is named in full. The `none,` prefix is what
+    # makes that a pin rather than a wish: `-O` adds to and subtracts
+    # from the mke2fs.conf set rather than replacing it, so an explicit
+    # list on its own would still pick up whatever a future e2fsprogs
+    # adds. The list is exactly what e2fsprogs 1.47.2 produces today,
+    # and it keeps metadata_csum_seed, which trixie enables and
+    # bullseye did not. That one is INCOMPAT -- a kernel that does not
+    # know it refuses the mount outright rather than ignoring it -- but
+    # it has been in Linux since 4.4 and every consumer above is far
+    # past that, so it is kept on purpose rather than dropped out of
+    # caution, and now kept explicitly.
+    #
+    # The cost is real and is the point. A future e2fsprogs default
+    # that would have been desirable never arrives here either, and if
+    # a later release renames or drops one of these names this command
+    # fails the build instead of quietly producing something else. Loud
+    # failure is the trade being made against silent format drift on a
+    # disk the whole fleet mounts.
     - name: Make a filesystem on the dependencies disk
-      shell: mkfs.ext4 -O ^orphan_file /dev/vdc
+      shell: >-
+        mkfs.ext4 -O none,has_journal,ext_attr,resize_inode,dir_index,filetype,extent,64bit,flex_bg,metadata_csum_seed,sparse_super,large_file,huge_file,dir_nlink,extra_isize,metadata_csum
+        /dev/vdc
 
     - name: Mount the dependencies disk
       mount:
@@ -342,6 +370,44 @@
         success_msg: >-
           Checked {{ cached_truncated.examined }} entries under
           /srv/ci/cached; none were under a megabyte.
+
+    # The size floor above cannot see a disk that ran out of room. The
+    # builder's second disk is fixed at 50GB, the images in the get_url
+    # loop come to roughly 10.2GB between them, and the imago-testdata
+    # clone and the debian-gnome snapshot land on top of that. A
+    # download cut off by ENOSPC part way through a several hundred
+    # megabyte image is still tens of megabytes on disk, so it passes a
+    # one megabyte floor and publishes as a label whose entries every
+    # CI job then fails to read. Free space is the signal that does
+    # catch it, because ENOSPC leaves essentially none.
+    #
+    # Two gigabytes is the floor, and the number is chosen from the
+    # healthy end rather than the failure end: a full disk reports
+    # single digit megabytes, so almost any threshold catches that, but
+    # a threshold close to what the disk normally finishes with would
+    # start failing builds over ordinary growth of the cached set. The
+    # disk has tens of gigabytes spare today, so two leaves plenty of
+    # room to grow into while still being far above a filled disk. If a
+    # new entry in the loop above ever brings the finished disk near
+    # this, the disk wants to be bigger rather than the floor lower.
+    - name: Measure free space on the dependencies disk
+      command: df --output=avail --block-size=1M /srv/ci/cached
+      register: cached_free
+      changed_when: false
+
+    - name: Confirm the dependencies disk did not fill up
+      assert:
+        that:
+          - cached_free.stdout_lines[-1] | trim | int >= 2048
+        fail_msg: >-
+          /srv/ci/cached has only {{ cached_free.stdout_lines[-1] | trim }}MB
+          free, so the 50GB disk filled while the downloads above were
+          running. A download truncated by ENOSPC is far too large for
+          the size floor to notice, so publishing this disk would give
+          every CI job cache entries it cannot read.
+        success_msg: >-
+          /srv/ci/cached has {{ cached_free.stdout_lines[-1] | trim }}MB
+          free.
 
     - name: Unmount the dependencies disk
       mount:
