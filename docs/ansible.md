@@ -97,6 +97,36 @@ merge -- the fabric is not available on a dev host -- and because it has
 already been broken once, when only one of twelve provisioning paths
 grew the gate.
 
+## The deployment VIP
+
+The kerbside playbooks reserve `vip_address` (default `10.0.2.3`, overridable
+through `setup-kerbside-environment`'s input of the same name) on the test
+network immediately after creating it, before any instance or interface is
+allocated.
+
+The reason is that Shaken Fist allocates from a network's block at random and
+only knows about addresses it allocated itself. The VIP is not one of those:
+it is written into the deployment's own configuration --
+`kolla_internal_vip_address` in kerbside-patches' `etc/globals-*.yml` -- and
+brought up inside a guest by keepalived. Until it is reserved it is simply a
+free address, and the next thing allocated on that network can be given it.
+That is not hypothetical: in kerbside-patches CI run 35202102331 the runner's
+own interface on the test network was handed `10.0.2.3`, kolla-ansible's
+prechecks pinged the VIP, the runner answered, and the deploy refused to
+start. Sibling jobs in the same run drew `.29`, `.98`, `.128` and `.223` and
+passed, which is what a one-in-253 collision looks like.
+
+`tasks/reserve-deployment-vip.yml` tolerates two failures rather than
+stopping the run. A cluster or an `sf-client` predating the
+`reserve-addresses` capability cannot honour the request, and because a merge
+here reaches the whole fleet at once a hard failure would break every consumer
+until both halves rolled out; that case warns instead. An address already
+reserved is a re-run against a network which still exists, and is a no-op.
+
+Change the VIP in only one place and it will collide again: the value here and
+`kolla_internal_vip_address` in the globals file being deployed are the same
+address, described twice.
+
 ## Kolla node prerequisites
 
 The kerbside playbooks add a second short play after the readiness gate,

@@ -1,0 +1,40 @@
+# Hold the deployment's VIP in IPAM before anything else is allocated.
+#
+# Shaken Fist allocates addresses from a network's block at random and only
+# knows about the addresses it allocated itself. The VIP a deployment brings
+# up with keepalived is written into its own configuration (kerbside-patches
+# pins kolla_internal_vip_address at 10.0.2.3), so as far as IPAM is
+# concerned that address is free, and eventually it hands it to an interface
+# -- the CI runner's own interface on this network is the usual victim, since
+# that is the next thing allocated here. The deployment then refuses to
+# install, because its prechecks ping the VIP and something answers
+# (kerbside-patches CI run 35202102331).
+#
+# The reservation takes the address out of the pool and does nothing else:
+# no interface, no DHCP entry, no routing.
+#
+# This is tolerant of two failures on purpose. A cluster or an sf-client
+# predating the reserve-addresses capability cannot honour it, and a merge
+# here deploys to the whole fleet at once, so a hard failure would break
+# every consumer until both halves have rolled out. An address already
+# reserved is the playbook being re-run against a network that still exists.
+- name: Reserve the deployment VIP so that IPAM never allocates it
+  shell: |
+    sf-client network reserve-address "{{ environment_name }}" "{{ vip_address }}" \
+        --comment "deployment VIP for {{ identifier }}"
+  register: vip_reservation
+  changed_when: vip_reservation.rc == 0
+  failed_when: >-
+    vip_reservation.rc != 0 and
+    'Resource state conflict' not in (vip_reservation.stdout + vip_reservation.stderr) and
+    'does not support' not in (vip_reservation.stdout + vip_reservation.stderr)
+
+- name: Warn when the VIP could not be reserved
+  debug:
+    msg:
+      - "Could not reserve {{ vip_address }} on network {{ environment_name }}."
+      - "This cluster or sf-client predates the reserve-addresses capability,"
+      - "so the VIP remains allocatable and this deployment may collide with it."
+      - "{{ vip_reservation.stdout + vip_reservation.stderr }}"
+  when: vip_reservation.rc != 0 and
+        'does not support' in (vip_reservation.stdout + vip_reservation.stderr)

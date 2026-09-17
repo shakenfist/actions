@@ -7,6 +7,11 @@
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
     environment_name: kolla
+    # The address the deployment brings up as its own VIP, which
+    # Shaken Fist must therefore never allocate to an interface.
+    # Matches kolla_internal_vip_address in kerbside-patches'
+    # etc/globals-*.yml.
+    vip_address: "10.0.2.3"
     hostname: kolla
     # True when this playbook is being driven from a ShakenFist CI
     # runner that is itself an instance named "{{ identifier }}" on
@@ -45,6 +50,9 @@
       debug:
         msg:
           - "New network: {{ environment_network }}"
+
+    # Must run before any other address on this network is allocated.
+    - import_tasks: tasks/reserve-deployment-vip.yml
 
     - include_tasks: kerbside-create-instance.yml
       vars:
