@@ -152,6 +152,45 @@ The playbooks configure remote VMs to use local caches:
 Plays targeting remote hosts also set `environment:` directives to
 pass proxy settings to Ansible modules (apt, get_url, etc.).
 
+### The dependencies disk
+
+`ci-dependencies.yml` builds a third cache, and unlike the proxy and the
+mirror it is a disk rather than a service. The playbook creates a
+builder instance with a 50GB second disk, fills it with the cloud images
+CI boots -- cirros, the Ubuntu, Debian, CentOS Stream, Fedora and Rocky
+minimal images, and the GitHub Actions runner tarball -- and adds the
+imago-testdata clone and, when that label already exists, the
+`debian-gnome-12` snapshot. The disk is then snapshotted and published
+as the `dependencies` label, which every topology attaches as its second
+disk and mounts at `/srv/ci`. The `get_url` loop in that playbook is
+therefore the definition of what CI can boot without going to the
+network; `debian:13` and `rocky:10` sit in it alongside the earlier
+releases, and the images alone now come to roughly 10.2GB.
+
+Two things about that disk are load bearing and easy to undo by
+accident.
+
+The first is that the filesystem's feature set is written out in full --
+`mkfs.ext4 -O none,<fifteen features>` rather than a bare `mkfs.ext4`.
+One distribution builds this disk and a great many mount it, the oldest
+of them on kernel 5.4, so its on-disk format wants to be a decision the
+playbook makes rather than a side effect of whichever builder image it
+ran on. It was the latter until recently: moving the builder from Debian
+11 to Debian 13 changed the format on its own, because e2fsprogs 1.47
+enables `orphan_file` by default. The `none,` prefix is the part doing
+the work, and the part most likely to be dropped as redundant -- `-O`
+adds to and subtracts from the `mke2fs.conf` set rather than replacing
+it, so an explicit list without `none` still inherits whatever a future
+e2fsprogs decides to turn on. The trade, which the comment on the task
+argues at length, is that a desirable future default never reaches this
+disk either, and a renamed or retired feature fails the build outright.
+Both are preferable to the format drifting quietly under a disk the
+whole fleet mounts.
+
+The second is the pair of assertions that run on the builder
+immediately before the unmount, which are covered with the other image
+verification below.
+
 ## Package resolution policy
 
 The bulk `"*"` updates in `ci-image.yml` run with `nobest: true` and a
@@ -252,7 +291,7 @@ filesystem as the builder saw it, not for the blob that gets labelled.
 | `ci-image.yml` | Runner logs that reach Loki | `systemctl is-enabled alloy`, when the builder installed it | test instance |
 | `ci-image.yml` | A working docker, for the `docker` extra | `docker version`, on the builder and again from a cold boot | both |
 | `ci-image-desktop.yml` | A graphical session a console can see | `systemctl get-default`, `systemctl is-active display-manager`, and an active graphical session on `seat0` | test instance |
-| `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a megabyte | builder, pre-unmount |
+| `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a megabyte, and at least 2GB still free | builder, pre-unmount |
 
 Three of those are deliberately weaker than they first appear, and all
 three are worth knowing before you tighten them:
@@ -278,7 +317,15 @@ three are worth knowing before you tighten them:
   error page is two to four kilobytes, which a kilobyte floor would
   wave through. It does not check that a given entry is *present*,
   because the list of what should be there lives in the `get_url` loop
-  and would have to be kept in step by hand.
+  and would have to be kept in step by hand. The free space assertion
+  beside it covers the failure the floor is blind to: a download cut
+  off by ENOSPC part way through a several hundred megabyte image is
+  still tens of megabytes on disk and passes the floor easily, so the
+  disk is also required to finish with at least 2GB free. That number
+  is set from the healthy end rather than the failure end -- a full
+  disk reports almost nothing free, so the only interesting question is
+  how much headroom the cached set can grow into before the check
+  starts failing builds for no reason.
 
 The desktop check is the one to copy if you add a playbook, and the
 reason is in what it does *not* ask. It asks **seat0** -- the physical
