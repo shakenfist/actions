@@ -249,18 +249,29 @@
   vars:
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
+    # The Debian release of the desktop image whose snapshot is baked
+    # onto this disk. The label this playbook looks up and the cached
+    # filename it writes have to name the same release, so both are
+    # derived from here rather than spelled out at each use. Bumping
+    # the desktop image is then one edit in this file -- plus the
+    # matched base_image and label pair in ci-image-desktop.yml, and
+    # GNOME_LABEL in private-ci's conductor, neither of which a var in
+    # this playbook can reach.
+    gnome_release: 13
+    gnome_label: "debian-gnome-{{ gnome_release }}"
+    gnome_cached_name: "debian-{{ gnome_release }}-gnome-agents"
   tasks:
     # The debian-gnome snapshot is baked into the cache disk for the
-    # nested desktop CI jobs, but the label only exists once the
-    # debian-gnome-13 image itself has been built. On a fresh cluster
+    # nested desktop CI jobs, but the label only exists once that
+    # desktop image itself has been built. On a fresh cluster
     # conductor builds this dependencies image first (it gates all
     # runner provisioning), so a missing gnome label is skipped here
     # rather than failing the build; conductor rebuilds this image
-    # once debian-gnome-13 exists to bake the snapshot in.
+    # once the label exists to bake the snapshot in.
     - name: Look up debian-gnome snapshot artifact
       shell: |
         sf-client --json artifact list | \
-            jq -r '.[] | select(.source_url == "sf://label/ci-images/debian-gnome-13") | .uuid'
+            jq -r '.[] | select(.source_url == "sf://label/ci-images/{{ gnome_label }}") | .uuid'
       register: gnome_artifact
 
     - name: Record whether the debian-gnome label exists
@@ -270,9 +281,10 @@
     - name: Note the missing debian-gnome label
       debug:
         msg: >-
-          The debian-gnome-13 label does not exist yet, so its snapshot
-          will not be cached on this dependencies disk. Rebuild this
-          image after debian-gnome-13 has been built to include it.
+          The {{ gnome_label }} label does not exist yet, so its
+          snapshot will not be cached on this dependencies disk.
+          Rebuild this image after {{ gnome_label }} has been built to
+          include it.
       when: not gnome_label_exists | bool
 
     - name: Log artifact details
@@ -292,9 +304,9 @@
     - name: Download debian-gnome snapshot
       shell: |
         download_uuid='{{ gnome_artifact.stdout_lines[-1] }}'
-        rm -f /tmp/debian-13-gnome-agents
-        sf-client artifact download ${download_uuid} /tmp/debian-13-gnome-agents
-        ls -lh /tmp/debian-13-gnome-agents
+        rm -f /tmp/{{ gnome_cached_name }}
+        sf-client artifact download ${download_uuid} /tmp/{{ gnome_cached_name }}
+        ls -lh /tmp/{{ gnome_cached_name }}
       when: gnome_label_exists | bool
 
     - name: Check runner resources after download
@@ -309,8 +321,8 @@
       shell: |
         scp -rp -i {{ ssh_private_key }} -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              /tmp/debian-13-gnome-agents \
-              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/debian-13-gnome-agents
+              /tmp/{{ gnome_cached_name }} \
+              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/{{ gnome_cached_name }}
       when: gnome_label_exists | bool
 
 - hosts: allsf

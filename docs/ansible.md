@@ -167,6 +167,21 @@ therefore the definition of what CI can boot without going to the
 network; `debian:13` and `rocky:10` sit in it alongside the earlier
 releases, and the images alone now come to roughly 10.2GB.
 
+That snapshot lands on the disk at
+`/srv/ci/cached/debian-13-gnome-agents`, and the filename tracks the
+Debian release of the label it was taken from. `gnome_release` in
+`ci-dependencies.yml` derives both the label the playbook looks up and
+the name it writes, so the two cannot drift apart within this
+repository -- but the name is not private to this repository. At least
+one other repository, `shakenfist/kerbside`, copies that file off the
+disk by hardcoded path in its functional tests, and private-ci's
+conductor carries the label a third time as `GNOME_LABEL`. Renaming
+the file is therefore a fleet change rather than a local one, and it
+has no transition window: the disk is reformatted from scratch on
+every build, so the old name is simply gone the moment the
+`dependencies` label is next republished. Teach the consumers to
+accept the new name before renaming it here.
+
 Two things about that disk are load bearing and easy to undo by
 accident.
 
