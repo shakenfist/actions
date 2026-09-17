@@ -5,7 +5,7 @@
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
-    base_image: "debian-gnome:12"
+    base_image: "debian-gnome:13"
     base_image_user: "debian"
     # When this playbook runs on a CI runner, the runner shares the
     # builder instance's virtual network and can ssh to its inner
@@ -148,7 +148,7 @@
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
     base_image_user: "debian"
-    label: "ci-images/debian-gnome-12"
+    label: "ci-images/debian-gnome-13"
     float_builder: false
 
   tasks:

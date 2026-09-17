@@ -160,7 +160,7 @@ builder instance with a 50GB second disk, fills it with the cloud images
 CI boots -- cirros, the Ubuntu, Debian, CentOS Stream, Fedora and Rocky
 minimal images, and the GitHub Actions runner tarball -- and adds the
 imago-testdata clone and, when that label already exists, the
-`debian-gnome-12` snapshot. The disk is then snapshotted and published
+`debian-gnome-13` snapshot. The disk is then snapshotted and published
 as the `dependencies` label, which every topology attaches as its second
 disk and mounts at `/srv/ci`. The `get_url` loop in that playbook is
 therefore the definition of what CI can boot without going to the
