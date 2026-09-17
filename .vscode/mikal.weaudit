@@ -405,10 +405,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image-desktop.yml",
       "author": "mikal"
     },
@@ -442,18 +438,6 @@
     },
     {
       "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
