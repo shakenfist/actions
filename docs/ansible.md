@@ -168,19 +168,42 @@ network; `debian:13` and `rocky:10` sit in it alongside the earlier
 releases, and the images alone now come to roughly 10.2GB.
 
 That snapshot lands on the disk at
-`/srv/ci/cached/debian-13-gnome-agents`, and the filename tracks the
-Debian release of the label it was taken from. `gnome_release` in
-`ci-dependencies.yml` derives both the label the playbook looks up and
-the name it writes, so the two cannot drift apart within this
-repository -- but the name is not private to this repository. At least
-one other repository, `shakenfist/kerbside`, copies that file off the
-disk by hardcoded path in its functional tests, and private-ci's
-conductor carries the label a third time as `GNOME_LABEL`. Renaming
-the file is therefore a fleet change rather than a local one, and it
-has no transition window: the disk is reformatted from scratch on
-every build, so the old name is simply gone the moment the
-`dependencies` label is next republished. Teach the consumers to
-accept the new name before renaming it here.
+`/srv/ci/cached/debian-gnome-agents`, and that name deliberately does
+not say which Debian release it holds. The name is not private to this
+repository: `shakenfist/kerbside` copies the file off the disk by
+hardcoded path in its functional tests, so it is a cross-repository
+interface. It also has no transition window, because the disk is
+reformatted from scratch on every build -- the old name is gone the
+moment the `dependencies` label is next republished, and a consumer
+still asking for it fails on a branch nobody touched. Encoding the
+release in that name therefore made every desktop bump a fleet change.
+`gnome_release` in `ci-dependencies.yml` now governs only the label the
+playbook looks up and the scratch filename on the runner; the published
+name is stable, so bumping the desktop image is no longer a fleet
+change at all.
+
+While consumers migrate, the playbook also hardlinks the old
+`/srv/ci/cached/debian-12-gnome-agents` to the same blob, which costs
+no space and no second transfer. That task and its
+`gnome_legacy_cached_name` var are transitional and should be deleted
+once nothing reads the legacy name. `shakenfist/kerbside`'s
+`functional-tests.yml` is the only consumer known to read it; the
+`eol-distro` audit page in `shakenfist/shakenfist` mentions the name
+but does not consume it.
+
+**Rolling out a desktop release bump has a required order**, because a
+missing gnome label is skipped here rather than being fatal: a
+`dependencies` rebuild that runs too early publishes a disk with no
+gnome snapshot under either name, and the disk's own verification
+cannot catch it -- a missing cache entry passes on purpose. The order
+is `shakenfist/images` publishes the base image, then
+`ci-image-desktop.yml` publishes the `ci-images/debian-gnome-<release>`
+label, then the conductor rebuilds `dependencies`, and only then do
+consumers see the new contents. `GNOME_LABEL` in private-ci's conductor
+names the same label a third time and has to move with `gnome_release`;
+the conductor's gnome-less marker uses it to decide when a cluster
+rebuilds its cache disk, so a constant naming a label this playbook
+does not snapshot leaves the disk stale without anything reporting it.
 
 Two things about that disk are load bearing and easy to undo by
 accident.

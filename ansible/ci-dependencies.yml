@@ -250,16 +250,32 @@
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
     # The Debian release of the desktop image whose snapshot is baked
-    # onto this disk. The label this playbook looks up and the cached
-    # filename it writes have to name the same release, so both are
-    # derived from here rather than spelled out at each use. Bumping
-    # the desktop image is then one edit in this file -- plus the
-    # matched base_image and label pair in ci-image-desktop.yml, and
-    # GNOME_LABEL in private-ci's conductor, neither of which a var in
-    # this playbook can reach.
+    # onto this disk. Bumping the desktop image is one edit here --
+    # plus the matched base_image and label pair in
+    # ci-image-desktop.yml, and GNOME_LABEL in private-ci's conductor,
+    # neither of which a var in this playbook can reach.
     gnome_release: 13
     gnome_label: "debian-gnome-{{ gnome_release }}"
-    gnome_cached_name: "debian-{{ gnome_release }}-gnome-agents"
+    # The scratch file on the runner is named for the release, because
+    # that is a local detail and the release is useful in a build log.
+    gnome_download_name: "debian-{{ gnome_release }}-gnome-agents"
+    # The name on the cache disk deliberately does NOT carry the
+    # release. That path is a cross-repository interface --
+    # shakenfist/kerbside copies it off the disk by hardcoded path in
+    # its functional tests -- and the disk is reformatted from scratch
+    # on every build, so a rename has no transition window: the old
+    # name is gone the moment the dependencies label is republished.
+    # Encoding the release here made every desktop bump a fleet change
+    # that broke another repository's tests on a branch nobody
+    # touched. A stable name means gnome_release now governs only the
+    # label lookup.
+    gnome_cached_name: "debian-gnome-agents"
+    # Transitional: consumers still asking for the Debian 12 name get
+    # a hardlink to the same blob, so this rename does not break them.
+    # Drop this var and the task that uses it once no consumer reads
+    # it -- kerbside's functional-tests.yml is the only one known, and
+    # shakenfist/shakenfist's eol-distro audit doc mentions the name.
+    gnome_legacy_cached_name: "debian-12-gnome-agents"
   tasks:
     # The debian-gnome snapshot is baked into the cache disk for the
     # nested desktop CI jobs, but the label only exists once that
@@ -304,9 +320,9 @@
     - name: Download debian-gnome snapshot
       shell: |
         download_uuid='{{ gnome_artifact.stdout_lines[-1] }}'
-        rm -f /tmp/{{ gnome_cached_name }}
-        sf-client artifact download ${download_uuid} /tmp/{{ gnome_cached_name }}
-        ls -lh /tmp/{{ gnome_cached_name }}
+        rm -f /tmp/{{ gnome_download_name }}
+        sf-client artifact download ${download_uuid} /tmp/{{ gnome_download_name }}
+        ls -lh /tmp/{{ gnome_download_name }}
       when: gnome_label_exists | bool
 
     - name: Check runner resources after download
@@ -321,8 +337,24 @@
       shell: |
         scp -rp -i {{ ssh_private_key }} -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              /tmp/{{ gnome_cached_name }} \
+              /tmp/{{ gnome_download_name }} \
               debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/{{ gnome_cached_name }}
+      when: gnome_label_exists | bool
+
+    # Additive rename, per the AGENTS.md rule that a merge to main is a
+    # fleet deploy with no staging step. A hardlink rather than a
+    # symlink or a second scp: it costs no space and no extra transfer
+    # of a gigabyte-scale file, and it is indistinguishable from a
+    # regular file to a consumer doing scp, which a symlink is not
+    # guaranteed to be. Delete this task with
+    # gnome_legacy_cached_name once every consumer reads the stable
+    # name.
+    - name: Link the legacy cached name for consumers not yet migrated
+      shell: |
+        ssh -i {{ ssh_private_key }} -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}} \
+              "ln -f /srv/ci/cached/{{ gnome_cached_name }} /srv/ci/cached/{{ gnome_legacy_cached_name }} && ls -lh /srv/ci/cached/{{ gnome_legacy_cached_name }}"
       when: gnome_label_exists | bool
 
 - hosts: allsf
