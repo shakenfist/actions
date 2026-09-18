@@ -549,6 +549,18 @@ up as a flaky canary run days later -- and it has already been broken
 once, when only one of twelve provisioning paths grew the gate. See
 [ansible.md](ansible.md) for the gate itself.
 
+`tests/test_vip_reservation.py` guards the other ordering invariant in
+those playbooks: the deployment VIP has to be reserved after the test
+network is created and before the first address on it is allocated. It
+reads the set of kerbside playbooks out of `setup-kerbside-environment`'s
+topology switch rather than guessing from the tree, checks the ordering
+in each, and compares the four copies of the address -- three playbooks
+and the action's input default -- against each other and against the
+netblock they are reserved on. Same reasoning as the readiness gate,
+with a sharper edge: a collision is a one-in-253 draw, so a regression
+presents as flake rather than as breakage. See
+[ansible.md](ansible.md#the-deployment-vip).
+
 Those are all cross-file references or silent-failure guards nothing
 else validates -- actionlint checks a workflow's syntax, not whether
 the file it dispatches is there -- and each one fails only when

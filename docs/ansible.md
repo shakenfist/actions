@@ -116,16 +116,38 @@ prechecks pinged the VIP, the runner answered, and the deploy refused to
 start. Sibling jobs in the same run drew `.29`, `.98`, `.128` and `.223` and
 passed, which is what a one-in-253 collision looks like.
 
-`tasks/reserve-deployment-vip.yml` tolerates two failures rather than
-stopping the run. A cluster or an `sf-client` predating the
-`reserve-addresses` capability cannot honour the request, and because a merge
-here reaches the whole fleet at once a hard failure would break every consumer
-until both halves rolled out; that case warns instead. An address already
-reserved is a re-run against a network which still exists, and is a no-op.
+`tasks/reserve-deployment-vip.yml` tolerates three failures rather than
+stopping the run, because a merge here reaches the whole fleet at once and a
+hard failure would break every consumer until the server, the client and the
+runner images have all rolled out. An `sf-client` which does not know the verb
+-- or is not installed at all -- is detected by a `--help` probe before the
+reservation is attempted, because neither "No such command 'reserve-address'"
+(rc 2) nor "command not found" (rc 127) can be told apart from a real refusal
+after the fact. A cluster which does not advertise the `reserve-addresses`
+capability makes the client raise `IncapableException`, whose text says the
+server "does not support" the request. Both of those warn and continue. An
+address already reserved is a re-run against a network which still exists, and
+is a no-op. Anything else -- an unauthenticated client, a malformed address, a
+server error -- is a real failure and stops the run.
+
+The reservation is therefore only as good as what is deployed underneath it.
+It needs the `reserve-addresses` capability on the cluster (shakenfist#4247)
+and a runner image carrying an `sf-client` with the `network reserve-address`
+verb (client-python#400, merged). Until both are in place every kerbside run
+prints the warning above and the VIP stays allocatable, so a green lane does
+not by itself mean the collision has been closed out.
+
+The VIP is validated against the test network's `10.0.2.0/24` block before the
+reservation is attempted, so an override which is empty or outside the block
+fails with a message naming the problem rather than a 400 from the API.
 
 Change the VIP in only one place and it will collide again: the value here and
 `kolla_internal_vip_address` in the globals file being deployed are the same
-address, described twice.
+address, described twice. `tests/test_vip_reservation.py` holds the copies on
+this side of that line together -- the three playbooks, the action's input
+default, the netblock they are reserved on and the guard above -- and checks
+that every kerbside playbook reserves before it allocates. The copy in
+kerbside-patches is beyond its reach.
 
 ## Kolla node prerequisites
 

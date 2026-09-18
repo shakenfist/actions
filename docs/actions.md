@@ -177,6 +177,16 @@ Sets up the Kerbside-specific test environment: checks out kerbside-patches,
 assembles patched source, provisions a test VM, installs build dependencies,
 and configures the CI registry.
 
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `base` | Yes | `debian:12` | Base cloud image for the test VM |
+| `base_user` | Yes | `debian` | SSH user on the test VM |
+| `openstack_release` | Yes | `master` | OpenStack release to target |
+| `topology` | Yes | `all-in-one` | Deployment topology (`all-in-one`, `multinode` or `multinode-2`), which selects the playbook |
+| `vip_address` | No | `10.0.2.3` | The address the deployment brings up as its own VIP, reserved in Shaken Fist before anything else is allocated. Must match `kolla_internal_vip_address` in the globals file being deployed -- see [The deployment VIP](ansible.md#the-deployment-vip) |
+
 ## deploy-kolla-ansible
 
 Bootstraps, validates, and deploys Kolla-Ansible on a test VM. This action
