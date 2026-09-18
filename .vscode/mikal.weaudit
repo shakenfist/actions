@@ -399,6 +399,86 @@
     {
       "path": ".pre-commit-config.yaml",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image-desktop.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node-2.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/reserve-deployment-vip.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars/desktop-release.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_vip_reservation.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
