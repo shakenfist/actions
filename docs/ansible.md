@@ -179,17 +179,38 @@ still asking for it fails on a branch nobody touched. Encoding the
 release in that name therefore made every desktop bump a fleet change.
 `gnome_release` in `ci-dependencies.yml` now governs only the label the
 playbook looks up and the scratch filename on the runner; the published
-name is stable, so bumping the desktop image is no longer a fleet
-change at all.
+name is stable, so bumping the desktop image no longer needs a commit
+in every consuming repository.
+
+**It does still change what those consumers boot,** and the stable name
+makes that change quieter rather than smaller. The file at the stable
+path is whichever release `gnome_release` currently names, so a
+consumer gets the new desktop on the next `dependencies` rebuild with
+no diff anywhere for anybody to review. A release bump is no longer a
+packaging fleet change and is still a behavioural one: whatever boots
+that snapshot has to be known to work on the new release *before*
+`gnome_release` moves, which is why the required order below ends with
+the consumers rather than starting with them.
 
 While consumers migrate, the playbook also hardlinks the old
 `/srv/ci/cached/debian-12-gnome-agents` to the same blob, which costs
-no space and no second transfer. That task and its
-`gnome_legacy_cached_name` var are transitional and should be deleted
-once nothing reads the legacy name. `shakenfist/kerbside`'s
-`functional-tests.yml` is the only consumer known to read it; the
-`eol-distro` audit page in `shakenfist/shakenfist` mentions the name
-but does not consume it.
+no space and no second transfer. **That link is a path shim and
+nothing more.** It stops an unmigrated consumer's `scp` failing; it
+does not keep giving that consumer Debian 12. The blob it points at is
+the release `gnome_release` names, so a consumer asking for the
+`debian-12` path today receives the Debian 13 snapshot under it. That
+is deliberate -- the alternative is keeping two desktop snapshots on a
+disk sized for one -- but it is why the link is not a migration
+window in any sense except the spelling of the path.
+
+That task and its `gnome_legacy_cached_name` var are transitional and
+should be deleted once nothing reads the legacy name.
+`shakenfist/kerbside`'s `functional-tests.yml` is the only consumer
+known to read it, and it boots the snapshot as a SPICE test target, so
+it is the one place where the contents moving matters and not just the
+path. The `eol-distro` audit page mentions the name without consuming
+it; its authored copy lives in `shakenfist/development` at
+`docs/audits/eol-distro.md`, not in the published mirror.
 
 **Rolling out a desktop release bump has a required order**, because a
 missing gnome label is skipped here rather than being fatal: a

@@ -270,11 +270,16 @@
     # touched. A stable name means gnome_release now governs only the
     # label lookup.
     gnome_cached_name: "debian-gnome-agents"
-    # Transitional: consumers still asking for the Debian 12 name get
-    # a hardlink to the same blob, so this rename does not break them.
-    # Drop this var and the task that uses it once no consumer reads
-    # it -- kerbside's functional-tests.yml is the only one known, and
-    # shakenfist/shakenfist's eol-distro audit doc mentions the name.
+    # Transitional, and a path shim only: consumers still asking for
+    # the Debian 12 name get a hardlink to the same blob, so their scp
+    # keeps working -- but the blob is whichever release gnome_release
+    # names, so they receive the Debian 13 snapshot under a Debian 12
+    # path. This buys time to edit a path, not time to stay on an old
+    # release. Drop this var and the task that uses it once no consumer
+    # reads it -- kerbside's functional-tests.yml is the only one
+    # known, and it boots the snapshot as a SPICE test target, so it is
+    # where the contents moving actually matters. The eol-distro audit
+    # doc mentions the name without consuming it.
     gnome_legacy_cached_name: "debian-12-gnome-agents"
   tasks:
     # The debian-gnome snapshot is baked into the cache disk for the
