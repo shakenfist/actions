@@ -41,6 +41,10 @@
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
+      "date": "2026-09-19"
+    },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "c655a8ca69cc427fbbca49c6a22d344679ec96f9",
       "date": "2026-09-14"
@@ -65,6 +69,10 @@
       "sha": "44e645c02c975d08358d2c878665f497c7ce31f2",
       "date": "2026-09-07"
     },
+    "ansible/ci-dependencies.yml": {
+      "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
+      "date": "2026-09-19"
+    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "668fff5e2d83203244e09ec79e6f5c72453fc1f6",
       "date": "2026-09-09"
@@ -72,6 +80,10 @@
     "ansible/ci-gather-logs.yml": {
       "sha": "8f72cef07419e05672c015976536ec6132663911",
       "date": "2026-09-07"
+    },
+    "ansible/ci-image-desktop.yml": {
+      "sha": "9b09bbf4bf69cd2a56a1f43969cb477b4cd308d1",
+      "date": "2026-09-19"
     },
     "ansible/ci-image.yml": {
       "sha": "dbdf1030a8c17915f789e6869438c1320f505337",
@@ -129,6 +141,18 @@
       "sha": "043e45e4f1b85b320cfeba693435092b4affb641",
       "date": "2026-09-07"
     },
+    "ansible/kerbside-multi-node-2.yml": {
+      "sha": "8febe43407ea8c70a2ca181b7c114f0ced9880c5",
+      "date": "2026-09-19"
+    },
+    "ansible/kerbside-multi-node.yml": {
+      "sha": "d36d192463e12e98d1e417a5afeba8876cb6875a",
+      "date": "2026-09-19"
+    },
+    "ansible/kerbside-single-node.yml": {
+      "sha": "6aa5551a01095f63871470e4f7d3dd0766e7657a",
+      "date": "2026-09-19"
+    },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
       "date": "2026-09-16"
@@ -137,6 +161,10 @@
       "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
       "date": "2026-09-10"
     },
+    "ansible/tasks/reserve-deployment-vip.yml": {
+      "sha": "b115cb6e27c1cd7e9600ca1f7914d26c8f3c662a",
+      "date": "2026-09-19"
+    },
     "ansible/tasks/wait-for-cloud-init.yml": {
       "sha": "f879cb9fee4899a34e2374f8bf7c0fa96580832e",
       "date": "2026-09-07"
@@ -144,6 +172,10 @@
     "ansible/tasks/wait-for-ssh-with-refloat.yml": {
       "sha": "6640f3073e18e7dab5996ff0c64be81e5a7c87ea",
       "date": "2026-09-07"
+    },
+    "ansible/vars/desktop-release.yml": {
+      "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
+      "date": "2026-09-19"
     },
     "build-smoke-cluster/action.yml": {
       "sha": "5ce2553f526c8fc0babd19985780f0ece822a529",
@@ -156,6 +188,18 @@
     "deploy-kolla-ansible/action.yml": {
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
+    },
+    "docs/actions.md": {
+      "sha": "f922a8279f0775f6258f40dbede854f1ed1b489d",
+      "date": "2026-09-19"
+    },
+    "docs/ansible.md": {
+      "sha": "19c183fb76f71214d5bfcdaab3cba9410b5dc727",
+      "date": "2026-09-19"
+    },
+    "docs/ci.md": {
+      "sha": "fd607d0e03051b3008a1e3f82909f711df022c48",
+      "date": "2026-09-19"
     },
     "docs/consuming.md": {
       "sha": "9a2e795421eb15431f34043a3e200159ad641891",
@@ -205,6 +249,10 @@
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
       "date": "2026-09-07"
     },
+    "setup-kerbside-environment/action.yml": {
+      "sha": "2c517c5389c92fb04f0ee238b8b11a1c9ff62352",
+      "date": "2026-09-19"
+    },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",
       "date": "2026-09-07"
@@ -248,6 +296,10 @@
     "tests/test_run_remote.py": {
       "sha": "a0778f7c03c11c37d2472b12fe3ffa6ff7facacf",
       "date": "2026-09-07"
+    },
+    "tests/test_vip_reservation.py": {
+      "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
+      "date": "2026-09-19"
     },
     "tests/test_workflow_references.py": {
       "sha": "570c9811fe57225d0a2287f492d167cd4a71c015",
