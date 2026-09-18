@@ -1,11 +1,13 @@
 - hosts: localhost
   gather_facts: no
   connection: ssh
+  vars_files:
+    - vars/desktop-release.yml
   vars:
     identifier: unknown
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
-    base_image: "debian-gnome:12"
+    base_image: "debian-gnome:{{ desktop_release }}"
     base_image_user: "debian"
     # When this playbook runs on a CI runner, the runner shares the
     # builder instance's virtual network and can ssh to its inner
@@ -143,12 +145,14 @@
 - hosts: localhost
   gather_facts: no
   connection: ssh
+  vars_files:
+    - vars/desktop-release.yml
   vars:
     identifier: cron
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
     base_image_user: "debian"
-    label: "ci-images/debian-gnome-12"
+    label: "ci-images/debian-gnome-{{ desktop_release }}"
     float_builder: false
 
   tasks:

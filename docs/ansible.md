@@ -160,12 +160,71 @@ builder instance with a 50GB second disk, fills it with the cloud images
 CI boots -- cirros, the Ubuntu, Debian, CentOS Stream, Fedora and Rocky
 minimal images, and the GitHub Actions runner tarball -- and adds the
 imago-testdata clone and, when that label already exists, the
-`debian-gnome-12` snapshot. The disk is then snapshotted and published
+`debian-gnome-13` snapshot. The disk is then snapshotted and published
 as the `dependencies` label, which every topology attaches as its second
 disk and mounts at `/srv/ci`. The `get_url` loop in that playbook is
 therefore the definition of what CI can boot without going to the
 network; `debian:13` and `rocky:10` sit in it alongside the earlier
 releases, and the images alone now come to roughly 10.2GB.
+
+That snapshot lands on the disk at
+`/srv/ci/cached/debian-gnome-agents`, and that name deliberately does
+not say which Debian release it holds. The name is not private to this
+repository: `shakenfist/kerbside` copies the file off the disk by
+hardcoded path in its functional tests, so it is a cross-repository
+interface. It also has no transition window, because the disk is
+reformatted from scratch on every build -- the old name is gone the
+moment the `dependencies` label is next republished, and a consumer
+still asking for it fails on a branch nobody touched. Encoding the
+release in that name therefore made every desktop bump a fleet change.
+`gnome_release` in `ci-dependencies.yml` now governs only the label the
+playbook looks up and the scratch filename on the runner; the published
+name is stable, so bumping the desktop image no longer needs a commit
+in every consuming repository.
+
+**It does still change what those consumers boot,** and the stable name
+makes that change quieter rather than smaller. The file at the stable
+path is whichever release `gnome_release` currently names, so a
+consumer gets the new desktop on the next `dependencies` rebuild with
+no diff anywhere for anybody to review. A release bump is no longer a
+packaging fleet change and is still a behavioural one: whatever boots
+that snapshot has to be known to work on the new release *before*
+`gnome_release` moves, which is why the required order below ends with
+the consumers rather than starting with them.
+
+While consumers migrate, the playbook also hardlinks the old
+`/srv/ci/cached/debian-12-gnome-agents` to the same blob, which costs
+no space and no second transfer. **That link is a path shim and
+nothing more.** It stops an unmigrated consumer's `scp` failing; it
+does not keep giving that consumer Debian 12. The blob it points at is
+the release `gnome_release` names, so a consumer asking for the
+`debian-12` path today receives the Debian 13 snapshot under it. That
+is deliberate -- the alternative is keeping two desktop snapshots on a
+disk sized for one -- but it is why the link is not a migration
+window in any sense except the spelling of the path.
+
+That task and its `gnome_legacy_cached_name` var are transitional and
+should be deleted once nothing reads the legacy name.
+`shakenfist/kerbside`'s `functional-tests.yml` is the only consumer
+known to read it, and it boots the snapshot as a SPICE test target, so
+it is the one place where the contents moving matters and not just the
+path. The `eol-distro` audit page mentions the name without consuming
+it; its authored copy lives in `shakenfist/development` at
+`docs/audits/eol-distro.md`, not in the published mirror.
+
+**Rolling out a desktop release bump has a required order**, because a
+missing gnome label is skipped here rather than being fatal: a
+`dependencies` rebuild that runs too early publishes a disk with no
+gnome snapshot under either name, and the disk's own verification
+cannot catch it -- a missing cache entry passes on purpose. The order
+is `shakenfist/images` publishes the base image, then
+`ci-image-desktop.yml` publishes the `ci-images/debian-gnome-<release>`
+label, then the conductor rebuilds `dependencies`, and only then do
+consumers see the new contents. `GNOME_LABEL` in private-ci's conductor
+names the same label a third time and has to move with `gnome_release`;
+the conductor's gnome-less marker uses it to decide when a cluster
+rebuilds its cache disk, so a constant naming a label this playbook
+does not snapshot leaves the disk stale without anything reporting it.
 
 Two things about that disk are load bearing and easy to undo by
 accident.

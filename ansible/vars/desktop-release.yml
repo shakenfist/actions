@@ -1,0 +1,19 @@
+---
+# The Debian release ci-image-desktop.yml builds a GNOME image for.
+#
+# Both places that need it are overridden in production: conductor
+# passes base_image and label as --extra-vars built from IMAGE_BUILDS
+# (conductor/imagebuilder.py), and extra vars outrank everything here.
+# So this file is what a hand run of the playbook gets.
+#
+# It exists because the release is spelled two ways -- debian-gnome:13
+# for the base image, debian-gnome-13 for the label -- in two separate
+# plays 140 lines apart, and a play's vars: block cannot be shared with
+# another play. Spelling it once is what stops a hand run building
+# trixie and publishing it under the bookworm label, which is a wrong
+# answer rather than a failure and so would not announce itself.
+#
+# This is not the release the cache disk's snapshot name carries: that
+# name is deliberately release-agnostic. See gnome_cached_name in
+# ci-dependencies.yml and the cache disk section of docs/ansible.md.
+desktop_release: 13

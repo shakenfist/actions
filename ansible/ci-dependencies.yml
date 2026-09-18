@@ -249,18 +249,50 @@
   vars:
     sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: '/srv/github/id_ci'
+    # The Debian release of the desktop image whose snapshot is baked
+    # onto this disk. Bumping the desktop image is one edit here --
+    # plus the matched base_image and label pair in
+    # ci-image-desktop.yml, and GNOME_LABEL in private-ci's conductor,
+    # neither of which a var in this playbook can reach.
+    gnome_release: 13
+    gnome_label: "debian-gnome-{{ gnome_release }}"
+    # The scratch file on the runner is named for the release, because
+    # that is a local detail and the release is useful in a build log.
+    gnome_download_name: "debian-{{ gnome_release }}-gnome-agents"
+    # The name on the cache disk deliberately does NOT carry the
+    # release. That path is a cross-repository interface --
+    # shakenfist/kerbside copies it off the disk by hardcoded path in
+    # its functional tests -- and the disk is reformatted from scratch
+    # on every build, so a rename has no transition window: the old
+    # name is gone the moment the dependencies label is republished.
+    # Encoding the release here made every desktop bump a fleet change
+    # that broke another repository's tests on a branch nobody
+    # touched. A stable name means gnome_release now governs only the
+    # label lookup.
+    gnome_cached_name: "debian-gnome-agents"
+    # Transitional, and a path shim only: consumers still asking for
+    # the Debian 12 name get a hardlink to the same blob, so their scp
+    # keeps working -- but the blob is whichever release gnome_release
+    # names, so they receive the Debian 13 snapshot under a Debian 12
+    # path. This buys time to edit a path, not time to stay on an old
+    # release. Drop this var and the task that uses it once no consumer
+    # reads it -- kerbside's functional-tests.yml is the only one
+    # known, and it boots the snapshot as a SPICE test target, so it is
+    # where the contents moving actually matters. The eol-distro audit
+    # doc mentions the name without consuming it.
+    gnome_legacy_cached_name: "debian-12-gnome-agents"
   tasks:
     # The debian-gnome snapshot is baked into the cache disk for the
-    # nested desktop CI jobs, but the label only exists once the
-    # debian-gnome-12 image itself has been built. On a fresh cluster
+    # nested desktop CI jobs, but the label only exists once that
+    # desktop image itself has been built. On a fresh cluster
     # conductor builds this dependencies image first (it gates all
     # runner provisioning), so a missing gnome label is skipped here
     # rather than failing the build; conductor rebuilds this image
-    # once debian-gnome-12 exists to bake the snapshot in.
+    # once the label exists to bake the snapshot in.
     - name: Look up debian-gnome snapshot artifact
       shell: |
         sf-client --json artifact list | \
-            jq -r '.[] | select(.source_url == "sf://label/ci-images/debian-gnome-12") | .uuid'
+            jq -r '.[] | select(.source_url == "sf://label/ci-images/{{ gnome_label }}") | .uuid'
       register: gnome_artifact
 
     - name: Record whether the debian-gnome label exists
@@ -270,9 +302,10 @@
     - name: Note the missing debian-gnome label
       debug:
         msg: >-
-          The debian-gnome-12 label does not exist yet, so its snapshot
-          will not be cached on this dependencies disk. Rebuild this
-          image after debian-gnome-12 has been built to include it.
+          The {{ gnome_label }} label does not exist yet, so its
+          snapshot will not be cached on this dependencies disk.
+          Rebuild this image after {{ gnome_label }} has been built to
+          include it.
       when: not gnome_label_exists | bool
 
     - name: Log artifact details
@@ -292,9 +325,9 @@
     - name: Download debian-gnome snapshot
       shell: |
         download_uuid='{{ gnome_artifact.stdout_lines[-1] }}'
-        rm -f /tmp/debian-12-gnome-agents
-        sf-client artifact download ${download_uuid} /tmp/debian-12-gnome-agents
-        ls -lh /tmp/debian-12-gnome-agents
+        rm -f /tmp/{{ gnome_download_name }}
+        sf-client artifact download ${download_uuid} /tmp/{{ gnome_download_name }}
+        ls -lh /tmp/{{ gnome_download_name }}
       when: gnome_label_exists | bool
 
     - name: Check runner resources after download
@@ -309,8 +342,24 @@
       shell: |
         scp -rp -i {{ ssh_private_key }} -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=/dev/null \
-              /tmp/debian-12-gnome-agents \
-              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/debian-12-gnome-agents
+              /tmp/{{ gnome_download_name }} \
+              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/{{ gnome_cached_name }}
+      when: gnome_label_exists | bool
+
+    # Additive rename, per the AGENTS.md rule that a merge to main is a
+    # fleet deploy with no staging step. A hardlink rather than a
+    # symlink or a second scp: it costs no space and no extra transfer
+    # of a gigabyte-scale file, and it is indistinguishable from a
+    # regular file to a consumer doing scp, which a symlink is not
+    # guaranteed to be. Delete this task with
+    # gnome_legacy_cached_name once every consumer reads the stable
+    # name.
+    - name: Link the legacy cached name for consumers not yet migrated
+      shell: |
+        ssh -i {{ ssh_private_key }} -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}} \
+              "ln -f /srv/ci/cached/{{ gnome_cached_name }} /srv/ci/cached/{{ gnome_legacy_cached_name }} && ls -lh /srv/ci/cached/{{ gnome_legacy_cached_name }}"
       when: gnome_label_exists | bool
 
 - hosts: allsf
