@@ -181,14 +181,6 @@
       "author": "mikal"
     },
     {
-      "path": "setup-kerbside-environment/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "setup-kerbside-environment",
-      "author": "mikal"
-    },
-    {
       "path": "setup-test-environment/action.yml",
       "author": "mikal"
     },
@@ -210,14 +202,6 @@
     },
     {
       "path": "etc",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/actions.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci.md",
       "author": "mikal"
     },
     {
@@ -282,18 +266,6 @@
     },
     {
       "path": "ansible/tasks/install-kolla-prerequisites.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-multi-node-2.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-multi-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-single-node.yml",
       "author": "mikal"
     },
     {
@@ -418,10 +390,6 @@
     },
     {
       "path": "ansible/tasks/install-ci-log-shipper.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks",
       "author": "mikal"
     },
     {

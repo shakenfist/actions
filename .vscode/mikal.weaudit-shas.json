@@ -129,18 +129,6 @@
       "sha": "043e45e4f1b85b320cfeba693435092b4affb641",
       "date": "2026-09-07"
     },
-    "ansible/kerbside-multi-node-2.yml": {
-      "sha": "3920f866171a7d3548345e6b03fd4bb61b787ab8",
-      "date": "2026-09-10"
-    },
-    "ansible/kerbside-multi-node.yml": {
-      "sha": "414991ee6071a2d9de5e22cd889bbec375bb3711",
-      "date": "2026-09-10"
-    },
-    "ansible/kerbside-single-node.yml": {
-      "sha": "243e8abe7b487db34f24577a42ebafcc8ef27b61",
-      "date": "2026-09-10"
-    },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
       "date": "2026-09-16"
@@ -167,14 +155,6 @@
     },
     "deploy-kolla-ansible/action.yml": {
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
-      "date": "2026-09-07"
-    },
-    "docs/actions.md": {
-      "sha": "412be4bf676a68a5cee3484e3eb6e18ae288ebc2",
-      "date": "2026-09-07"
-    },
-    "docs/ci.md": {
-      "sha": "3553a0c85af72cf979610df13b21423d5a5bea88",
       "date": "2026-09-07"
     },
     "docs/consuming.md": {
@@ -223,10 +203,6 @@
     },
     "review-pr-with-claude/review-schema.json": {
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
-      "date": "2026-09-07"
-    },
-    "setup-kerbside-environment/action.yml": {
-      "sha": "663b0bed0278ba7aeceef7477dff7c4f6c3e46a6",
       "date": "2026-09-07"
     },
     "setup-test-environment/action.yml": {
