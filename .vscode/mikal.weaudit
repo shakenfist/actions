@@ -405,10 +405,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image-desktop.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image.yml",
       "author": "mikal"
     },
@@ -434,22 +430,6 @@
     },
     {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     }
   ],
