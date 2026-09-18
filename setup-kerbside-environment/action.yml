@@ -17,6 +17,10 @@ inputs:
     description: 'The topology to use (all-in-one or multinode)'
     required: true
     default: 'all-in-one'
+  vip_address:
+    description: 'The address the deployment brings up as its own VIP. Reserved in Shaken Fist before anything else is allocated, so that IPAM never hands it to an interface. Must match kolla_internal_vip_address in the globals file being deployed.'
+    required: false
+    default: '10.0.2.3'
 runs:
   using: "composite"
   steps:
@@ -85,6 +89,12 @@ runs:
 
     - name: Build infrastructure
       shell: bash
+      env:
+        # Through the environment rather than interpolated into the command
+        # line below: an input carrying a quote or a shell metacharacter
+        # would otherwise break out of the --extra-vars string and run as
+        # shell here.
+        VIP_ADDRESS: ${{ inputs.vip_address }}
       run: |
         . $GITHUB_ENV
         cd ${GITHUB_WORKSPACE}/kerbside-patches
@@ -102,7 +112,7 @@ runs:
         echo "Using playbook ${playbook}"
 
         ansible-playbook -i /home/debian/ansible-hosts \
-            --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }} base_user=${{ inputs.base_user }}" \
+            --extra-vars "identifier=${SHAKENFIST_NAMESPACE} base=${{ inputs.base }} base_user=${{ inputs.base_user }} vip_address=${VIP_ADDRESS}" \
             --tags all ${GITHUB_WORKSPACE}/actions/ansible/${playbook}
 
         # Copy the environment ssh key to the deploy node
