@@ -117,10 +117,6 @@
       "sha": "1e2426cd4487ebcf84a4c52a3acbf1e9047d65b6",
       "date": "2026-09-07"
     },
-    "ansible/ci-topology-slim-tier.yml": {
-      "sha": "89a8b7537e84dcdac57d6cc8d9c5de722172f546",
-      "date": "2026-09-07"
-    },
     "ansible/files/ci-runner-alloy.alloy": {
       "sha": "b4cb1ddd3e403fb8cc8d85aa349a4ebfc1737970",
       "date": "2026-09-16"

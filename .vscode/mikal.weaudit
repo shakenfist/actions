@@ -117,10 +117,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-slim-tier.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/kerbside-create-instance.yml",
       "author": "mikal"
     },
@@ -450,10 +446,6 @@
     },
     {
       "path": "ansible/vars",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {
