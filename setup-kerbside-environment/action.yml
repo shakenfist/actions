@@ -4,7 +4,7 @@ inputs:
   base:
     description: 'Base cloud image'
     required: true
-    default: 'debian:12'
+    default: 'debian:13'
   base_user:
     description: 'User to log into instance as'
     required: true

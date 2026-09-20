@@ -11,7 +11,7 @@ next CI run gets.
 ## Adding Shaken Fist smoke CI to your repository
 
 Two modes, depending on what "have I broken things?" means for your
-repository. Both need a `[self-hosted, vm, debian-12]` runner.
+repository. Both need a `[self-hosted, vm, debian-13]` runner.
 
 **Mode 1 — your check is Shaken Fist's own smoke suite** (the component
 you develop is deployed into the cluster and the standard suite
@@ -60,7 +60,7 @@ repositories:
 ```yaml
 jobs:
   smoke:
-    runs-on: [self-hosted, vm, debian-12, s]
+    runs-on: [self-hosted, vm, debian-13, s]
     steps:
       - name: Setup test environment
         uses: shakenfist/actions/setup-test-environment@main

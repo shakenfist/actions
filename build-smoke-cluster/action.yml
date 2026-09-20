@@ -25,6 +25,9 @@ inputs:
       VMs: localhost (single-node smoke), slim-primary or slim-tier.
     default: localhost
   base_image:
+    # Bookworm deliberately, and not an eol-distro audit miss: a trixie
+    # under-cloud leaves every instance's agent with no contact. See the
+    # same input in .github/workflows/smoke-cluster.yml for the evidence.
     description: The under-cloud image to boot test instances from.
     default: 'sf://label/ci-images/debian-12'
   base_image_user:
@@ -234,6 +237,17 @@ runs:
 
         exit 1
 
+    # This uploads the cached bookworm disk into the nested cluster under
+    # the artifact name "debian-12", and both halves of that are load
+    # bearing. The name is what every consumer's test suite boots from --
+    # shakenfist_ci's CLUSTER_CI_IMAGE is the literal string
+    # sf://upload/system/debian-12, and dozens of tests spell it out
+    # again -- so renaming it here breaks the fleet rather than this
+    # repository. The contents are a guest image, which the eol-distro
+    # audit deliberately does not judge (see development's
+    # docs/audits/eol-distro.md): moving the smoke suite's guest to
+    # trixie is a change to what those tests exercise, and it lands in
+    # shakenfist alongside the label rename, not here on its own.
     - name: Import the base test image
       shell: bash
       run: |
