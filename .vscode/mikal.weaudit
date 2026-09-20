@@ -49,10 +49,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ansible_readiness.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_create_review_issues.py",
       "author": "mikal"
     },
@@ -70,10 +66,6 @@
     },
     {
       "path": "tests/test_run_remote.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks/wait-for-cloud-init.yml",
       "author": "mikal"
     },
     {
@@ -241,10 +233,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/tasks/install-kolla-prerequisites.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/check-issue-links.py",
       "author": "mikal"
     },
@@ -393,15 +381,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/tasks/reserve-deployment-vip.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks",
       "author": "mikal"
     },
     {

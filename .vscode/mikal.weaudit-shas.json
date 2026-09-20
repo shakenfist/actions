@@ -141,17 +141,9 @@
       "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
       "date": "2026-09-16"
     },
-    "ansible/tasks/install-kolla-prerequisites.yml": {
-      "sha": "91ce2d1ddf3e94da1bfc2721040547fdfe8e1934",
-      "date": "2026-09-10"
-    },
     "ansible/tasks/reserve-deployment-vip.yml": {
       "sha": "b115cb6e27c1cd7e9600ca1f7914d26c8f3c662a",
       "date": "2026-09-19"
-    },
-    "ansible/tasks/wait-for-cloud-init.yml": {
-      "sha": "f879cb9fee4899a34e2374f8bf7c0fa96580832e",
-      "date": "2026-09-07"
     },
     "ansible/tasks/wait-for-ssh-with-refloat.yml": {
       "sha": "6640f3073e18e7dab5996ff0c64be81e5a7c87ea",
@@ -168,10 +160,6 @@
     "deploy-kolla-ansible/action.yml": {
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
-    },
-    "docs/ansible.md": {
-      "sha": "19c183fb76f71214d5bfcdaab3cba9410b5dc727",
-      "date": "2026-09-19"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -227,10 +215,6 @@
     },
     "tests/helpers.py": {
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
-      "date": "2026-09-07"
-    },
-    "tests/test_ansible_readiness.py": {
-      "sha": "ee5b9d2ddf0fa518337e01fb16396fd7b2a71799",
       "date": "2026-09-07"
     },
     "tests/test_check_issue_links.py": {
