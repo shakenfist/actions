@@ -123,13 +123,19 @@ lane runs in full.
 One operational note on runner labels: every VM job in this lane asks
 for a `debian-13` runner. The gitleaks job got there first, because
 gitleaks is not packaged before trixie; the rest followed when Debian 12
-reached end of life on 2026-06-10. The conductor provisions that class
-on demand like any other, but a job with no matching runner available
-does not fail, it queues -- the first `debian-13` job here sat queued
-for about ninety minutes before starting, then finished in thirteen
-seconds -- and `timeout-minutes` does not cover queue time. So a check
-that has been pending for a long while is waiting for a runner rather
-than broken, and for a required check that distinction matters.
+left regular support on 2026-06-10 and passed to the LTS team. The
+conductor provisions that class on demand like any other, but a job with
+no matching runner available does not fail, it queues, and
+`timeout-minutes` does not cover queue time.
+
+The ninety minutes the first `debian-13` job here waited -- to then
+finish in thirteen seconds -- was the cost of being first, not the
+steady state. Measured on 2026-09-20, with the class in routine use:
+this lane's short jobs started three to five minutes after their run was
+created, while two smoke-cluster dispatches waited twenty-four and
+twenty-six minutes. So a check that has been pending for a long while is
+waiting for a runner rather than broken, and for a required check that
+distinction matters.
 
 ### Bot-triggered lane
 
