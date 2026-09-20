@@ -1,16 +1,8 @@
 {
   "version": 1,
   "files": {
-    ".github/actionlint.yaml": {
-      "sha": "e22fc12c6a98bb0fde42b5f908efc41465933e4a",
-      "date": "2026-08-24"
-    },
     ".github/workflows/canary.yml": {
       "sha": "eb280daeac65933e6dcc3d52bfc03615f312a96a",
-      "date": "2026-08-24"
-    },
-    ".github/workflows/ci.yml": {
-      "sha": "eb987bf187e11b0fc66b0049a263ddc81d38c70b",
       "date": "2026-08-24"
     },
     ".github/workflows/codeql-analysis.yml": {
@@ -44,10 +36,6 @@
     ".github/workflows/renovate.yml": {
       "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
       "date": "2026-09-19"
-    },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "c655a8ca69cc427fbbca49c6a22d344679ec96f9",
-      "date": "2026-09-14"
     },
     ".gitleaks.toml": {
       "sha": "6be5dc4d7c4b805de45535976696180385593cce",
@@ -173,10 +161,6 @@
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
     },
-    "build-smoke-cluster/action.yml": {
-      "sha": "5ce2553f526c8fc0babd19985780f0ece822a529",
-      "date": "2026-09-07"
-    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -185,21 +169,9 @@
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
     },
-    "docs/actions.md": {
-      "sha": "f922a8279f0775f6258f40dbede854f1ed1b489d",
-      "date": "2026-09-19"
-    },
     "docs/ansible.md": {
       "sha": "19c183fb76f71214d5bfcdaab3cba9410b5dc727",
       "date": "2026-09-19"
-    },
-    "docs/ci.md": {
-      "sha": "fd607d0e03051b3008a1e3f82909f711df022c48",
-      "date": "2026-09-19"
-    },
-    "docs/consuming.md": {
-      "sha": "9a2e795421eb15431f34043a3e200159ad641891",
-      "date": "2026-09-09"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -244,10 +216,6 @@
     "review-pr-with-claude/review-schema.json": {
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
       "date": "2026-09-07"
-    },
-    "setup-kerbside-environment/action.yml": {
-      "sha": "2c517c5389c92fb04f0ee238b8b11a1c9ff62352",
-      "date": "2026-09-19"
     },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",
