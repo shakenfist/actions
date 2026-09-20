@@ -120,15 +120,16 @@ a required check -- but it does mean a fork pull request arrives
 unchecked. Review it by pushing the branch to this repository, where the
 lane runs in full.
 
-One operational note on the gitleaks job: it is the only thing in the
-fleet asking for a `debian-13` runner, because gitleaks is not packaged
-before trixie. That runner class exists and the job runs green on it,
-but it is scarce -- the first run of this workflow sat queued for about
-ninety minutes before starting, then finished in thirteen seconds. A job
-with no matching runner does not fail, it queues, and `timeout-minutes`
-does not cover queue time. So a gitleaks check that has been pending for
-a long while is waiting for a runner rather than broken, and if this
-ever becomes a required check that distinction matters.
+One operational note on runner labels: every VM job in this lane asks
+for a `debian-13` runner. The gitleaks job got there first, because
+gitleaks is not packaged before trixie; the rest followed when Debian 12
+reached end of life on 2026-06-10. The conductor provisions that class
+on demand like any other, but a job with no matching runner available
+does not fail, it queues -- the first `debian-13` job here sat queued
+for about ninety minutes before starting, then finished in thirteen
+seconds -- and `timeout-minutes` does not cover queue time. So a check
+that has been pending for a long while is waiting for a runner rather
+than broken, and for a required check that distinction matters.
 
 ### Bot-triggered lane
 

@@ -181,7 +181,7 @@ and configures the CI registry.
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `base` | Yes | `debian:12` | Base cloud image for the test VM |
+| `base` | Yes | `debian:13` | Base cloud image for the test VM |
 | `base_user` | Yes | `debian` | SSH user on the test VM |
 | `openstack_release` | Yes | `master` | OpenStack release to target |
 | `topology` | Yes | `all-in-one` | Deployment topology (`all-in-one`, `multinode` or `multinode-2`), which selects the playbook |
