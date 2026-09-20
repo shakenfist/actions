@@ -35,21 +35,29 @@
 # would be load bearing rather than incidental. apt-get needs nothing.
 
 # Not os_family: the question here is which package manager the host has,
-# and the pkg_mgr collector answers it from the binaries present, which
-# needs no bindings of its own. The playbooks that import this file run
-# their readiness play with gather_facts: false, so nothing has been
-# gathered yet.
+# and asking for the binary answers it from the same evidence the pkg_mgr
+# fact collector used to. The playbooks that import this file run their
+# readiness play with gather_facts: false, so nothing has been gathered
+# yet.
+#
+# raw rather than that collector, because setup is a module and a module
+# needs Python 3.9 or newer on the managed node. The oVirt lane's Rocky 8
+# guest has 3.6, so fact gathering died there in Ansible's own module
+# wrapper -- one play after the readiness gate, which used to fail the
+# same way and no longer does. See tasks/wait-for-cloud-init.yml and
+# shakenfist/kerbside#446. Every host that reaches the apt block below is
+# Debian, where modules run perfectly well; it is only the question that
+# has to be asked without one.
 - name: Work out which package manager the host has
-  ansible.builtin.setup:
-    gather_subset:
-      - '!all'
-      - '!min'
-      - pkg_mgr
+  ansible.builtin.raw: command -v apt-get
+  register: apt_get_probe
+  changed_when: false
+  failed_when: false
 
 # Rocky hosts take package_facts' rpm backend, which needs no bindings, so
 # they want nothing from this file.
 - name: Install the apt bindings package_facts needs
-  when: ansible_facts.pkg_mgr == 'apt'
+  when: apt_get_probe.rc == 0
   become: true
   # LC_ALL because the changed_when below reads apt-get's own words, and
   # a localised host would report every run as changed.

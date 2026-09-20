@@ -67,6 +67,48 @@ def tasks(container):
                 yield from tasks(container[key])
 
 
+# Everything Ansible lets a task carry that is not the module it runs.
+# Subtracting these from a task's keys leaves the modules, which is how
+# the gate checks below tell "this task calls setup" apart from "this task
+# has a when". A keyword missing from this set reads as a module and shows
+# up as a failure naming it, which is the safe direction to be wrong in.
+TASK_KEYWORDS = frozenset((
+    'always', 'any_errors_fatal', 'args', 'become', 'become_flags',
+    'become_method', 'become_user', 'block', 'changed_when', 'check_mode',
+    'connection', 'delay', 'delegate_facts', 'delegate_to', 'environment',
+    'failed_when', 'ignore_errors', 'ignore_unreachable', 'import_playbook',
+    'import_role', 'import_tasks', 'include', 'include_role',
+    'include_tasks', 'listen', 'local_action', 'loop', 'loop_control',
+    'name', 'no_log', 'notify', 'register', 'rescue', 'retries', 'run_once',
+    'tags', 'throttle', 'until', 'vars', 'when', 'with_items',
+))
+
+
+def modules_in(task):
+    """The modules a task calls, keyed by short name.
+
+    Short names because a task may spell a module either way, and the
+    checks here care which module it is rather than how it was written.
+    A block carries no module of its own and so yields nothing.
+    """
+    return {key.split('.')[-1]: value for key, value in task.items()
+            if key.split('.')[-1] not in TASK_KEYWORDS}
+
+
+def command_string(value):
+    """What a command module task runs, whichever way it was spelled.
+
+    free form, cmd: and argv: are all the same question, and a check
+    which only understood one of them would go quietly vacuous the first
+    time the gate changed spelling.
+    """
+    if isinstance(value, dict):
+        value = value.get('cmd', value.get('argv'))
+    if isinstance(value, list):
+        value = ' '.join(str(item) for item in value)
+    return value if isinstance(value, str) else ''
+
+
 def included_file(task):
     """Return the file an include_tasks/import_tasks task pulls in."""
     for key in ('include_tasks', 'import_tasks', 'include', 'ansible.builtin.include_tasks',
@@ -211,39 +253,82 @@ class ReadinessGateTest(unittest.TestCase):
             os.path.exists(os.path.join(ANSIBLE_DIR, GATE)),
             '%s is missing; every readiness play imports it' % GATE)
 
+    def gate_tasks(self):
+        with open(os.path.join(ANSIBLE_DIR, GATE)) as f:
+            return list(tasks(yaml.safe_load(f)))
+
     def test_the_gate_still_waits(self):
         # Every other test here checks that playbooks import the gate by
         # path, which says nothing about what the gate does. Gutting
         # wait-for-cloud-init.yml down to the connection wait, or dropping
         # the cloud-init step, would leave all of them green while
         # removing the behaviour they exist to protect.
-        with open(os.path.join(ANSIBLE_DIR, GATE)) as f:
-            gate = yaml.safe_load(f)
+        probes = []
+        waits = []
+        for task in self.gate_tasks():
+            for name, value in modules_in(task).items():
+                if name == 'command':
+                    probes.append(command_string(value))
+                elif name == 'raw' and isinstance(value, str):
+                    waits.append(value)
 
-        modules = set()
-        commands = []
-        for task in tasks(gate):
-            for key, value in task.items():
-                modules.add(key.split('.')[-1])
-                if key.split('.')[-1] == 'command' and isinstance(value, str):
-                    commands.append(value)
-
-        self.assertIn(
-            'wait_for_connection', modules,
-            '%s no longer waits for an authenticated connection, so it no '
-            'longer proves sshd has settled' % GATE)
+        # The probe is an ssh login that runs something trivial: that is
+        # what "authenticated" means here, and checking for the login
+        # rather than for a module name is what lets the gate change
+        # mechanism again without this test having to be rewritten.
         self.assertTrue(
-            any('cloud-init status --wait' in c for c in commands),
+            any('ssh ' in p and 'BatchMode=yes' in p for p in probes),
+            '%s no longer opens an authenticated ssh connection, so it no '
+            'longer proves sshd has settled; commands found were %s'
+            % (GATE, probes))
+        # Without retries the probe is a single attempt that fails the
+        # play on the first refused connection -- the sshd restart window
+        # this gate exists to sit through.
+        self.assertTrue(
+            all(task.get('until') and task.get('retries')
+                for task in self.gate_tasks() if 'command' in modules_in(task)),
+            '%s has an ssh probe with no until/retries, so it no longer '
+            'waits through the sshd restart' % GATE)
+        self.assertTrue(
+            any('cloud-init status --wait' in w for w in waits),
             '%s no longer waits for cloud-init, which is the whole point '
-            'of it; commands found were %s' % (GATE, commands))
-        # The first attempt and the retry spell the command out
+            'of it; raw commands found were %s' % (GATE, waits))
+        # The first attempt and the retry spell each command out
         # separately, so changing the timeout in one and not the other
         # would otherwise leave this file green.
-        self.assertEqual(
-            1, len(set(commands)),
-            '%s runs more than one distinct command; the retry is meant '
-            'to be the same wait as the first attempt, and these have '
-            'drifted: %s' % (GATE, sorted(set(commands))))
+        for label, found in (('ssh probe', probes), ('cloud-init wait', waits)):
+            self.assertEqual(
+                1, len(set(found)),
+                '%s runs more than one distinct %s; the retry is meant to be '
+                'the same wait as the first attempt, and these have drifted: '
+                '%s' % (GATE, label, sorted(set(found))))
+
+    def test_the_gate_runs_no_module_on_the_target(self):
+        # The gate has to work on a guest Ansible cannot manage. A module
+        # is delivered as a wrapper which needs Python 3.9 or newer on the
+        # managed node, and the oVirt lane's Rocky 8 guest has 3.6, so
+        # every module there dies in the wrapper. That is what took the
+        # merge queue down for six runs: wait_for_connection's probe is
+        # the ping module, so the gate spent its whole timeout failing on
+        # a guest that was answering ssh perfectly well
+        # (shakenfist/kerbside#446).
+        #
+        # raw needs no Python because it is just a command down the ssh
+        # pipe. debug and set_fact are action plugins, evaluated on the
+        # controller. command is a module, so it is only allowed where it
+        # runs on the controller too, which is what delegate_to says.
+        for task in self.gate_tasks():
+            for name in modules_in(task):
+                if name in ('raw', 'debug', 'set_fact'):
+                    continue
+                with self.subTest(task=task.get('name'), module=name):
+                    self.assertEqual(
+                        'localhost', task.get('delegate_to'),
+                        '%s runs the %s module on the target in task "%s". '
+                        'Only raw, debug, set_fact, and modules delegated to '
+                        'localhost are safe here; see the comment at the top '
+                        'of ansible/%s.'
+                        % (GATE, name, task.get('name'), GATE))
 
     def test_every_creating_play_is_followed_by_the_gate(self):
         # Ordering matters as much as presence: a gate play before the

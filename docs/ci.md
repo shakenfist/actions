@@ -542,8 +542,10 @@ every YAML file under `ansible/`, works out which plays create Shaken
 Fist instances, and fails unless each is followed by a readiness play
 that imports `tasks/wait-for-cloud-init.yml` and targets the hosts that
 play added. It also checks that the gate still waits for both an
-authenticated connection and cloud-init, and that every include path in
-the tree resolves. That invariant cannot be exercised before merge --
+authenticated connection and cloud-init, that it runs no module on the
+target -- which is what keeps it working on a guest whose Python is
+older than Ansible will manage, see `docs/ansible.md` -- and that every
+include path in the tree resolves. That invariant cannot be exercised before merge --
 the fabric is not available on a dev host, so a missing gate first shows
 up as a flaky canary run days later -- and it has already been broken
 once, when only one of twelve provisioning paths grew the gate. See

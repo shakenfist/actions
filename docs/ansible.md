@@ -40,26 +40,50 @@ short play targeting the freshly created hosts:
     - import_tasks: tasks/wait-for-cloud-init.yml
 ```
 
-It establishes a real authenticated connection with
-`wait_for_connection` (which retries through the sshd restart) and then
-runs `cloud-init status --wait`, which blocks until cloud-init reaches a
-terminal state. Both steps absorb a slow hypervisor without a magic
-sleep. The exit code is deliberately ignored -- the gate exists to wait
-out the cloud-init window, not to assert cloud-init succeeded, and a
+It establishes a real authenticated connection by running `ssh ...
+/bin/true` against the host, retrying until it succeeds, and then runs
+`cloud-init status --wait` with `raw`, which blocks until cloud-init
+reaches a terminal state. Both steps absorb a slow hypervisor without a
+magic sleep. The exit code is deliberately ignored -- the gate exists to
+wait out the cloud-init window, not to assert cloud-init succeeded, and a
 genuinely broken guest produces a better error in the tasks that follow.
 `--wait` has no timeout of its own, so it is capped with `timeout 600`
 rather than being allowed to consume the whole workflow budget.
 
-`wait_for_connection` returns on the first connection that
-authenticates, which is usually the sshd that is about to be restarted,
-so the `cloud-init status` command can itself land in the bounce. Both
-attempts run with `ignore_unreachable`, and the first is retried once
-behind a second `wait_for_connection`, so the gate cannot fail the play
-with the flake it exists to remove. Because both attempts are failure
-tolerant, the result may carry no return code at all; the log line that
-reports it defaults every field it interpolates, and names the missing
-return code rather than printing a bare "unknown" -- that case means the
-gate returned without waiting for anything.
+Nothing in the gate runs a module on the target, and that is the point of
+its present shape. A module arrives as a wrapper needing Python 3.9 or
+newer on the managed node, and the oVirt lane's guest is Rocky 8, whose
+`python3` is 3.6. The gate used to be `wait_for_connection`, whose probe
+is the `ping` module, so on that guest it spent its whole 300s timeout
+failing to parse its own wrapper and reported `timed out waiting for ping
+module test: 'ping'` -- against a guest which was answering ssh the entire
+time. It took the kerbside merge queue down for six consecutive runs
+(shakenfist/kerbside#446). Readiness is an ssh question, so the gate asks
+it over ssh and keeps working on any guest we can log into, not only on
+the ones Ansible can still manage.
+
+The probe is a `command` delegated to the controller rather than a `raw`
+task with `until`, because retries do not apply to an unreachable host:
+Ansible drops that host on the first attempt and the play moves on, which
+would step over the sshd restart window silently.
+`tests/test_ansible_readiness.py` asserts both halves of this -- that the
+gate opens an authenticated ssh connection with retries, and that every
+module it runs is either `raw`, an action plugin, or delegated to
+localhost.
+
+The probe returns on the first connection that authenticates, which is
+usually the sshd that is about to be restarted, so the `cloud-init status`
+command can itself land in the bounce. Both attempts run with
+`ignore_unreachable`, and the first is retried once behind a second
+probe, so the gate cannot fail the play with the flake it exists to
+remove. Because both attempts are failure tolerant, the result may carry
+no return code at all; the log line that reports it defaults every field
+it interpolates, and names the missing return code rather than printing a
+bare "unknown" -- that case means the gate returned without waiting for
+anything. The two attempts register separately and a `set_fact` picks the
+one that ran: registering both under one name meant the skipped retry
+overwrote the real result, and every healthy gate reported itself as one
+that never ran.
 
 Budget for the slow path when reading a timeout. One gate can spend
 about twenty minutes on one host -- 300s waiting for a connection, an
@@ -184,6 +208,13 @@ module needs `python3-apt` as well, and although it tries to install it
 for itself when it is missing, this is the one host state where that
 recovery path would be carrying the deploy rather than tidying up after
 it.
+
+Which package manager a host has is answered with `raw` rather than by
+gathering the `pkg_mgr` fact, for the same reason the readiness gate runs
+no module on the target: `setup` is a module, and on the Rocky 8 guest it
+dies in Ansible's wrapper. This play runs on `allsf`, so it meets that
+guest one play after the gate does. Only the question has to avoid
+modules -- the hosts that go on to install anything here are Debian.
 
 Order matters as much as it does for the readiness gate, and for a
 related reason: cloud-init holds the apt lock while it runs, so this play
