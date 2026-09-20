@@ -25,8 +25,11 @@ inputs:
       VMs: localhost (single-node smoke), slim-primary or slim-tier.
     default: localhost
   base_image:
+    # Bookworm deliberately, and not an eol-distro audit miss: a trixie
+    # under-cloud leaves every instance's agent with no contact. See the
+    # same input in .github/workflows/smoke-cluster.yml for the evidence.
     description: The under-cloud image to boot test instances from.
-    default: 'sf://label/ci-images/debian-13'
+    default: 'sf://label/ci-images/debian-12'
   base_image_user:
     description: The login user for the base image.
     default: debian
