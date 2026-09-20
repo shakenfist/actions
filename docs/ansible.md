@@ -41,12 +41,13 @@ short play targeting the freshly created hosts:
 ```
 
 It establishes a real authenticated connection by running `ssh ...
-/bin/true` against the host, retrying until it succeeds, and then runs
-`cloud-init status --wait` with `raw`, which blocks until cloud-init
-reaches a terminal state. Both steps absorb a slow hypervisor without a
-magic sleep. The exit code is deliberately ignored -- the gate exists to
-wait out the cloud-init window, not to assert cloud-init succeeded, and a
-genuinely broken guest produces a better error in the tasks that follow.
+/bin/true` against the host, retrying until it succeeds or until 300
+seconds have passed, and then runs `cloud-init status --wait` with `raw`,
+which blocks until cloud-init reaches a terminal state. Both steps absorb
+a slow hypervisor without a magic sleep. The exit code is deliberately
+ignored -- the gate exists to wait out the cloud-init window, not to
+assert cloud-init succeeded, and a genuinely broken guest produces a
+better error in the tasks that follow.
 `--wait` has no timeout of its own, so it is capped with `timeout 600`
 rather than being allowed to consume the whole workflow budget.
 
@@ -66,10 +67,24 @@ The probe is a `command` delegated to the controller rather than a `raw`
 task with `until`, because retries do not apply to an unreachable host:
 Ansible drops that host on the first attempt and the play moves on, which
 would step over the sshd restart window silently.
-`tests/test_ansible_readiness.py` asserts both halves of this -- that the
-gate opens an authenticated ssh connection with retries, and that every
-module it runs is either `raw`, an action plugin, or delegated to
-localhost.
+
+Its retry loop is inside the command, under a single `timeout`, rather
+than being Ansible's `until`/`retries`. `until` bounds how many attempts
+are made, not how long they take, and the two only agree while a failed
+attempt costs nothing. A refused connection does return instantly, but
+the attempt this gate exists for is the other kind -- a loaded hypervisor
+where sshd accepts and is then slow, a guest mid-bounce dropping rather
+than refusing -- and that attempt runs to its cap. Sixty of those would
+have been 35 minutes against the 300 seconds the budget below is written
+around. A wall-clock bound is what `wait_for_connection` gave us, so the
+probe keeps one.
+
+`tests/test_ansible_readiness.py` asserts each half of this -- that the
+gate opens an authenticated ssh connection, that the probe is bounded and
+does retry, that its command carries no newline (a folded block scalar
+keeps the newline on any line indented past its first, and in a shell
+script that ends the command early), and that every module the gate runs
+is either `raw`, an action plugin, or delegated to localhost.
 
 The probe returns on the first connection that authenticates, which is
 usually the sshd that is about to be restarted, so the `cloud-init status`

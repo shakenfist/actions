@@ -545,10 +545,11 @@ play added. It also checks that the gate still waits for both an
 authenticated connection and cloud-init, that it runs no module on the
 target -- which is what keeps it working on a guest whose Python is
 older than Ansible will manage, see `docs/ansible.md` -- and that every
-include path in the tree resolves. That invariant cannot be exercised before merge --
-the fabric is not available on a dev host, so a missing gate first shows
-up as a flaky canary run days later -- and it has already been broken
-once, when only one of twelve provisioning paths grew the gate. See
+include path in the tree resolves. That invariant cannot be exercised
+before merge -- the fabric is not available on a dev host, so a missing
+gate first shows up as a flaky canary run days later -- and it has
+already been broken once, when only one of twelve provisioning paths
+grew the gate. See
 [ansible.md](ansible.md) for the gate itself.
 
 `tests/test_vip_reservation.py` guards the other ordering invariant in

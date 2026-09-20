@@ -38,45 +38,69 @@
 # host: Ansible ignores that host on the first attempt and the play moves
 # on. It would step over the sshd restart window this file exists to
 # close, and do it silently.
+#
+# The retry loop is inside the command, under one `timeout`, rather than
+# being Ansible's until/retries. until bounds the number of attempts, not
+# the time they take, and the two are only the same while a failed attempt
+# costs nothing. A refused connection does return instantly, but the
+# attempt this gate exists for is the other kind -- a loaded hypervisor
+# where sshd accepts and is then slow, or a guest mid-bounce that drops
+# rather than refuses -- and that attempt costs its full cap. Sixty of
+# those would have been 60 * (30 + 5) = 2100s, seven times the 300s the
+# wait_for_connection this replaced was allowed, and the budget in
+# docs/ansible.md is written against that 300s. A wall-clock timeout is
+# what wait_for_connection was doing, so do that: the outer timeout is
+# the hard bound and the inner one only stops a single hung attempt from
+# eating it.
 - name: Wait for SSH to accept an authenticated connection
   delegate_to: localhost
   # hostvars[inventory_hostname] rather than the bare connection vars: in
   # a delegated task those resolve against the delegate, which here is the
   # controller, so the bare names would probe localhost and pass the gate
   # without ever touching the guest.
+  # Both spellings of each connection variable, and the port, because
+  # this is the one place in the tree that reads them by name instead of
+  # letting the ssh connection plugin resolve them. Everything under
+  # ansible/ uses the ansible_ssh_* spelling today and no host sets a
+  # port, so this is about the next host added rather than any host
+  # here: reading one spelling only would fail it with a Jinja traceback,
+  # and ignoring the port would probe 22 and could pass against whatever
+  # answered there.
+  #
+  # Hoisted into vars rather than written inline in cmd below, because a
+  # folded block scalar keeps the newline on any line indented further
+  # than its first -- so a filter expression wrapped across two lines
+  # arrives in the command with a newline in the middle of it, which the
+  # shell reads as the end of one command and the start of another. That
+  # exact mistake made the probe loop for its whole budget against a
+  # guest which was up.
   vars:
     gate_target: "{{ hostvars[inventory_hostname] }}"
+    gate_key: "{{ gate_target.ansible_ssh_private_key_file | default(gate_target.ansible_private_key_file) }}"
+    gate_port: "{{ gate_target.ansible_port | default(gate_target.ansible_ssh_port | default(22)) }}"
+    gate_user: "{{ gate_target.ansible_ssh_user | default(gate_target.ansible_user) }}"
+    gate_host: "{{ gate_target.ansible_ssh_host | default(gate_target.ansible_host) }}"
+    gate_args: "{{ gate_target.ansible_ssh_extra_args | default('') }}"
   ansible.builtin.command:
     # cmd rather than argv: ansible_ssh_extra_args is one string holding
     # several options, which argv would hand to ssh as a single argument.
     # cmd is split the way a shell would split it, so they arrive as the
     # options they are.
     #
-    # timeout caps an ssh which connects and then hangs, which
-    # ConnectTimeout does not cover; that becomes rc 124 and another
-    # attempt rather than a stalled play. BatchMode stops a guest which
-    # is up but will not take the key from sitting on a password prompt
-    # for the whole retry budget.
+    # BatchMode stops a guest which is up but will not take the key from
+    # sitting on a password prompt for the whole budget. ConnectTimeout
+    # covers only the TCP connect, so the inner timeout is what caps an
+    # ssh which connects and then hangs.
     #
     # The host key options come from the add_host that created this host
     # rather than being repeated here, because a gate which checked the
     # host key when the connections around it do not would fail on the
     # very key cloud-init is about to regenerate.
     cmd: >-
-      timeout 30
-      ssh -i {{ gate_target.ansible_ssh_private_key_file }}
-      -o BatchMode=yes
-      -o ConnectTimeout=5
-      {{ gate_target.ansible_ssh_extra_args | default('') }}
-      {{ gate_target.ansible_ssh_user }}@{{ gate_target.ansible_ssh_host }}
-      /bin/true
+      timeout 300 sh -c 'while ! timeout 30 ssh -i {{ gate_key }}
+      -p {{ gate_port }} -o BatchMode=yes -o ConnectTimeout=5 {{ gate_args }}
+      {{ gate_user }}@{{ gate_host }} /bin/true; do sleep 5; done'
   register: gate_connection
-  # 60 attempts five seconds apart is the 300s the wait_for_connection
-  # this replaced was allowed, so the budget documented in
-  # docs/ansible.md is unchanged.
-  until: gate_connection.rc == 0
-  retries: 60
-  delay: 5
   changed_when: false
 
 # `--wait` blocks until cloud-init reaches a terminal state, then exits
@@ -138,19 +162,17 @@
       delegate_to: localhost
       vars:
         gate_target: "{{ hostvars[inventory_hostname] }}"
+        gate_key: "{{ gate_target.ansible_ssh_private_key_file | default(gate_target.ansible_private_key_file) }}"
+        gate_port: "{{ gate_target.ansible_port | default(gate_target.ansible_ssh_port | default(22)) }}"
+        gate_user: "{{ gate_target.ansible_ssh_user | default(gate_target.ansible_user) }}"
+        gate_host: "{{ gate_target.ansible_ssh_host | default(gate_target.ansible_host) }}"
+        gate_args: "{{ gate_target.ansible_ssh_extra_args | default('') }}"
       ansible.builtin.command:
         cmd: >-
-          timeout 30
-          ssh -i {{ gate_target.ansible_ssh_private_key_file }}
-          -o BatchMode=yes
-          -o ConnectTimeout=5
-          {{ gate_target.ansible_ssh_extra_args | default('') }}
-          {{ gate_target.ansible_ssh_user }}@{{ gate_target.ansible_ssh_host }}
-          /bin/true
+          timeout 300 sh -c 'while ! timeout 30 ssh -i {{ gate_key }}
+          -p {{ gate_port }} -o BatchMode=yes -o ConnectTimeout=5 {{ gate_args }}
+          {{ gate_user }}@{{ gate_host }} /bin/true; do sleep 5; done'
       register: gate_connection
-      until: gate_connection.rc == 0
-      retries: 60
-      delay: 5
       changed_when: false
 
     - name: Wait for cloud-init to finish, after the sshd restart
@@ -169,13 +191,27 @@
 # results apart and choose between them here instead. set_fact is an
 # action plugin, evaluated on the controller, so this costs the target
 # nothing.
+#
+# The three fields the tasks below read, rather than the result dict they
+# came from: a fact set from a template that renders a container is
+# recovered by literal_eval on ansible-core before 2.19, and a stdout it
+# could not parse would leave the fact a string. rc would then be
+# undefined on a host that answered perfectly well, and this gate would
+# report the "did not actually wait" warning -- the exact false alarm the
+# task exists to remove. Scalars need no recovery on any version. The
+# empty string is the "no result at all" case, which only reaching this
+# without either attempt having run can produce.
 - name: Settle which cloud-init result to report
-  ansible.builtin.set_fact:
-    cloud_init_status: >-
+  vars:
+    cloud_init_result: >-
       {{ cloud_init_retry
          if (cloud_init_retry is defined
              and not (cloud_init_retry.skipped | default(false)))
          else cloud_init_first }}
+  ansible.builtin.set_fact:
+    cloud_init_rc: "{{ cloud_init_result.rc | default('') }}"
+    cloud_init_stdout: "{{ cloud_init_result.stdout | default('') | trim }}"
+    cloud_init_stderr: "{{ cloud_init_result.stderr | default('') | trim }}"
 
 # Every path through this gate is tolerant -- failed_when: false,
 # ignore_unreachable on both attempts, and the timeout cap -- which is
@@ -185,23 +221,24 @@
 # Both put the run back in the window this file exists to close, so they
 # get a line of their own rather than one interpolated field below.
 - name: Warn when the gate did not actually wait
-  when: cloud_init_status.rc is not defined or cloud_init_status.rc == 124
+  when: cloud_init_rc == '' or cloud_init_rc | int == 124
   ansible.builtin.debug:
     msg: >-
       WARNING: the cloud-init readiness gate did not complete on
       {{ inventory_hostname }}, so this host may still be inside the
       sshd restart window. See ansible/tasks/wait-for-cloud-init.yml.
 
-# rc is defaulted because the tasks above are deliberately failure
-# tolerant: a result which never produced an rc at all (an unreachable
-# host both times, or a become failure) must not turn this log line into
-# the thing that fails the play. That case is worth saying out loud
-# though, because it means the gate returned without waiting for
+# The empty rc is spelled out because the tasks above are deliberately
+# failure tolerant: a result which never produced an rc at all (an
+# unreachable host both times, or a become failure) must not turn this
+# log line into the thing that fails the play. That case is worth saying
+# out loud though, because it means the gate returned without waiting for
 # anything, and a bare "unknown" is easy to read past in a long CI log.
 - name: Log the cloud-init state
   ansible.builtin.debug:
     msg: >-
       cloud-init on {{ inventory_hostname }}:
-      rc={{ cloud_init_status.rc | default('NONE -- the check never ran') }}
-      {{ cloud_init_status.stdout | default('') | trim }}
-      {{ cloud_init_status.stderr | default('') | trim }}
+      rc={{ cloud_init_rc if cloud_init_rc != ''
+            else 'NONE -- the check never ran' }}
+      {{ cloud_init_stdout }}
+      {{ cloud_init_stderr }}
