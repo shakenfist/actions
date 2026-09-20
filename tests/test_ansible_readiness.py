@@ -17,6 +17,7 @@ sign is a flaky canary run some time later. A structural check is the
 only pre-merge net there is.
 """
 
+import json
 import os
 import re
 import unittest
@@ -28,6 +29,7 @@ from tests.helpers import REPO_ROOT
 
 ANSIBLE_DIR = os.path.join(REPO_ROOT, 'ansible')
 GATE = 'tasks/wait-for-cloud-init.yml'
+PREREQUISITES = 'tasks/install-kolla-prerequisites.yml'
 
 
 def documents():
@@ -65,6 +67,54 @@ def tasks(container):
                     'rescue', 'always'):
             if key in container:
                 yield from tasks(container[key])
+
+
+# Everything Ansible lets a task carry that is not the module it runs.
+# Subtracting these from a task's keys leaves the modules, which is how
+# the gate checks below tell "this task calls setup" apart from "this task
+# has a when". A keyword missing from this set reads as a module and shows
+# up as a failure naming it, which is the safe direction to be wrong in.
+TASK_KEYWORDS = frozenset((
+    'always', 'any_errors_fatal', 'args', 'async', 'become', 'become_flags',
+    'become_method', 'become_user', 'block', 'changed_when', 'check_mode',
+    'collections', 'connection', 'debugger', 'delay', 'delegate_facts',
+    'delegate_to', 'environment', 'failed_when', 'ignore_errors',
+    'ignore_unreachable', 'import_playbook', 'import_role', 'import_tasks',
+    'include', 'include_role', 'include_tasks', 'listen', 'local_action',
+    'loop', 'loop_control', 'module_defaults', 'name', 'no_log', 'notify',
+    'poll', 'port', 'register', 'remote_user', 'rescue', 'retries',
+    'run_once', 'tags', 'throttle', 'until', 'vars', 'when',
+))
+
+
+def modules_in(task):
+    """The modules a task calls, keyed by short name.
+
+    Short names because a task may spell a module either way, and the
+    checks here care which module it is rather than how it was written.
+    A block carries no module of its own and so yields nothing.
+    """
+    return {key.split('.')[-1]: value for key, value in task.items()
+            # Every with_* lookup form rather than the with_items entry
+            # this used to carry: they are all keywords, and naming one
+            # of them meant a task using another would be reported as
+            # running a module called "with_dict".
+            if key.split('.')[-1] not in TASK_KEYWORDS
+            and not key.split('.')[-1].startswith('with_')}
+
+
+def command_string(value):
+    """What a command module task runs, whichever way it was spelled.
+
+    free form, cmd: and argv: are all the same question, and a check
+    which only understood one of them would go quietly vacuous the first
+    time the gate changed spelling.
+    """
+    if isinstance(value, dict):
+        value = value.get('cmd', value.get('argv'))
+    if isinstance(value, list):
+        value = ' '.join(str(item) for item in value)
+    return value if isinstance(value, str) else ''
 
 
 def included_file(task):
@@ -211,39 +261,139 @@ class ReadinessGateTest(unittest.TestCase):
             os.path.exists(os.path.join(ANSIBLE_DIR, GATE)),
             '%s is missing; every readiness play imports it' % GATE)
 
+    def gate_tasks(self):
+        with open(os.path.join(ANSIBLE_DIR, GATE)) as f:
+            return list(tasks(yaml.safe_load(f)))
+
     def test_the_gate_still_waits(self):
         # Every other test here checks that playbooks import the gate by
         # path, which says nothing about what the gate does. Gutting
         # wait-for-cloud-init.yml down to the connection wait, or dropping
         # the cloud-init step, would leave all of them green while
         # removing the behaviour they exist to protect.
-        with open(os.path.join(ANSIBLE_DIR, GATE)) as f:
-            gate = yaml.safe_load(f)
+        probes = []
+        waits = []
+        for task in self.gate_tasks():
+            for name, value in modules_in(task).items():
+                if name == 'command':
+                    probes.append(command_string(value))
+                elif name == 'raw' and isinstance(value, str):
+                    waits.append(value)
 
-        modules = set()
-        commands = []
-        for task in tasks(gate):
-            for key, value in task.items():
-                modules.add(key.split('.')[-1])
-                if key.split('.')[-1] == 'command' and isinstance(value, str):
-                    commands.append(value)
-
-        self.assertIn(
-            'wait_for_connection', modules,
-            '%s no longer waits for an authenticated connection, so it no '
-            'longer proves sshd has settled' % GATE)
+        # The probe is an ssh login that runs something trivial: that is
+        # what "authenticated" means here, and checking for the login
+        # rather than for a module name is what lets the gate change
+        # mechanism again without this test having to be rewritten.
         self.assertTrue(
-            any('cloud-init status --wait' in c for c in commands),
+            any('ssh ' in p and 'BatchMode=yes' in p for p in probes),
+            '%s no longer opens an authenticated ssh connection, so it no '
+            'longer proves sshd has settled; commands found were %s'
+            % (GATE, probes))
+        # Without a retry loop the probe is a single attempt that fails
+        # the play on the first refused connection -- the sshd restart
+        # window this gate exists to sit through. Without the outer
+        # timeout it is unbounded in wall clock, which is how the budget
+        # in docs/ansible.md stops being true: a retry count bounds the
+        # number of attempts, not the time they take.
+        for probe in probes:
+            with self.subTest(probe=probe):
+                self.assertRegex(
+                    probe, r'^timeout \d+ ',
+                    '%s has an ssh probe with no wall-clock bound, so the '
+                    'gate can outlast the budget docs/ansible.md gives it'
+                    % GATE)
+                self.assertIn(
+                    'sleep', probe,
+                    '%s has an ssh probe that does not retry, so it fails '
+                    'on the first refused connection' % GATE)
+                # A folded block scalar keeps the newline on any line
+                # indented further than its first, and the probe is a
+                # shell script, where a newline ends one command and
+                # starts another. Written that way the probe runs "ssh"
+                # with half its arguments, fails, and loops on that for
+                # its whole budget against a guest which is up -- which
+                # is a day lost to a failure that looks exactly like the
+                # one this gate was rewritten to fix.
+                self.assertNotIn(
+                    '\n', probe,
+                    '%s has an ssh probe containing a newline. Keep every '
+                    'line of cmd at the same indentation, and hoist any '
+                    'wrapped expression into vars.' % GATE)
+
+        # The probes were made identical by hoisting their connection
+        # details into per-task vars, which moves the drift this check
+        # exists to stop rather than removing it.
+        probe_vars = [task.get('vars') for task in self.gate_tasks()
+                      if 'command' in modules_in(task)]
+        self.assertEqual(
+            1, len({json.dumps(v, sort_keys=True) for v in probe_vars}),
+            '%s builds its two ssh probes from different vars, so they no '
+            'longer probe the same way: %s' % (GATE, probe_vars))
+        self.assertTrue(
+            any('cloud-init status --wait' in w for w in waits),
             '%s no longer waits for cloud-init, which is the whole point '
-            'of it; commands found were %s' % (GATE, commands))
-        # The first attempt and the retry spell the command out
+            'of it; raw commands found were %s' % (GATE, waits))
+        # The first attempt and the retry spell each command out
         # separately, so changing the timeout in one and not the other
         # would otherwise leave this file green.
+        for label, found in (('ssh probe', probes), ('cloud-init wait', waits)):
+            self.assertEqual(
+                1, len(set(found)),
+                '%s runs more than one distinct %s; the retry is meant to be '
+                'the same wait as the first attempt, and these have drifted: '
+                '%s' % (GATE, label, sorted(set(found))))
+
+    def test_the_gate_runs_no_module_on_the_target(self):
+        # The gate has to work on a guest Ansible cannot manage. A module
+        # is delivered as a wrapper which needs Python 3.9 or newer on the
+        # managed node, and the oVirt lane's Rocky 8 guest has 3.6, so
+        # every module there dies in the wrapper. That is what took the
+        # merge queue down for six runs: wait_for_connection's probe is
+        # the ping module, so the gate spent its whole timeout failing on
+        # a guest that was answering ssh perfectly well
+        # (shakenfist/kerbside#446).
+        #
+        # raw needs no Python because it is just a command down the ssh
+        # pipe. debug and set_fact are action plugins, evaluated on the
+        # controller. command is a module, so it is only allowed where it
+        # runs on the controller too, which is what delegate_to says.
+        for task in self.gate_tasks():
+            for name in modules_in(task):
+                if name in ('raw', 'debug', 'set_fact'):
+                    continue
+                with self.subTest(task=task.get('name'), module=name):
+                    self.assertEqual(
+                        'localhost', task.get('delegate_to'),
+                        '%s runs the %s module on the target in task "%s". '
+                        'Only raw, debug, set_fact, and modules delegated to '
+                        'localhost are safe here; see the comment at the top '
+                        'of ansible/%s.'
+                        % (GATE, name, task.get('name'), GATE))
+
+    def test_the_kolla_probe_runs_no_module_on_the_target(self):
+        # The gate is not the only thing that meets a guest Ansible
+        # cannot manage. PREREQUISITES runs on the same group one play
+        # later, so its package-manager probe has to ask the question
+        # without a module for the same reason (shakenfist/kerbside#446).
+        # The two install tasks it guards are deliberately modules -- but
+        # they only run on hosts the probe found apt on, which are
+        # Debian, so the invariant is the probe's alone.
+        probes = [task for task in tasks(self.docs[PREREQUISITES])
+                  if task.get('register') == 'apt_get_probe']
+
         self.assertEqual(
-            1, len(set(commands)),
-            '%s runs more than one distinct command; the retry is meant '
-            'to be the same wait as the first attempt, and these have '
-            'drifted: %s' % (GATE, sorted(set(commands))))
+            1, len(probes),
+            'ansible/%s no longer has exactly one task registering '
+            'apt_get_probe, so this check no longer knows which task to '
+            'hold to the invariant' % PREREQUISITES)
+        self.assertEqual(
+            ['raw'], sorted(modules_in(probes[0])),
+            'ansible/%s asks which package manager the host has with '
+            'something other than raw. A module needs Python 3.9 or newer '
+            'on the managed node and this play meets the oVirt lane\'s '
+            'Rocky 8 guest, where it does not exist; see '
+            'shakenfist/kerbside#446 and ansible/%s.'
+            % (PREREQUISITES, GATE))
 
     def test_every_creating_play_is_followed_by_the_gate(self):
         # Ordering matters as much as presence: a gate play before the
