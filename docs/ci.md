@@ -513,6 +513,7 @@ one.
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that makes that comment the review's durable machine-readable copy |
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
 | `review-pr-with-claude/extract-review-json.py` | Decides whether a review survives a truncated or malformed response. It rebuilds JSON the model did not finish writing, and repairs quotes the model left unescaped, so the boundary between "recovered the completed findings" and "invented a review" is worth pinning |
+| `review-pr-with-claude/render-unparsed-review.py` | Posts model output to a pull request verbatim when no review could be recovered from it, so what is pinned is that it cannot escape its fence, fire a bot trigger, or overrun the comment size limit |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
 
 The documentation gets `tests/test_documentation_links.py`, which

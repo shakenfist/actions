@@ -237,6 +237,28 @@ review_failed() {
     exit 1
 }
 
+# The reviewer finished and left a response, but no review could be
+# recovered from it. The job still goes red, since that is the tooling
+# being wrong, but the response usually holds findings that are real,
+# and a red job's log is the last place anyone looks for them. Post it
+# to the pull request as it came (issue #81), and set unparsed_note for
+# review_failed() to say where it went. Best effort: a failure to post
+# must not hide the failure being reported.
+unparsed_note=''
+post_unparsed_review() {
+    local reason="$1"
+    local comment_file="${output_dir}/unparsed-comment.md"
+
+    if python3 "${script_dir}/render-unparsed-review.py" \
+            "${claude_result_file}" "${comment_file}" "${reason}" && \
+            gh pr comment "${pr_number}" --body-file "${comment_file}"; then
+        unparsed_note=" The reviewer's output has been posted to the \
+pull request as it came, so its findings are not lost."
+    else
+        echo "Warning: failed to post the unparsed review output"
+    fi
+}
+
 echo "========================================"
 echo "Shaken Fist PR Reviewer"
 echo "========================================"
@@ -662,8 +684,10 @@ if [ "${extract_rc}" -eq 0 ]; then
     fi
 else
     echo "Extraction failed: ${extract_status}"
+    # All of it: a response that failed is the only evidence of why, and
+    # the first 50 lines of #81's held nothing wrong.
     echo "Response was:"
-    head -50 "${claude_result_file}"
+    cat "${claude_result_file}"
 
     # Exit 2 says a review block was there and stopped before anything
     # usable arrived, which is the large-diff outcome this PR exists
@@ -678,10 +702,11 @@ else
         review_out_of_turns
     fi
 
+    post_unparsed_review "${extract_status}"
     review_failed "Automated review output could not be parsed" \
         "No JSON review could be recovered from the reviewer's \
 output, not even a partial one (${extract_status}; outcome: \
-${result_subtype}, diff: ${diff_lines} lines)."
+${result_subtype}, diff: ${diff_lines} lines).${unparsed_note}"
 fi
 
 # Validate the JSON
@@ -698,11 +723,12 @@ if ! python3 "${render_script}" --validate "${review_json_file}"; then
         review_truncated_unavailable
     fi
 
+    post_unparsed_review "the review JSON does not match review-schema.json"
     review_failed "Automated review failed schema validation" \
         "The reviewer returned JSON that does not match \
 review-schema.json (outcome: ${result_subtype}). The prompt, the \
 schema and the renderer have to agree, so this is a tooling problem \
-rather than a problem with the PR."
+rather than a problem with the PR.${unparsed_note}"
 fi
 echo "JSON validation passed"
 
