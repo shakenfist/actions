@@ -249,9 +249,9 @@ class ExtractTest(unittest.TestCase):
         text = ('Understood, the format is:\n\n```json\n'
                 + json.dumps(example) + '\n```\n\nHere is the review.\n\n'
                 '```json\n' + json.dumps(REVIEW) + '\n```\n')
-        data, salvaged = extract.extract(text)
+        data, status = extract.extract(text)
         self.assertEqual(data, REVIEW)
-        self.assertFalse(salvaged)
+        self.assertEqual(status, 'ok')
 
     def test_a_truncated_last_block_wins_over_a_complete_earlier_one(self):
         # Cut off mid-block means the model was still writing its
@@ -263,22 +263,22 @@ class ExtractTest(unittest.TestCase):
         text = ('The format is:\n\n```json\n' + json.dumps(example)
                 + '\n```\n\nReviewing now.\n\n```json\n'
                 + review_text[:review_text.index('{"id": 2')])
-        data, salvaged = extract.extract(text)
-        self.assertTrue(salvaged)
+        data, status = extract.extract(text)
+        self.assertEqual(status, 'salvaged')
         self.assertEqual(data['summary'], 'Adds a thing')
 
     def test_a_complete_response_is_not_marked_salvaged(self):
-        data, salvaged = extract.extract(fenced(json.dumps(REVIEW)))
+        data, status = extract.extract(fenced(json.dumps(REVIEW)))
         self.assertEqual(data, REVIEW)
-        self.assertFalse(salvaged)
+        self.assertEqual(status, 'ok')
         self.assertNotIn('caveat', data)
 
     def test_a_truncated_response_is_salvaged_and_labelled(self):
         text = json.dumps(REVIEW)
         response = ('Reviewing now.\n\n```json\n'
                     + text[:text.index('{"id": 2')])
-        data, salvaged = extract.extract(response)
-        self.assertTrue(salvaged)
+        data, status = extract.extract(response)
+        self.assertEqual(status, 'salvaged')
         self.assertEqual([i['id'] for i in data['items']], [1])
         # Without this the partial review reads as a complete one.
         self.assertIn('caveat', data)
@@ -318,9 +318,9 @@ class ExtractTest(unittest.TestCase):
         # A clean bill of health arrives complete and has to survive
         # the preference for a review that actually found something.
         clean = {'summary': 'Nothing to report', 'items': []}
-        data, salvaged = extract.extract(fenced(json.dumps(clean)))
+        data, status = extract.extract(fenced(json.dumps(clean)))
         self.assertEqual(data, clean)
-        self.assertFalse(salvaged)
+        self.assertEqual(status, 'ok')
 
     def test_a_cut_after_empty_items_is_reported_as_truncation(self):
         # Salvaging this would post a clean bill of health and satisfy
@@ -338,9 +338,9 @@ class ExtractTest(unittest.TestCase):
         # complete review rather than end the search.
         text = (fenced(json.dumps(REVIEW))
                 + '\nOne more thing.\n\n```json\n{"note": "abc')
-        data, salvaged = extract.extract(text)
+        data, status = extract.extract(text)
         self.assertEqual(data, REVIEW)
-        self.assertFalse(salvaged)
+        self.assertEqual(status, 'ok')
 
     def test_a_closed_fence_of_malformed_json_is_not_truncation(self):
         # The fence closed, so nothing was cut off: the reviewer emitted
@@ -369,9 +369,9 @@ class ExtractTest(unittest.TestCase):
         # to be passed over rather than end the search.
         text = (fenced(json.dumps(REVIEW))
                 + '\nOn reflection:\n\n```json\n{"summary": "s", }\n```\n')
-        data, salvaged = extract.extract(text)
+        data, status = extract.extract(text)
         self.assertEqual(data, REVIEW)
-        self.assertFalse(salvaged)
+        self.assertEqual(status, 'ok')
 
     def test_a_prose_brace_does_not_hide_an_unfenced_review(self):
         # No fence at all, and a JSON snippet quoted ahead of the
@@ -381,9 +381,75 @@ class ExtractTest(unittest.TestCase):
         # comment about diff size, for a review sitting right there.
         text = ('I saw {"a": 1} and the review is '
                 + json.dumps(REVIEW))
-        data, salvaged = extract.extract(text)
+        data, status = extract.extract(text)
         self.assertEqual(data, REVIEW)
-        self.assertFalse(salvaged)
+        self.assertEqual(status, 'ok')
+
+
+class RepairTest(unittest.TestCase):
+    """A complete review with a stray quote in it is still a review.
+
+    This is the case in issue #40: a description discussing
+    ``packages = ["shakenfist"]`` wrote the inner quotes unescaped, and
+    ten findings were thrown away over two characters.
+    """
+
+    QUOTED = ('{"summary": "s", "items": [{"id": 1, "title": "t", '
+              '"category": "bug", "action": "fix", "severity": "low", '
+              '"description": "`packages = ["shakenfist"]` lists only the '
+              'top-level package"}]}')
+
+    def test_quotes_followed_by_prose_are_escaped(self):
+        data = json.loads(extract.repair(self.QUOTED))
+        self.assertEqual(
+            data['items'][0]['description'],
+            '`packages = ["shakenfist"]` lists only the top-level package')
+
+    def test_valid_json_is_left_alone(self):
+        text = json.dumps(REVIEW)
+        self.assertEqual(extract.repair(text), text)
+
+    def test_escaped_quotes_are_left_alone(self):
+        text = json.dumps({'summary': 'say "hi"', 'items': []})
+        self.assertEqual(extract.repair(text), text)
+
+    def test_a_quote_before_a_comma_and_prose_is_escaped(self):
+        # A comma alone is not enough to end a string: what comes after
+        # it has to be able to start the next value.
+        text = '{"summary": "the "a", then the b", "items": []}'
+        self.assertEqual(
+            json.loads(extract.repair(text))['summary'],
+            'the "a", then the b')
+
+    def test_a_closed_fence_with_a_stray_quote_is_repaired(self):
+        data, status = extract.extract(fenced(self.QUOTED))
+        self.assertEqual(status, 'repaired')
+        self.assertEqual(len(data['items']), 1)
+        # Nothing is missing from a repaired review, so it must not be
+        # labelled partial.
+        self.assertNotIn('caveat', data)
+
+    def test_a_raw_newline_inside_a_string_is_repaired(self):
+        # Substituted into the dumped text, so the newline is a literal
+        # one inside the JSON string rather than an escaped one.
+        text = json.dumps(REVIEW).replace('Adds a thing', 'Adds\na thing')
+        data, status = extract.extract(fenced(text))
+        self.assertEqual(status, 'repaired')
+        self.assertEqual(data['summary'], 'Adds\na thing')
+
+    def test_a_repair_that_finds_no_items_is_refused(self):
+        # A repaired empty review would record the pull request as
+        # reviewed and clean on the strength of a guess.
+        text = '{"summary": "the "a" thing", "items": []}'
+        with self.assertRaises(extract.ExtractionError):
+            extract.extract(fenced(text))
+
+    def test_a_repaired_review_validates(self):
+        render = load_script(
+            'review-pr-with-claude/render-review.py', 'render_review')
+        data, _ = extract.extract(fenced(self.QUOTED))
+        valid, message = render.validate_review(data)
+        self.assertTrue(valid, message)
 
 
 class MainTest(unittest.TestCase):
@@ -433,6 +499,13 @@ class MainTest(unittest.TestCase):
             written = json.load(f)
         self.assertEqual([i['id'] for i in written['items']], [1])
         self.assertIn('partial review', written['caveat'])
+
+    def test_a_repaired_review_is_written_and_reported_repaired(self):
+        code, output, path = self.run_main(fenced(RepairTest.QUOTED))
+        self.assertEqual(code, 0)
+        self.assertEqual(output, 'status=repaired')
+        with open(path) as f:
+            self.assertEqual(len(json.load(f)['items']), 1)
 
     def test_prose_only_exits_one_and_says_unparseable(self):
         code, output, path = self.run_main('I could not review this.')

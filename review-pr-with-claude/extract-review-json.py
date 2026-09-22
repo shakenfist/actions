@@ -24,8 +24,16 @@ review for a complete one.
 A response is only treated as truncated when it could actually have
 been cut off: a fence left open, or an unfenced object running to the
 end of the text. JSON that will not parse inside a fence that closed
-is the reviewer emitting something invalid, which is a bug in the
-prompt or the schema rather than a large diff, and is reported as such.
+is the reviewer emitting something invalid rather than a large diff.
+The commonest form of that is a literal ``"`` quoted inside a prose
+string -- a review discussing ``packages = ["x"]`` -- so before giving
+up on such a block this script tries escaping the quotes that cannot
+be ending their string, and takes the result if it parses into a
+review. Anything that repair does not fix is reported as unparseable.
+
+Prints a single status line, which the calling shell branches on:
+``status=ok``, ``status=salvaged`` or ``status=repaired`` for a review
+written, and ``status=<error> reason=...`` for one that was not.
 
 Exit codes:
     0 - A review was written to <review.json>
@@ -84,6 +92,12 @@ ITEM_REQUIRED_FIELDS = {
 ITEM_ACTIONS = ('fix', 'document', 'consider', 'none')
 ITEM_CATEGORIES = ('security', 'bug', 'performance', 'documentation',
                    'style', 'testing', 'other')
+
+
+# What may follow a JSON value, which is how a quote that ends a string
+# is told apart from one quoted inside it. See _closes_string().
+VALUE_STARTS = '"{[-0123456789'
+LITERALS = ('true', 'false', 'null')
 
 
 class ExtractionError(Exception):
@@ -295,11 +309,102 @@ def salvage(text):
     raise ExtractionError('no complete JSON object could be recovered')
 
 
-def extract(text):
-    """Return (review_data, salvaged) for a model response.
+def _starts_value(text, index):
+    """True when a JSON value, or an object key, starts at text[index]."""
+    if index < len(text) and text[index] in VALUE_STARTS:
+        return True
+    for literal in LITERALS:
+        end = index + len(literal)
+        if text.startswith(literal, index) and not text[end:end + 1].isalpha():
+            return True
+    return False
 
-    salvaged is True when the response was truncated and the review was
-    recovered from the part that arrived intact.
+
+def _skip_space(text, index):
+    while index < len(text) and text[index].isspace():
+        index += 1
+    return index
+
+
+def _closes_string(text, index):
+    """True when a quote just before text[index] could end its string.
+
+    A quote ends a string when what follows is the JSON structure that
+    can come after a value: end of text, a colon before a value, or any
+    run of closing brackets that finishes with the end of text, another
+    closer, or a comma before the next value. A quote followed by prose
+    -- ``["x"] lists only`` -- cannot be ending anything, so it must
+    have been meant literally.
+    """
+    index = _skip_space(text, index)
+    if index == len(text):
+        return True
+    if text[index] == ':':
+        return _starts_value(text, _skip_space(text, index + 1))
+
+    while index < len(text) and text[index] in '}]':
+        index = _skip_space(text, index + 1)
+    if index == len(text):
+        return True
+    if text[index] != ',':
+        return False
+    index = _skip_space(text, index + 1)
+    # A trailing comma is invalid JSON either way, but it is structure
+    # rather than prose, so it does not make the quote a literal one.
+    return _starts_value(text, index) or text[index:index + 1] in ('}', ']')
+
+
+def repair(text):
+    """Escape the quotes inside strings that cannot be ending them.
+
+    This is a heuristic, and it only runs over a block that has already
+    failed to parse, so it cannot make a valid response worse. What it
+    produces is trusted only if it parses into a review, and a guess
+    that misplaces a string boundary almost never does.
+    """
+    out = []
+    in_string = False
+    escaped = False
+
+    for index, char in enumerate(text):
+        if not in_string:
+            in_string = char == '"'
+        elif escaped:
+            escaped = False
+        elif char == '\\':
+            escaped = True
+        elif char == '"':
+            if _closes_string(text, index + 1):
+                in_string = False
+            else:
+                char = '\\"'
+        out.append(char)
+
+    return ''.join(out)
+
+
+def _repaired(block):
+    """Return the review a malformed block repairs into, or None."""
+    try:
+        # strict=False also lets through raw newlines and tabs inside a
+        # string, the other way a model writes a complete review that
+        # the parser rejects.
+        data = json.loads(repair(block), strict=False)
+    except json.JSONDecodeError:
+        return None
+    if (looks_like_a_review(data) and data['items']
+            and items_are_usable(data['items'])):
+        return data
+    return None
+
+
+def extract(text):
+    """Return (review_data, status) for a model response.
+
+    status is 'ok' for a review that parsed as it came, 'salvaged' when
+    the response was truncated and the review was recovered from the
+    part that arrived intact, and 'repaired' when a complete block of
+    malformed JSON parsed once its stray quotes were escaped.
 
     Candidates are tried in order and the first one that yields a
     review wins, so a truncated last block still beats a complete
@@ -310,8 +415,9 @@ def extract(text):
     Only a candidate that could have been cut off mid-write is salvaged
     and reported as truncation. A closed fence holding JSON that will
     not parse is the reviewer emitting something invalid, which is a
-    prompt or schema problem rather than a size one, so it falls
-    through to the unparseable path and the job goes red.
+    prompt or schema problem rather than a size one. It is offered to
+    repair(), and falls through to the unparseable path, and a red job,
+    only if that does not recover a review with findings in it.
     """
     candidates = candidate_blocks(text)
     if not candidates:
@@ -328,7 +434,12 @@ def extract(text):
                 # The fence closed, so the response finished writing
                 # this block; it is malformed, not unfinished. Calling
                 # that truncation would blame the diff size for a
-                # tooling bug, and hide it behind a green job.
+                # tooling bug, and hide it behind a green job. It is
+                # complete, though, so if repair recovers it there is
+                # nothing to caveat.
+                data = _repaired(block)
+                if data is not None:
+                    return data, 'repaired'
                 continue
             # This block was still being written when the response ran
             # out, so it is the answer if anything survives it.
@@ -338,12 +449,12 @@ def extract(text):
             except ExtractionError:
                 continue
             data['caveat'] = SALVAGE_CAVEAT
-            return data, True
+            return data, 'salvaged'
 
         if not looks_like_a_review(data):
             continue
         if data['items']:
-            return data, False
+            return data, 'ok'
         # A review with no findings is a legitimate clean bill of
         # health, but it is also the shape of a restated example, so
         # keep looking before settling for it.
@@ -351,7 +462,7 @@ def extract(text):
             findingless = data
 
     if findingless is not None:
-        return findingless, False
+        return findingless, 'ok'
 
     if truncated:
         # A block was there and it did not parse, so the response was
@@ -373,13 +484,13 @@ def main():
     text = response_path.read_text()
 
     try:
-        data, salvaged = extract(text)
+        data, status = extract(text)
     except ExtractionError as e:
         print(f'status={e.status} reason={e}')
         sys.exit(e.exit_code)
 
     output_path.write_text(json.dumps(data, indent=2))
-    print('status=salvaged' if salvaged else 'status=ok')
+    print(f'status={status}')
 
 
 if __name__ == '__main__':

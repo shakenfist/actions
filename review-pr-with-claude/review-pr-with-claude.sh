@@ -642,7 +642,9 @@ fi
 # Pull the review JSON out of the response. The extractor salvages a
 # response that was cut off mid-JSON, marking what it recovers as a
 # partial review, because a large diff runs out of output room often
-# enough that discarding those is throwing away most of a review.
+# enough that discarding those is throwing away most of a review. It
+# also repairs a complete block the model broke by quoting a literal
+# ``"`` inside a string, which reports as status=repaired.
 echo "Extracting review JSON..."
 review_truncated=false
 extract_rc=0
@@ -655,6 +657,8 @@ if [ "${extract_rc}" -eq 0 ]; then
         echo "Note: the response was truncated; the review is partial"
         review_truncated=true
         ci_output "review_truncated" "true"
+    elif [ "${extract_status}" = "status=repaired" ]; then
+        echo "Note: the review JSON was malformed and has been repaired"
     fi
 else
     echo "Extraction failed: ${extract_status}"
