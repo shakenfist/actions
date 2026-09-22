@@ -1,9 +1,17 @@
 {
   "version": 1,
   "files": {
+    ".github/actionlint.yaml": {
+      "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
+      "date": "2026-09-23"
+    },
     ".github/workflows/canary.yml": {
       "sha": "eb280daeac65933e6dcc3d52bfc03615f312a96a",
       "date": "2026-08-24"
+    },
+    ".github/workflows/ci.yml": {
+      "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
+      "date": "2026-09-23"
     },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "cbe1fe485f10c876d4e8367aadc00fa0fcb81910",
@@ -36,6 +44,10 @@
     ".github/workflows/renovate.yml": {
       "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
       "date": "2026-09-19"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "7fcd258a224df9e92f17460e7398cc38449c3e5d",
+      "date": "2026-09-23"
     },
     ".gitleaks.toml": {
       "sha": "6be5dc4d7c4b805de45535976696180385593cce",
@@ -105,6 +117,10 @@
       "sha": "1e2426cd4487ebcf84a4c52a3acbf1e9047d65b6",
       "date": "2026-09-07"
     },
+    "ansible/ci-topology-slim-tier.yml": {
+      "sha": "e0f8749863a94249d5e4168e44032ca4d8912899",
+      "date": "2026-09-23"
+    },
     "ansible/files/ci-runner-alloy.alloy": {
       "sha": "b4cb1ddd3e403fb8cc8d85aa349a4ebfc1737970",
       "date": "2026-09-16"
@@ -141,9 +157,17 @@
       "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
       "date": "2026-09-16"
     },
+    "ansible/tasks/install-kolla-prerequisites.yml": {
+      "sha": "093197e5ef09e23b2b23ab811aa52b6aa14e63d4",
+      "date": "2026-09-23"
+    },
     "ansible/tasks/reserve-deployment-vip.yml": {
       "sha": "b115cb6e27c1cd7e9600ca1f7914d26c8f3c662a",
       "date": "2026-09-19"
+    },
+    "ansible/tasks/wait-for-cloud-init.yml": {
+      "sha": "7ff98245709e7d3ce3108cdd3c0aa4d1b2b595fe",
+      "date": "2026-09-23"
     },
     "ansible/tasks/wait-for-ssh-with-refloat.yml": {
       "sha": "6640f3073e18e7dab5996ff0c64be81e5a7c87ea",
@@ -153,6 +177,10 @@
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
     },
+    "build-smoke-cluster/action.yml": {
+      "sha": "91be93ba31ca164a354d952d731b814f27b03d96",
+      "date": "2026-09-23"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -160,6 +188,22 @@
     "deploy-kolla-ansible/action.yml": {
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
+    },
+    "docs/actions.md": {
+      "sha": "23c36bc47925ffda178b4de4926073d2dbc26ddc",
+      "date": "2026-09-23"
+    },
+    "docs/ansible.md": {
+      "sha": "d0aaae66b49ddac0da3b8036256b770a36baef66",
+      "date": "2026-09-23"
+    },
+    "docs/ci.md": {
+      "sha": "28dae09027b12dc6403450645b311d2ae90ab2bd",
+      "date": "2026-09-23"
+    },
+    "docs/consuming.md": {
+      "sha": "c63c43f93d3af62160d715db2461d981368b1718",
+      "date": "2026-09-23"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -205,6 +249,10 @@
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
       "date": "2026-09-07"
     },
+    "setup-kerbside-environment/action.yml": {
+      "sha": "b6ed3e052b8827cebe9db8234accb7ca5b8975cd",
+      "date": "2026-09-23"
+    },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",
       "date": "2026-09-07"
@@ -216,6 +264,10 @@
     "tests/helpers.py": {
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
       "date": "2026-09-07"
+    },
+    "tests/test_ansible_readiness.py": {
+      "sha": "cfa8c5fc0492bb16119914ec8e745f826ae138c6",
+      "date": "2026-09-23"
     },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",

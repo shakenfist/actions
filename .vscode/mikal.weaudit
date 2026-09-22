@@ -399,6 +399,86 @@
     {
       "path": "tests/test_vip_reservation.py",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/actionlint.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/install-kolla-prerequisites.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/wait-for-cloud-init.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ansible_readiness.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
