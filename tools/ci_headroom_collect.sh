@@ -89,11 +89,21 @@
 # empty one, so the two cases stay distinguishable. It reaches the primary base64 encoded -- see the ssh call
 # below, which explains why.
 #
-# NOTHING in this script may fail the job: the probe exists to observe CI's
-# failure surface, and an instrument that can fail the job changes the thing
-# being measured. Every step tolerates a dead poller, a missing file and an
-# unreachable Loki, and the script always exits 0. It runs on the CI runner,
+# NOTHING in this script may fail the job, with one exception named below: the
+# probe exists to observe CI's failure surface, and an instrument that can
+# fail the job changes the thing being measured. Every step tolerates a dead
+# poller, a missing file and an unreachable Loki. It runs on the CI runner,
 # not on a cluster node.
+#
+# The exception is the band verdict, and it is not really an exception to that
+# reasoning so much as a different subject. D15 is about the instrument's own
+# failures; the verdict is a statement about the cloud the suite just ran on,
+# and phase 5 of PLAN-ci-cloud-sizing decided that statement may stop a merge.
+# It is handled entirely in tools/ci_headroom_verdict.sh, which this script
+# execs at the foot and which is the authority on the contract -- including
+# the two guards that make it inert against a report which does not implement
+# it, and against an operator who needs the gate off in a hurry. Everything
+# above that exec still exits 0 whatever happens.
 
 primary="${1:-}"
 ssh_user="${2:-debian}"
@@ -307,6 +317,23 @@ fi
 
 echo
 echo "=== Headroom summary ==="
-python3 "${report}" "${report_args[@]}" || true
 
-exit 0
+# The contract for what may fail this job lives in ci_headroom_verdict.sh,
+# beside the code that implements it, so there is one place to read rather
+# than a rule here and a mechanism there. exec, so its status is this
+# script's status with nothing in between to get it wrong.
+#
+# The guard is defence in depth rather than a case that can arise: the two
+# files ship in the same checkout at the same ref, unlike the report, which
+# comes from shakenfist's. But a script whose whole promise is that it cannot
+# fail a job for instrument reasons should not fail one because it could not
+# find itself.
+verdict="$(dirname "$0")/ci_headroom_verdict.sh"
+if [ ! -f "${verdict}" ]; then
+    echo "${verdict} is not in this checkout, so the headroom summary is"
+    echo "being printed without a verdict. Nothing can fail this job."
+    python3 "${report}" "${report_args[@]}" || true
+    exit 0
+fi
+
+exec bash "${verdict}" "${report}" "${report_args[@]}"

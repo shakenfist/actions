@@ -138,7 +138,14 @@ jobs:
               "" \
               "actions@main is what every downstream project resolves" \
               "at runtime, so their CI is likely to be failing too" \
-              "until this is fixed or reverted.")
+              "until this is fixed or reverted." \
+              "" \
+              "Rule out one thing first: the run is annotated" \
+              "\"Cluster headroom outside the CI sizing band\" if what" \
+              "failed was the headroom verdict rather than a test. That" \
+              "is a fleet sizing problem, the commit above is innocent," \
+              "and reverting it fixes nothing -- see the canary section" \
+              "of docs/ci.md.")
 
           if [ -n "${existing}" ]; then
               echo "Commenting on existing canary issue #${existing}."

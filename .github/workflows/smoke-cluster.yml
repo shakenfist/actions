@@ -68,6 +68,16 @@ on:
       base_image_user:
         type: string
         default: debian
+      headroom_gate:
+        # Whether the cluster headroom band verdict may fail this job. The
+        # band is fitted and maintained in the shakenfist repository, and
+        # this workflow is consumed @main with no pin, so a band that turns
+        # out to be too tight can turn every functional job in the fleet red
+        # without anything landing here. Setting this false in a caller is
+        # the fast remedy; it suppresses only the gate, and the verdict is
+        # still computed and printed. See tools/ci_headroom_verdict.sh.
+        type: boolean
+        default: true
       stestr_config:
         type: string
         default: smoke-ci.conf
@@ -279,9 +289,11 @@ jobs:
       # only the launcher. See D13 and D14 in
       # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
       #
-      # continue-on-error, and the script itself always exits 0: the point of
-      # the instrument is to observe CI's failure surface, and one that can
-      # fail the job changes the thing being measured (D15).
+      # continue-on-error, and ci_headroom_launch.sh itself always exits 0:
+      # the point of the instrument is to observe CI's failure surface, and
+      # one that can fail the job changes the thing being measured (D15).
+      # That holds without exception for this step. The collection step below
+      # carries one, for the verdict rather than for the instrument.
       #
       # The cap is derived from test_timeout_minutes rather than hardcoded --
       # callers pass 45 through 70 -- plus five minutes. The probe starts in
@@ -300,6 +312,7 @@ jobs:
               "$(( ${{ inputs.test_timeout_minutes }} * 60 + 300 ))"
 
       - name: Run functional tests
+        id: functional
         if: inputs.test_kind == 'functional'
         timeout-minutes: ${{ inputs.test_timeout_minutes }}
         run: |
@@ -405,19 +418,40 @@ jobs:
       # All three outputs stay in /srv/ci/traces on the primary, which the
       # "Gather logs" step below already collects into the 90 day bundle, so
       # this adds no artifact upload of its own. always(), because the runs
-      # worth measuring are the ones whose tests failed; continue-on-error and
-      # a script that always exits 0, for the same reason as the start step.
+      # worth measuring are the ones whose tests failed.
+      #
+      # Unlike the start step, this one carries no continue-on-error. The
+      # collection is still fail-safe in every other respect --
+      # ci_headroom_collect.sh swallows each instrument error it meets --
+      # but it now propagates exactly one status, 3, which
+      # ci_headroom_report.py returns when the cluster's headroom sits outside
+      # the band CI sizing is held to. That is a statement about the cloud
+      # rather than about the instrument, and it is allowed to fail the job.
+      #
+      # The contract, the two guards which make it inert against a report that
+      # does not implement it and against an operator who needs the gate off,
+      # and the tests for all of that, are in tools/ci_headroom_verdict.sh.
+      # headroom_gate above is the off switch; it reaches the script as
+      # CI_HEADROOM_GATE. See also D7 in
+      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-05-guardrails.md
       - name: Collect the cluster headroom series, refusal census and capacity waits
         if: always() && inputs.test_kind == 'functional'
-        continue-on-error: true
+        env:
+          CI_HEADROOM_GATE: ${{ inputs.headroom_gate }}
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}/actions
           tools/ci_headroom_collect.sh "${primary}" "${{ inputs.base_image_user }}" \
               "${{ inputs.topology }} ${{ inputs.stestr_config }}"
 
+      # Gated on the functional step rather than on the job. A band violation
+      # in the step above is the job's first failure, which would otherwise
+      # flip this on for a run whose suite passed -- printing "Failed tests:"
+      # directly beneath a message saying in as many words that this is not a
+      # test failure. That is the exact misreading the verdict is written to
+      # prevent, arriving from the workflow itself.
       - name: List failing tests
-        if: failure() && inputs.test_kind == 'functional'
+        if: always() && steps.functional.outcome == 'failure'
         id: failures
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
