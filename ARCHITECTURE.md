@@ -142,6 +142,7 @@ caller CI (tests pass)                 human comment on a PR
               ├── review-pr-with-claude.sh              (with force set)
               ├── extract-review-json.py  response -> JSON
               ├── render-review.py    JSON -> markdown
+              ├── render-unparsed-review.py   unrecoverable response -> comment
               └── create-review-issues.py   actionable items -> issues
 ```
 
@@ -153,7 +154,8 @@ only where the response could actually have been cut off, which the
 fences say. What is left over -- the reviewer erroring, or output that
 finished and still holds no recoverable review -- fails the job,
 because that is this repository being broken rather than the pull
-request being large.
+request being large. Where there is a response to post, it goes to the
+pull request as it came so its findings are not lost with it.
 [docs/actions.md](docs/actions.md) has the full table of outcomes.
 
 A review is gated three ways: the caller's `needs:` list (tests passed),

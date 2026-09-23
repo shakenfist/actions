@@ -117,25 +117,53 @@ the job summary rather than only in the step log.
 | Bot has already reviewed, and `force` is unset | Green | Skipped silently, as before |
 | Diff over GitHub's 20,000-line API cap | Green | A comment on the PR explaining the options |
 | Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
+| A complete review whose JSON was malformed by an unescaped `"` or a raw newline inside a string | Green | The review is repaired and posted as normal |
 | Response truncated mid-JSON, with at least one complete finding | Green | The findings that completed are posted, headed by a warning that the review is partial |
 | Response truncated before any finding completed | Green | A comment on the PR saying so; there is nothing to salvage |
 | Response held no JSON review, and the turn budget was exhausted | Green | As the turn-budget row above: a comment on the PR, since the reviewer ran out of room rather than going wrong |
-| Response held no JSON review, with turns to spare | Red | The reviewer or the prompt is at fault, not the PR |
+| Response held no JSON review, with turns to spare | Red | The reviewer or the prompt is at fault, not the PR. The response is posted to the PR as it came, marked as unparsed, so its findings are not lost |
 | The CLI wrote something that is not a JSON envelope | Red | The CLI failed; nothing can be read out of it |
-| The SDK errored, or a review that was not truncated failed schema validation | Red | Same -- a tooling problem worth a human's attention |
+| The SDK errored | Red | Same -- a tooling problem worth a human's attention |
+| A review that was not truncated failed schema validation | Red | A tooling problem too, and like an unparseable one its response is posted to the PR as it came |
 
-The first six are ordinary outcomes of reviewing a large change, and
+The first seven are ordinary outcomes of reviewing a large change, and
 the money is spent by the time they are reached, so they buy an
-explanation on the pull request instead of a red X. The last three mean
+explanation on the pull request instead of a red X. The last four mean
 this repository, or the tooling under it, is broken.
 
 Truncation is told apart from the other failures by the fences. A
 response with no ```json fence at all was never writing a review, and a
 fence that closed says the response finished writing what is inside it
 -- so JSON in there that will not parse is the reviewer emitting
-something invalid, which is a tooling problem and goes red. Only a
-fence left open, or an unfenced object running to the end of the
-response, is treated as having been cut off.
+something invalid rather than running out of room. Only a fence left
+open, or an unfenced object running to the end of the response, is
+treated as having been cut off.
+
+Invalid JSON in a closed fence is usually a model quoting a literal --
+a description discussing `packages = ["x"]` with the inner quotes left
+unescaped. Before giving up on it, the extractor escapes every quote
+that cannot be ending its string, judged by whether what follows it is
+JSON structure or prose, and accepts raw newlines inside strings. The
+result is posted only if it parses into a review with at least one
+valid finding; anything that repair does not fix is a tooling problem
+and goes red.
+
+A truncated response can carry the same stray quote, and there it does
+more damage: the salvage walk-back tracks strings to find where it can
+safely cut, and an unescaped quote puts every cut after it in the wrong
+place. So a truncated block that will not salvage as it came is
+repaired and salvaged again, and reported as partial like any other
+salvage.
+
+A red outcome with a response in hand still posts that response.
+The model call usually completed normally, and the findings in it are
+real; left in the job log they reach nobody, because a red reviewer job
+is the last place anyone looks. The comment puts the response in a code
+fence longer than any backtick run inside it, breaks any mention of the
+bot so a quoted trigger phrase cannot fire, and cuts it to fit GitHub's
+comment size limit, with the full text still in the step log. It is an
+ordinary comment rather than a review, so it does not satisfy the
+already-reviewed check and the next review runs as normal.
 
 The same explanation is not posted twice: each of these comments
 carries an HTML marker naming its reason, and a handler that finds its
