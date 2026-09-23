@@ -93,6 +93,36 @@ builds the shakenfist server and client wheels from the checkouts made
 by setup-test-environment, so cross-repo changes must land in
 dependency order.
 
+### The headroom gate can fail a Mode 1 job
+
+`smoke-cluster.yml` samples the cluster's spare capacity while the
+functional suite runs, and prints a summary afterwards. That instrument
+is deliberately unable to fail a build -- a probe which can fail the
+thing it measures is measuring itself -- with one exception.
+
+The summary ends in a verdict on the cluster's headroom: the ratio of
+committed vCPU to the schedulable ledger, judged against a band fitted
+to a distribution of past CI runs. When that verdict says the cluster
+was outside the band, the collection step exits non-zero and your job
+fails, with a message saying so in as many words. Nothing else in the
+probe can do that: every other failure it meets is logged and
+swallowed.
+
+The distinction worth knowing when you see one is that this is not a
+test failure and usually not about your change. It says the cluster the
+suite ran on was the wrong size -- too tightly packed to schedule
+reliably, or so empty that CI is paying for capacity it never uses. The
+fix is a topology change in the fleet, not a change to your pull
+request, so the useful response is to say so rather than to retry.
+
+Only Mode 1 is affected. Mode 2 builds its own cluster and never runs
+the collection step.
+
+The band, the numbers behind it and the evidence they were fitted to
+live in
+[PLAN-ci-cloud-sizing.md](https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing.md)
+in the shakenfist repository, along with the report tool itself.
+
 ## Adding a bot-triggered workflow
 
 `pr-bot-trigger` turns an `@shakenfist-bot` pull request comment into a

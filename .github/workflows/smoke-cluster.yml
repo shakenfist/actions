@@ -405,11 +405,21 @@ jobs:
       # All three outputs stay in /srv/ci/traces on the primary, which the
       # "Gather logs" step below already collects into the 90 day bundle, so
       # this adds no artifact upload of its own. always(), because the runs
-      # worth measuring are the ones whose tests failed; continue-on-error and
-      # a script that always exits 0, for the same reason as the start step.
+      # worth measuring are the ones whose tests failed.
+      #
+      # Unlike the start step, this one carries no continue-on-error. The
+      # collection is still fail-safe in every other respect --
+      # ci_headroom_collect.sh swallows each instrument error it meets and
+      # exits 0 -- but it now propagates exactly one status, 3, which
+      # ci_headroom_report.py returns when the cluster's headroom sits outside
+      # the band CI sizing is held to. That is a statement about the cloud
+      # rather than about the instrument, and it is allowed to fail the job.
+      # A component ref whose report does not implement the contract never
+      # returns 3, so this changes nothing for it. See the contract at the
+      # foot of tools/ci_headroom_collect.sh, and D7 in
+      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-05-guardrails.md
       - name: Collect the cluster headroom series, refusal census and capacity waits
         if: always() && inputs.test_kind == 'functional'
-        continue-on-error: true
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}/actions

@@ -307,6 +307,55 @@ fi
 
 echo
 echo "=== Headroom summary ==="
-python3 "${report}" "${report_args[@]}" || true
+
+# The one status that is allowed to fail the job.
+#
+# Everything this script has done up to here is instrument work, and every bit
+# of it is swallowed on purpose -- see D15 in phase 1 of PLAN-ci-cloud-sizing.
+# A probe which can fail a build changes the failure surface it exists to
+# measure, so an unreachable primary, a missing series, a Loki that did not
+# answer and a report this component ref cannot drive are all reported in the
+# log and then let go.
+#
+# The band verdict is not instrument work. It is a statement about the cloud
+# the build just ran on, and phase 5 of PLAN-ci-cloud-sizing decided that
+# statement should be able to stop a merge.
+#
+# So the contract is narrow, and narrow in the direction that fails safe:
+# ci_headroom_report.py returns 3, and only 3, when the cluster-wide ratio of
+# committed vCPU to ledger is outside the band CI sizing is held to. Any other
+# non-zero status is the report being unhappy rather than the cloud -- a
+# series it cannot parse, a python that will not run it, a flag it does not
+# have -- and every one of those is a reason to distrust the measurement, not
+# to fail the job on it.
+#
+# A report which does not implement the contract never returns 3, so this is
+# inert against every component ref that predates it, including today's. That
+# matters more here than it would in most repositories: shakenfist's
+# functional-tests.yml references this workflow @main with no pin, so whatever
+# sits on main is live for every run already in flight and cannot be rolled
+# back by reverting downstream.
+BAND_VIOLATION_STATUS=3
+
+status=0
+python3 "${report}" "${report_args[@]}" || status=$?
+
+if [ "${status}" -eq "${BAND_VIOLATION_STATUS}" ]; then
+    echo
+    echo "The headroom verdict above has failed this job. This is not a test"
+    echo "failure: the tests are whatever the log above says they are. It says"
+    echo "the cluster they ran on sat outside the band CI sizing is held to,"
+    echo "which is a sizing question rather than a change under review. The"
+    echo "verdict says which bound was crossed and by how much."
+    exit "${BAND_VIOLATION_STATUS}"
+fi
+
+if [ "${status}" -ne 0 ]; then
+    echo
+    echo "The headroom report exited ${status}. That is not the band violation"
+    echo "status (${BAND_VIOLATION_STATUS}), so it is read as the report"
+    echo "failing rather than the cloud, and is not failing this job. The raw"
+    echo "series and census are still in the bundle."
+fi
 
 exit 0
