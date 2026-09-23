@@ -154,8 +154,8 @@ only where the response could actually have been cut off, which the
 fences say. What is left over -- the reviewer erroring, or output that
 finished and still holds no recoverable review -- fails the job,
 because that is this repository being broken rather than the pull
-request being large, and posts the response to the pull request as it
-came so its findings are not lost with it.
+request being large. Where there is a response to post, it goes to the
+pull request as it came so its findings are not lost with it.
 [docs/actions.md](docs/actions.md) has the full table of outcomes.
 
 A review is gated three ways: the caller's `needs:` list (tests passed),

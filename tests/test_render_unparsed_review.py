@@ -59,6 +59,20 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn(unparsed.BOT_MENTION, body)
         self.assertIn(unparsed.BROKEN_MENTION, body)
 
+    def test_bot_mentions_are_broken_in_any_case(self):
+        # contains() in a workflow expression ignores case, so a
+        # capitalised mention fires the trigger just the same.
+        body = unparsed.render('the phrase is @Shakenfist-Bot please retest', 'r')
+        self.assertNotIn(unparsed.BOT_MENTION, body.lower())
+
+    def test_a_quoted_unavailable_marker_cannot_be_grepped_out(self):
+        # review_unavailable() skips posting when an exact grep over the
+        # bot's comments finds its marker.
+        marker = '<!-- sf-reviewer-unavailable: turn_budget_exhausted -->'
+        body = unparsed.render('it wrote ' + marker, 'r')
+        self.assertNotIn(marker, body)
+        self.assertIn(unparsed.MARKER, body)
+
     def test_the_explanation_carries_no_bot_mention(self):
         self.assertNotIn(unparsed.BOT_MENTION, unparsed.render('x', 'r'))
 

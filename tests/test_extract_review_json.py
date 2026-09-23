@@ -451,6 +451,49 @@ class RepairTest(unittest.TestCase):
         valid, message = render.validate_review(data)
         self.assertTrue(valid, message)
 
+    def test_a_multi_element_literal_is_refused_rather_than_mangled(self):
+        # The quote after "a" is followed by a comma and another string,
+        # so it reads as a string ending. The guess is wrong, and what
+        # it produces must fail to parse rather than parse into a
+        # review with its strings cut in the wrong places.
+        text = self.QUOTED.replace('["shakenfist"]', '["a", "b"]')
+        with self.assertRaises(extract.ExtractionError):
+            extract.extract(fenced(text))
+
+    def _truncated_and_quoted(self):
+        items = [dict(item(1), description='uses QxQ here'),
+                 dict(item(2), description='also QyQ'),
+                 dict(item(3), description='a third, cut off')]
+        text = json.dumps({'summary': 's', 'items': items}).replace('Q', '"')
+        return '```json\n' + text[:text.index('cut off')]
+
+    def test_a_truncated_block_with_a_stray_quote_is_salvaged(self):
+        # An unescaped quote throws salvage's string tracking out of
+        # step, so without the repair this cuts in the wrong places,
+        # finds nothing, and reports two complete findings as a
+        # response cut off before it said anything.
+        data, status = extract.extract(self._truncated_and_quoted())
+        self.assertEqual(status, 'salvaged')
+        self.assertEqual(
+            [i['description'] for i in data['items']],
+            ['uses "x" here', 'also "y"'])
+        self.assertEqual(data['caveat'], extract.SALVAGE_CAVEAT)
+
+    def test_a_salvaged_repair_validates(self):
+        render = load_script(
+            'review-pr-with-claude/render-review.py', 'render_review')
+        data, _ = extract.extract(self._truncated_and_quoted())
+        valid, message = render.validate_review(data)
+        self.assertTrue(valid, message)
+
+    def test_a_truncated_block_with_a_raw_newline_is_salvaged(self):
+        text = json.dumps(REVIEW).replace('Adds a thing', 'Adds\na thing')
+        data, status = extract.extract(
+            '```json\n' + text[:text.index('Another finding')])
+        self.assertEqual(status, 'salvaged')
+        self.assertEqual(data['summary'], 'Adds\na thing')
+        self.assertEqual(len(data['items']), 1)
+
 
 class MainTest(unittest.TestCase):
     """The shell branches on main()'s exit code and its status line."""

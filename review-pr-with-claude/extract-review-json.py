@@ -291,6 +291,10 @@ def salvage(text):
     salvaged review that fails validation is thrown away in full -- so
     a single unusable trailing item costs every complete finding in
     front of it.
+
+    Raw newlines and tabs inside strings are let through, as they are for
+    a repaired block: they are the model writing a string it finished,
+    not a sign that it did not.
     """
     candidates = list(_cut_points(text))[-MAX_SALVAGE_CANDIDATES:]
 
@@ -299,7 +303,7 @@ def salvage(text):
         # so the only thing wrong was whatever followed it.
         closing = ''.join(CLOSERS[opener] for opener in reversed(stack))
         try:
-            data = json.loads(text[:cut] + closing)
+            data = json.loads(text[:cut] + closing, strict=False)
         except json.JSONDecodeError:
             continue
         if (looks_like_a_review(data) and data['items']
@@ -383,6 +387,26 @@ def repair(text):
     return ''.join(out)
 
 
+def _salvaged(block):
+    """Return the review a truncated block salvages into, or None.
+
+    A truncated block can be malformed too, and an unescaped quote
+    throws _cut_points() out of step with the strings, so the cuts it
+    offers fall in the wrong places and nothing parses. So when the
+    block will not salvage as it came, salvage it repaired. repair()
+    closes a string left open at the end of the text, and the walk back
+    discards that unfinished item like any other.
+    """
+    try:
+        return salvage(block)
+    except ExtractionError:
+        pass
+    try:
+        return salvage(repair(block))
+    except ExtractionError:
+        return None
+
+
 def _repaired(block):
     """Return the review a malformed block repairs into, or None."""
     try:
@@ -444,9 +468,8 @@ def extract(text):
             # This block was still being written when the response ran
             # out, so it is the answer if anything survives it.
             truncated = True
-            try:
-                data = salvage(block)
-            except ExtractionError:
+            data = _salvaged(block)
+            if data is None:
                 continue
             data['caveat'] = SALVAGE_CAVEAT
             return data, 'salvaged'

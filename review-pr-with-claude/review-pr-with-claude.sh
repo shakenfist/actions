@@ -237,6 +237,17 @@ review_failed() {
     exit 1
 }
 
+# All of the response, into the step log: a response that failed is the
+# only evidence of why, and the first 50 lines of #81's held nothing
+# wrong. Every branch that rejects the response calls this before
+# deciding how to report it, so the log holds the full text whichever
+# way the job ends -- including when post_unparsed_review() has to cut
+# the posted copy short and sends the reader here for the rest.
+dump_response() {
+    echo "Response was:"
+    cat "${claude_result_file}"
+}
+
 # The reviewer finished and left a response, but no review could be
 # recovered from it. The job still goes red, since that is the tooling
 # being wrong, but the response usually holds findings that are real,
@@ -684,10 +695,7 @@ if [ "${extract_rc}" -eq 0 ]; then
     fi
 else
     echo "Extraction failed: ${extract_status}"
-    # All of it: a response that failed is the only evidence of why, and
-    # the first 50 lines of #81's held nothing wrong.
-    echo "Response was:"
-    cat "${claude_result_file}"
+    dump_response
 
     # Exit 2 says a review block was there and stopped before anything
     # usable arrived, which is the large-diff outcome this PR exists
@@ -714,6 +722,7 @@ echo "Validating JSON..."
 if ! python3 "${render_script}" --validate "${review_json_file}"; then
     echo "JSON content:"
     cat "${review_json_file}"
+    dump_response
 
     # A salvaged review that will not validate is the response having
     # been cut off, not the schema and the prompt disagreeing. Saying

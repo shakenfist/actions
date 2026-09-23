@@ -148,6 +148,13 @@ result is posted only if it parses into a review with at least one
 valid finding; anything that repair does not fix is a tooling problem
 and goes red.
 
+A truncated response can carry the same stray quote, and there it does
+more damage: the salvage walk-back tracks strings to find where it can
+safely cut, and an unescaped quote puts every cut after it in the wrong
+place. So a truncated block that will not salvage as it came is
+repaired and salvaged again, and reported as partial like any other
+salvage.
+
 A red outcome with a response in hand still posts that response.
 The model call usually completed normally, and the findings in it are
 real; left in the job log they reach nobody, because a red reviewer job

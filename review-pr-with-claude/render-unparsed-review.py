@@ -18,13 +18,22 @@ things are done to it before it is posted:
 * It goes inside a code fence one backtick longer than any run of
   backticks in it, so nothing in it can close the fence and render as
   markdown of its own.
-* Mentions of the bot are broken with a zero-width space. The trigger
-  workflows match their phrase anywhere in a comment body, and a review
+* Mentions of the bot are broken with a zero-width space, in any
+  capitalisation, because the trigger workflows match their phrase with
+  contains(), which ignores case, anywhere in a comment body. A review
   of a change to one of them is exactly the response that would quote
   the phrase. A comment posted with github.token cannot trigger a
-  workflow, but a caller using a personal token can.
+  workflow, but a caller using a personal token can. The
+  sf-reviewer-unavailable markers are broken the same way: they are
+  found by an exact grep over the bot's comments, so a quoted one would
+  stop a later run posting the explanation it stands for.
 * It is cut to fit GitHub's 65,536 character limit on a comment body,
   saying so, since the full text is still in the step log.
+
+The comment ends with MARKER so it can be found, by a human or later
+tooling. Nothing deduplicates on it, deliberately: each forced
+re-review that fails to parse is a new response with its own findings,
+so it gets a comment of its own rather than replacing the last one.
 """
 
 import re
@@ -41,6 +50,9 @@ MARKER = '<!-- sf-reviewer-unparsed -->'
 BOT_MENTION = '@shakenfist-bot'
 BROKEN_MENTION = '@​shakenfist-bot'
 
+MARKER_PREFIX = '<!-- sf-reviewer'
+BROKEN_MARKER_PREFIX = '<!-- sf​-reviewer'
+
 
 def fence_for(text):
     """Return a backtick fence longer than any backtick run in text."""
@@ -50,7 +62,9 @@ def fence_for(text):
 
 def render(response, reason):
     """Return the comment body for an unparsed response."""
-    response = response.replace(BOT_MENTION, BROKEN_MENTION)
+    response = re.sub(re.escape(BOT_MENTION), BROKEN_MENTION, response,
+                      flags=re.IGNORECASE)
+    response = response.replace(MARKER_PREFIX, BROKEN_MARKER_PREFIX)
 
     truncated = len(response) > MAX_RESPONSE_CHARS
     if truncated:
