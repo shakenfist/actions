@@ -115,6 +115,27 @@ reliably, or so empty that CI is paying for capacity it never uses. The
 fix is a topology change in the fleet, not a change to your pull
 request, so the useful response is to say so rather than to retry.
 
+You will see it before you open the log: a band violation annotates the
+run with "Cluster headroom outside the CI sizing band", which renders at
+the top of the run summary.
+
+If the band is wrong rather than the cluster, `headroom_gate: false`
+turns the gate off for your repository without turning off the verdict,
+which is still computed and printed:
+
+```yaml
+    with:
+      component: your-repo-name
+      component_ref: ${{ github.sha }}
+      tier: smoke
+      headroom_gate: false
+```
+
+That is meant as the fast remedy while a band is refitted, not as a
+permanent setting -- the band is maintained in the shakenfist repository
+and this workflow is consumed at `@main`, so there is no version of it
+you can pin to instead.
+
 Only Mode 1 is affected. Mode 2 builds its own cluster and never runs
 the collection step.
 

@@ -221,6 +221,27 @@ unnoticed, from "until somebody opens a pull request downstream" to
 a `canary`-labelled issue, because a broken `actions@main` is the whole
 fleet's problem rather than the author's.
 
+**One canary failure does not mean a bad merge.** The functional job
+ends in a cluster headroom verdict, and a verdict outside the CI sizing
+band fails the job -- see `tools/ci_headroom_verdict.sh`. When that is
+what happened, the canary issue's text is misleading in both directions:
+the commit it names is innocent, and reverting it fixes nothing. The run
+summary tells the two apart at a glance, because a band violation
+annotates the run with "Cluster headroom outside the CI sizing band" and
+nothing else here does. In the log it is the collection step that failed
+rather than the test step, and the failure is a paragraph saying in as
+many words that this is not a test failure.
+
+The response is a fleet sizing question -- the cluster the suite ran on
+was too tightly packed to schedule reliably, or so empty that CI is
+paying for capacity it never uses -- and it is answered in
+[PLAN-ci-cloud-sizing.md](https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing.md),
+not here. If the band itself is wrong and the fleet is red because of
+it, `headroom_gate: false` in a caller suppresses the gate without
+suppressing the verdict, which is the fast remedy while the band is
+refitted; the band lives in the shakenfist repository and this workflow
+is consumed at `@main`, so there is no downstream revert to reach for.
+
 Documentation-only pushes are skipped via `paths-ignore`, and so are
 pushes that only record a review: a merged review stamp writes
 generated files under `.vscode/` which cannot change what any action
