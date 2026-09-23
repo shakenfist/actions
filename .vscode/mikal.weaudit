@@ -5,10 +5,6 @@
   "treeEntries": [],
   "auditedFiles": [
     {
-      "path": ".github/workflows/canary.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -317,10 +313,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_headroom_collect.sh",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image.yml",
       "author": "mikal"
     },
@@ -389,19 +381,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/smoke-cluster.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
       "path": ".github/actionlint.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     },
     {
@@ -446,10 +426,6 @@
     },
     {
       "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consuming.md",
       "author": "mikal"
     }
   ],

@@ -5,10 +5,6 @@
       "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
       "date": "2026-09-23"
     },
-    ".github/workflows/canary.yml": {
-      "sha": "eb280daeac65933e6dcc3d52bfc03615f312a96a",
-      "date": "2026-08-24"
-    },
     ".github/workflows/ci.yml": {
       "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
       "date": "2026-09-23"
@@ -44,10 +40,6 @@
     ".github/workflows/renovate.yml": {
       "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
       "date": "2026-09-19"
-    },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "7fcd258a224df9e92f17460e7398cc38449c3e5d",
-      "date": "2026-09-23"
     },
     ".gitleaks.toml": {
       "sha": "6be5dc4d7c4b805de45535976696180385593cce",
@@ -189,10 +181,6 @@
       "sha": "d0aaae66b49ddac0da3b8036256b770a36baef66",
       "date": "2026-09-23"
     },
-    "docs/consuming.md": {
-      "sha": "c63c43f93d3af62160d715db2461d981368b1718",
-      "date": "2026-09-23"
-    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -312,10 +300,6 @@
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
-    },
-    "tools/ci_headroom_collect.sh": {
-      "sha": "e21c9052ec93cb2ecf3b67266e199c5e6b9addeb",
-      "date": "2026-09-14"
     },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
