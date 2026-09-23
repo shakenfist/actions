@@ -57,10 +57,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_extract_review_json.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_render_review.py",
       "author": "mikal"
     },
@@ -137,15 +133,7 @@
       "author": "mikal"
     },
     {
-      "path": "review-pr-with-claude/extract-review-json.py",
-      "author": "mikal"
-    },
-    {
       "path": "review-pr-with-claude/render-review.py",
-      "author": "mikal"
-    },
-    {
-      "path": "review-pr-with-claude/review-pr-with-claude.sh",
       "author": "mikal"
     },
     {
@@ -329,10 +317,6 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
     },
@@ -461,23 +445,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/actions.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ansible.md",
       "author": "mikal"
     },
     {
-      "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     }
   ],

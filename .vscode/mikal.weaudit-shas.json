@@ -61,10 +61,6 @@
       "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
       "date": "2026-09-07"
     },
-    "ARCHITECTURE.md": {
-      "sha": "b14cd19d297ed1d1879307b75d30dee2c26e1104",
-      "date": "2026-09-10"
-    },
     "README.md": {
       "sha": "44e645c02c975d08358d2c878665f497c7ce31f2",
       "date": "2026-09-07"
@@ -189,16 +185,8 @@
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
     },
-    "docs/actions.md": {
-      "sha": "23c36bc47925ffda178b4de4926073d2dbc26ddc",
-      "date": "2026-09-23"
-    },
     "docs/ansible.md": {
       "sha": "d0aaae66b49ddac0da3b8036256b770a36baef66",
-      "date": "2026-09-23"
-    },
-    "docs/ci.md": {
-      "sha": "28dae09027b12dc6403450645b311d2ae90ab2bd",
       "date": "2026-09-23"
     },
     "docs/consuming.md": {
@@ -233,16 +221,8 @@
       "sha": "d361f1309338099b9280abb7a395228251120978",
       "date": "2026-09-07"
     },
-    "review-pr-with-claude/extract-review-json.py": {
-      "sha": "91a5b6eaab5e681668cc3696b0a1a2bfcc2d84e4",
-      "date": "2026-09-07"
-    },
     "review-pr-with-claude/render-review.py": {
       "sha": "fdc6746c850520c6753fff7ecbb8ed8200ec009b",
-      "date": "2026-09-07"
-    },
-    "review-pr-with-claude/review-pr-with-claude.sh": {
-      "sha": "d23a49c8b6d03c362e412d24576827f06818debf",
       "date": "2026-09-07"
     },
     "review-pr-with-claude/review-schema.json": {
@@ -283,10 +263,6 @@
     },
     "tests/test_documentation_links.py": {
       "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
-      "date": "2026-09-07"
-    },
-    "tests/test_extract_review_json.py": {
-      "sha": "a7d7050f66f018cd46fb57b95edd50b876572bd4",
       "date": "2026-09-07"
     },
     "tests/test_render_review.py": {
