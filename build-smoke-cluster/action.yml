@@ -248,6 +248,13 @@ runs:
     # docs/audits/eol-distro.md): moving the smoke suite's guest to
     # trixie is a change to what those tests exercise, and it lands in
     # shakenfist alongside the label rename, not here on its own.
+    #
+    # The second upload, "debian", is the release neutral name the fleet is
+    # moving to, and it is deliberately additive: consumers still boot
+    # "debian-12" until their own test suites are updated, and only then is
+    # the old upload removed. While both exist a smoke cluster pays for one
+    # extra image copy, which is the price of letting the two sides of the
+    # rename land in separate merges.
     - name: Import the base test image
       shell: bash
       run: |
@@ -261,6 +268,9 @@ runs:
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
             "${setup} debian-12 /srv/ci/debian:12 --shared --no-checksum"
+        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
+            "${setup} debian /srv/ci/debian:13 --shared --no-checksum"
 
     - name: Export cluster coordinates
       id: coordinates
