@@ -279,6 +279,19 @@ resolver search list; there is deliberately no invented fallback
 domain, because an invented one is exactly the kind of mismatch this
 assertion exists to catch.
 
+**The node's resolvers are checked, not edited.** Shaken Fist has been
+seen handing guests the hypervisor's libvirt resolver, `192.168.122.1`,
+where every lookup waits out a ~5s timeout
+([shakenfist/shakenfist#3300](https://github.com/shakenfist/shakenfist/issues/3300)).
+On the `debian:13` image `/etc/resolv.conf` is systemd-resolved's stub
+(`127.0.0.53`), rewritten every boot, so the upstream servers live in
+resolved's per-link lists and an edit to the file can neither find the
+bad entry nor outlive the kernel reboot. The play instead reads what
+resolved actually uses, before the install and again after that
+reboot, and fails naming #3300 if the black hole is there.
+`tasks/proxmox/resolver-check.yml` describes the durable fix, should it
+ever be needed.
+
 **What was deliberately not ported.** This playbook is adapted from a
 role that was validated once against a real node in a private
 environment. What did not come across: a task that printed the node's

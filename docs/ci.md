@@ -639,6 +639,14 @@ with a sharper edge: a collision is a one-in-253 draw, so a regression
 presents as flake rather than as breakage. See
 [ansible.md](ansible.md#the-deployment-vip).
 
+`tests/test_proxmox_shell_validation.py` runs the Proxmox shell helpers
+with hostile arguments -- a newline in a token id or a facts field, a
+userinfo or a path in an API URL, a node address outside the playbook's
+netblock -- with a fake `curl`, `git` and `sudo` first on `PATH`. Each
+rejection must name its own guard, reach no fake and publish nothing.
+The substrate lane only ever passes good values, so it would never
+notice a guard that had stopped rejecting.
+
 Those are all cross-file references or silent-failure guards nothing
 else validates -- actionlint checks a workflow's syntax, not whether
 the file it dispatches is there -- and each one fails only when

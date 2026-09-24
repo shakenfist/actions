@@ -21,7 +21,9 @@ inputs:
   node_address:
     description: >-
       The node's address on the "proxmox" network the playbook creates,
-      which is 10.0.2.0/24; it must sit inside that block.
+      which is 10.0.2.0/24; it must be a host address inside that block
+      other than the router at .1, and is refused before anything is booked
+      otherwise.
     required: false
     default: '10.0.2.2'
   smoke_vmid:

@@ -57,6 +57,12 @@
 #   proxmox_ca_file      the node's root CA, /etc/pve/pve-root-ca.pem
 #   proxmox_facts_file   JSON: node name, FQDN, address, PVE version, token
 #                        id, smoke vmid and whether /dev/kvm existed
+#
+# The facts file's node_address is proxmox_node_address, the node's address
+# on the fabric-internal "proxmox" network. It is only reachable from a
+# runner on that network, so it is meaningful only when running_in_ci is
+# true; a caller running with running_in_ci=false reaches the node on its
+# floating address instead, which the facts file does not carry.
 
 # -------------------------------------------------------
 # Play 1: provision the hypervisor and put the runner on its network
@@ -73,8 +79,9 @@
     base_user: debian
     proxmox_network_name: proxmox
     proxmox_netblock: "10.0.2.0/24"
-    # Must sit inside proxmox_netblock. It is also the address the runner's
-    # /etc/hosts maps the node's FQDN to.
+    # Must sit inside proxmox_netblock, which the first tasks below assert.
+    # It is the node's fabric-internal address, and also the address the
+    # runner's /etc/hosts maps the node's FQDN to.
     proxmox_node_address: "10.0.2.2"
     # debian:13 and PVE 9 go together -- PVE 9.x is built on trixie, and the
     # apt suite in vars/proxmox.yml follows from this image. A bookworm base
@@ -111,6 +118,29 @@
           hostname in CI), proxmox_token_file, proxmox_ca_file and
           proxmox_facts_file. See the usage comment at the top of the
           playbook.
+
+    # A node address outside the network is otherwise found by sf_instance
+    # or by an unreachable node, minutes in. The comparison is on octets
+    # because the runners carry ansible-core alone, without the ansible.utils
+    # collection (or netaddr) that the ipaddr filter needs -- see
+    # tasks/reserve-deployment-vip.yml -- and comparing the first three
+    # octets is only containment for a /24, so the netblock is held to that
+    # shape too rather than assumed. .1 is the network's router and .255 its
+    # broadcast address, so neither is a node address.
+    - name: Check the node address sits inside the network
+      ansible.builtin.assert:
+        that:
+          - proxmox_netblock is match('^([0-9]{1,3}[.]){3}0/24$')
+          - proxmox_node_address is match('^([0-9]{1,3}[.]){3}[0-9]{1,3}$')
+          - (proxmox_node_address.split('.')[:3] | join('.'))
+            == (proxmox_netblock.split('/')[0].split('.')[:3] | join('.'))
+          - (proxmox_node_address.split('.')[3] | int) >= 2
+          - (proxmox_node_address.split('.')[3] | int) <= 254
+        fail_msg: >-
+          proxmox_node_address is "{{ proxmox_node_address }}", which is not
+          a host address inside proxmox_netblock "{{ proxmox_netblock }}"
+          (a /24; .1 is the router). Pick an address from .2 to .254 of
+          that block.
 
     # Idempotent: a no-op in CI (the runner already lives in this
     # namespace) but the off-fabric path needs it created.
@@ -368,7 +398,8 @@
 
     # Everything a caller needs to find and use the node, except the two
     # files above. Nothing secret: the token secret is only ever in
-    # proxmox_token_file.
+    # proxmox_token_file. node_address is the fabric-internal address, and
+    # means something only when running_in_ci is true (see the header).
     - name: Write the deployment facts to the runner
       ansible.builtin.copy:
         content: >-

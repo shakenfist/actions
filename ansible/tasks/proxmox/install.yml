@@ -58,18 +58,12 @@
   changed_when: false
   failed_when: proxmox_mgmt_address not in _pve_hostname_ip.stdout
 
-# ShakenFist master leaks the hypervisor's libvirt default-network gateway
-# (192.168.122.1) into the guest resolv.conf ahead of the real resolver, where
-# it is a black hole -- every cache miss costs a ~5s timeout, which sshd pays
-# on each new connection. See shakenfist/shakenfist#3300. Strip only the black
-# hole: this deployment pulls from download.proxmox.com and deb.debian.org, so
-# it needs the rest of the forwarders to keep working.
-- name: Remove the leaked libvirt resolver from resolv.conf (shakenfist#3300)
-  ansible.builtin.lineinfile:
-    path: /etc/resolv.conf
-    regexp: '^nameserver\s+192\.168\.122\.1\s*$'
-    state: absent
-  failed_when: false
+# Before the first download: see resolver-check.yml for why this is a check
+# rather than an edit, and why it runs twice.
+- name: Check the node is not using the leaked libvirt resolver
+  ansible.builtin.include_tasks: tasks/proxmox/resolver-check.yml
+  vars:
+    _pve_resolver_stage: before the kernel reboot
 
 # Through the fleet squid, like the apt traffic: 01proxy only covers apt, and
 # get_url reads its proxy from the environment.
@@ -138,6 +132,14 @@
   register: _pve_uname
   changed_when: false
   failed_when: "'pve' not in _pve_uname.stdout"
+
+# The reboot rebuilt resolved's view from cloud-init's networkd file and a
+# fresh DHCP lease, so whatever the first check saw proves nothing about the
+# rest of the run -- which is most of it.
+- name: Check the reboot did not bring the leaked libvirt resolver back
+  ansible.builtin.include_tasks: tasks/proxmox/resolver-check.yml
+  vars:
+    _pve_resolver_stage: after the kernel reboot
 
 # postfix prompts for a mail configuration on install. Under a non-interactive
 # apt that prompt is skipped and it lands on "No configuration", which leaves a

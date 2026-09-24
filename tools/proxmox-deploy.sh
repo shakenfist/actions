@@ -67,8 +67,13 @@ done
 # These end up in a networkspec string and in commands on the node, so
 # refuse anything that is not plainly what it says it is.
 [[ "${base_user}" =~ ^[a-z_][a-z0-9_-]*$ ]] || fail "--base-user is not a user name: ${base_user}"
-[[ "${node_address}" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] \
-    || fail "--node-address is not an IPv4 address: ${node_address}"
+# A host address in the playbook's proxmox_netblock, 10.0.2.0/24, other than
+# the router at .1: the playbook asserts the same thing, but only after
+# ansible and the collection are installed. The block is spelled out because
+# it is a play var there, not an input here;
+# tests/test_proxmox_shell_validation.py keeps the two in agreement.
+[[ "${node_address}" =~ ^10\.0\.2\.([2-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-4])$ ]] \
+    || fail "--node-address must be a host address in 10.0.2.0/24 other than the router at .1: ${node_address}"
 [[ "${smoke_vmid}" =~ ^[0-9]+$ ]] || fail "--smoke-vmid is not a number: ${smoke_vmid}"
 [ "${smoke_vmid}" -ge 100 ] || fail "--smoke-vmid must be 100 or more, as PVE requires"
 [[ "${workdir}" = /* ]] || fail "--workdir must be an absolute path: ${workdir}"

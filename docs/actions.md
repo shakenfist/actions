@@ -351,7 +351,7 @@ to `xs` (see `AGENTS.md`, *A `vm` runs-on must also name a size*).
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `base_user` | No | `debian` | The user the Debian base image logs in as |
-| `node_address` | No | `10.0.2.2` | The node's address on the `proxmox` network the playbook creates (`10.0.2.0/24`); must sit inside that block |
+| `node_address` | No | `10.0.2.2` | The node's address on the `proxmox` network the playbook creates (`10.0.2.0/24`); must be a host address in that block other than the router at `.1`, and is refused before anything is booked otherwise |
 | `smoke_vmid` | No | `100` | The VM id of the SPICE smoke guest. PVE requires 100 or more |
 | `workdir` | No | `''` | Runner directory, created `0700`, for the token secret, the node CA, the deployment facts and a shakenfist checkout. Empty means `$RUNNER_TEMP/proxmox` |
 
