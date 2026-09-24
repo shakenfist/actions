@@ -292,9 +292,10 @@ holding `/srv/github/id_ci`.
 Like `canary.yml`, it is advisory rather than required: it is
 path-filtered, and a required check that a path filter can skip blocks
 a pull request forever the day it never runs. It also proves only that
-this repository's own runners can create the node -- the first proof
-that a *consumer's* runners can comes from ryll's own Proxmox lane,
-which deploys through this action from the other side.
+this repository's own runners can create the node; that a *consumer's*
+runners can is proven by the consumer's own lane, such as ryll's
+`proxmox-functional.yml`, which deploys through this action from the
+other side.
 
 ### Post-merge lane -- `prune-reviews.yml`
 

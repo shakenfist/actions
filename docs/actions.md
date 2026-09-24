@@ -376,7 +376,10 @@ FQDN is added to `/etc/hosts`, mapped to its address, and both are
 appended to `no_proxy` and `NO_PROXY` -- the runner image exports
 `http_proxy`/`https_proxy` for a squid cache that cannot route to the
 node's network. Neither is undone at the end of the job; the runner is
-single-use.
+single-use. The same goes for the node itself: the Proxmox instance and
+its `proxmox` network live in the runner's own Shaken Fist namespace,
+which the CI provisioner deletes, with everything in it, when the runner
+finishes. A consumer needs no cleanup step of its own.
 
 **Mint immediately before connecting.** A Proxmox console ticket is
 good for about 30 seconds from the mint, so a consumer should call

@@ -6,9 +6,8 @@ action.yml declares each output as `${{ steps.publish.outputs.X }}`, and
 tools/proxmox-publish-node.sh is the "publish" step: it writes the
 GITHUB_OUTPUT lines that back those references. Nothing ties the two
 lists together, so a rename or an addition on one side silently breaks
-the action's contract with a consumer -- ryll's proxmox-functional.yml
-today, and kerbside's Proxmox source lane later -- rather than failing a
-test here.
+the action's contract with its consumers (ryll's proxmox-functional.yml,
+for one) rather than failing a test here.
 """
 
 import os

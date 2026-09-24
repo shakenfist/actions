@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # Mint a SPICE console .vv for one Proxmox VE guest, through the node's API
-# with an API token, the way a console broker (kerbside's Proxmox driver)
-# will.
+# with an API token, the way a console broker does.
 #
 #   proxmox-mint-vv.sh --api-url https://pve1.example:8006 --node pve1 \
 #       --vmid 100 --token-id 'kerbside@pve!console' \
@@ -61,7 +60,10 @@ set -o pipefail
 export LC_ALL=C
 
 usage() {
-    sed -n '7,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    # The usage example in the header, found by content so that editing the
+    # comment above it cannot shift what --help prints.
+    sed -n '/^#   proxmox-mint-vv.sh /,/^#$/{/^#$/d;p}' "${BASH_SOURCE[0]}" |
+        sed 's/^# \{0,1\}//' >&2
     exit 2
 }
 

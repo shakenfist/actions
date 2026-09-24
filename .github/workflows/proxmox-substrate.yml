@@ -1,9 +1,8 @@
 # Pre-merge and drift-detection lane for deploy-proxmox-on-shakenfist.
 #
-# decision 2 is what makes this a real pre-merge test rather than another
-# instance of "what you can and cannot verify before merging" in
-# AGENTS.md: the action resolves its playbook, task files and helpers
-# through github.action_path, so a relative reference to this action here
+# Unlike most of what "what you can and cannot verify before merging" in
+# AGENTS.md describes, this is a real pre-merge test: the action resolves
+# its playbook, task files and helpers through github.action_path, so a relative reference to this action here
 # runs the PULL REQUEST'S version of all of them, not main's. That is the one
 # composite action in this repository this is true for today -- every
 # other one is still only exercised post-merge, by canary.yml.
@@ -12,8 +11,9 @@
 # required check that can be skipped by a path filter blocks a pull
 # request forever the day it never runs (ryll's docs/ci.md, "It is
 # deliberately not a gate", makes the same argument for its mermaid
-# lane). It also does not exercise the kerbside or ryll consumers --
-# ryll's own proxmox-functional.yml is the first thing that does.
+# lane). It also does not exercise a consumer's use of the action; that
+# is the job of each consumer's own lane, such as ryll's
+# proxmox-functional.yml.
 name: Proxmox substrate
 
 on:
@@ -82,8 +82,7 @@ jobs:
         uses: ./deploy-proxmox-on-shakenfist
 
       # Proves the action's outputs, on their own, are what a consumer
-      # (ryll's proxmox-functional.yml, later kerbside's lane) actually
-      # needs: mint independently of the action's own internal
+      # (ryll's proxmox-functional.yml, for one) actually needs: mint independently of the action's own internal
       # self-check, using only the published outputs, and open the
       # tunnel a real client would.
       - name: Mint a second ticket from the published outputs and re-probe
@@ -108,8 +107,8 @@ jobs:
   # files here: a pull request or workflow_dispatch failure already has
   # an author looking at their own run, but a scheduled failure has
   # nobody, and a broken deploy-proxmox-on-shakenfist should surface as
-  # an issue against this repository before it trips ryll's or
-  # kerbside's own proxmox lane. Modelled on canary.yml's report-failure
+  # an issue against this repository before it trips a consumer's own
+  # Proxmox lane. Modelled on canary.yml's report-failure
   # job, one issue per outage rather than one per run.
   report-failure:
     name: Report proxmox-substrate failure

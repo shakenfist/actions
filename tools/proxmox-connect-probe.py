@@ -94,14 +94,12 @@ def connect_target(host, tls_port):
     # The pseudo-hostname goes into a request line and a header, so refuse
     # anything that could end either. Fixed messages: this is the ticket.
     #
-    # Reviewed as possibly narrower than PVE's real alphabet
-    # (pvespiceproxy:<hex>:<vmid>:<node>:<ticket>), since the trailing
-    # ticket component was not confirmed against pve-common source. Left
-    # as-is: this class already accepted the real pseudo-hostname across
-    # both proxmox-substrate.yml runs that exercised it end to end
-    # (actions#96, runs 35950572010 and 35951585924), each minting and
-    # probing twice. Widen it, rather than denylist CR/LF/space, only if a
-    # real ticket is ever seen to need a character outside this set.
+    # This may be narrower than PVE's full alphabet for the pseudo-hostname
+    # (pvespiceproxy:<hex>:<vmid>:<node>:<ticket>): the trailing ticket
+    # component has not been checked against pve-common source. It does
+    # accept every real pseudo-hostname proxmox-substrate.yml mints. Widen
+    # it, rather than denylist CR/LF/space, only if a real ticket is ever
+    # seen to need a character outside this set.
     if not re.fullmatch(r'[A-Za-z0-9._:\[\]-]+', host):
         raise ProbeError('the .vv "host" is not a hostname', 2)
     if not re.fullmatch(r'[0-9]{1,5}', tls_port):

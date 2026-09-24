@@ -183,6 +183,15 @@ class MintVvTest(ShellHarness):
         self.assertEqual(result.stdout, '')
         self.assertFalse(os.path.exists(os.path.join(self.workdir, 'console.vv')))
 
+    def test_help_prints_the_whole_usage_example(self):
+        result = self.run_script(MINT, ['--help'])
+        self.assertEqual(2, result.returncode)
+        lines = result.stderr.splitlines()
+        self.assertTrue(lines[0].startswith('  proxmox-mint-vv.sh --api-url '),
+                        result.stderr)
+        self.assertIn('--out /path/to/console.vv', lines[-1])
+        self.assertEqual(4, len(lines), result.stderr)
+
     def test_good_arguments_mint_a_vv(self):
         result = self.run_script(MINT, self.good_args())
         self.assertEqual(result.returncode, 0, result.stderr)

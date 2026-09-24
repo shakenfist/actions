@@ -210,7 +210,7 @@
     # Copied from kerbside-single-node.yml, less the ci-environment.sh
     # write: this playbook's results go to the files named at the top.
     # FQCN throughout, unlike the source it was copied from, to match the
-    # rest of this new file rather than carry over kerbside-single-node.yml's
+    # rest of this playbook rather than carry over kerbside-single-node.yml's
     # bare module names.
     - name: Additional tasks for CI
       when: running_in_ci | bool

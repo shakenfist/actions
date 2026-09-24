@@ -10,9 +10,8 @@ are also precisely the parts that can reject a *valid* .vv and report it
 as a substrate failure rather than as what it actually is: a parsing
 bug here.
 
-The .vv content below follows the real shape a mint leaves, per the
-master plan's *Three protocol details* and PLAN-proxmox-source.md's
-worked example: a bare "host" pseudo-hostname (not a DNS name), and a
+The .vv content below follows the real shape PVE's spiceproxy endpoint
+returns (see tools/proxmox-mint-vv.sh): a bare "host" pseudo-hostname (not a DNS name), and a
 "ca" field with its newlines escaped as literal backslash-n rather than
 real ones, because it has to survive as one INI value.
 """

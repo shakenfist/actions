@@ -6,8 +6,8 @@
 # failure is the author's problem and shows up as a red check on their own
 # run, but a scheduled failure has no author to notify, and a broken
 # deploy-proxmox-on-shakenfist would otherwise first be noticed as a red
-# lane in a client repository (ryll's proxmox-functional.yml, and later
-# kerbside's). Modelled on canary.yml's report-failure job: one issue per
+# lane in a client repository (ryll's proxmox-functional.yml, for one).
+# Modelled on canary.yml's report-failure job: one issue per
 # outage, not one per run, so a lane that stays red for a week does not
 # file seven issues.
 #
