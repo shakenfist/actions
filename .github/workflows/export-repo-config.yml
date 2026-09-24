@@ -5,7 +5,13 @@
 #   jobs:
 #     export-config:
 #       uses: shakenfist/actions/.github/workflows/export-repo-config.yml@main
-#       secrets: inherit
+#
+# Without "secrets: inherit". This workflow reads no secrets: it
+# authenticates with github.token, which carries the caller's
+# permissions: block (see below for which). Inheriting would only
+# hand every secret the caller holds to a workflow in another
+# repository, called at a moving @main. The development repository's
+# export-repo-config consistency audit reports a caller that passes it.
 #
 # It exports repository settings, rulesets, and branch protection
 # configuration to a JSON file. If the configuration has changed
