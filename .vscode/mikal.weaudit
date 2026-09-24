@@ -383,6 +383,26 @@
     {
       "path": "setup-kerbside-environment",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/canary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/proxmox-substrate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

@@ -5,6 +5,10 @@
       "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
       "date": "2026-09-23"
     },
+    ".github/workflows/canary.yml": {
+      "sha": "1159519ae7e3050ab79640707f04d4dceb0088de",
+      "date": "2026-09-25"
+    },
     ".github/workflows/ci.yml": {
       "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
       "date": "2026-09-23"
@@ -33,6 +37,10 @@
       "sha": "800a9f74077797366c4e533cab91a080dcbf31d7",
       "date": "2026-09-04"
     },
+    ".github/workflows/proxmox-substrate.yml": {
+      "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
+      "date": "2026-09-25"
+    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
@@ -40,6 +48,10 @@
     ".github/workflows/renovate.yml": {
       "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
       "date": "2026-09-19"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "93dde749f81be8afa55e02750cf018d535d90bdd",
+      "date": "2026-09-25"
     },
     ".pre-commit-config.yaml": {
       "sha": "e3dfd65f4fe369bc94a4dc14b7fbb785c6eb1edd",
