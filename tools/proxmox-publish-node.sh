@@ -149,22 +149,23 @@ echo "Mapped ${fqdn} to ${node_address} in /etc/hosts"
 # exports http_proxy and https_proxy for a squid that cannot route to the
 # node's network. Both spellings are set to the same list, because tools
 # disagree about which one they read and curl prefers the lower case one --
-# so setting only one could hide entries the other held.
-current="${no_proxy:-${NO_PROXY:-}}"
-additions=''
-for entry in "${fqdn}" "${node_address}"; do
-    case ",${current}," in
+# so setting only one could hide entries the other held. The base list is
+# the union of both, so neither spelling loses an entry to the rewrite.
+updated=''
+IFS=',' read -r -a entries <<< "${no_proxy:-},${NO_PROXY:-},${fqdn},${node_address}"
+for entry in "${entries[@]}"; do
+    [ -n "${entry}" ] || continue
+    case ",${updated}," in
         *",${entry},"*) ;;
-        *) additions="${additions:+${additions},}${entry}" ;;
+        *) updated="${updated:+${updated},}${entry}" ;;
     esac
 done
-if [ -n "${additions}" ]; then
-    updated="${current:+${current},}${additions}"
+if [ "${updated}" != "${no_proxy:-}" ] || [ "${updated}" != "${NO_PROXY:-}" ]; then
     {
         echo "no_proxy=${updated}"
         echo "NO_PROXY=${updated}"
     } >> "${GITHUB_ENV}"
-    echo "Added ${additions} to no_proxy and NO_PROXY for the rest of the job"
+    echo "Set no_proxy and NO_PROXY to ${updated} for the rest of the job"
 fi
 
 {

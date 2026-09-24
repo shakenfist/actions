@@ -11,7 +11,7 @@
 # outage, not one per run, so a lane that stays red for a week does not
 # file seven issues.
 #
-# Expects GH_TOKEN, RUN_URL and SHA in the environment.
+# Expects GH_TOKEN, RUN_URL, SHA and GITHUB_REPOSITORY in the environment.
 
 set -o errexit
 set -o nounset

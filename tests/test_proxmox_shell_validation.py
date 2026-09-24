@@ -124,8 +124,11 @@ class ShellHarness(unittest.TestCase):
         with open(self.response, 'w') as f:
             json.dump(body, f)
 
-    def run_script(self, script, args):
+    def run_script(self, script, args, extra_env=None):
         env = dict(os.environ)
+        env.pop('no_proxy', None)
+        env.pop('NO_PROXY', None)
+        env.update(extra_env or {})
         env.update({
             'PATH': self.bindir + os.pathsep + env.get('PATH', ''),
             'FAKE_LOG': self.fake_log,
@@ -274,6 +277,24 @@ class PublishNodeTest(ShellHarness):
         for path in (self.github_output, self.github_env):
             with open(path) as f:
                 self.assertEqual(f.read(), '', path)
+
+    def test_no_proxy_keeps_the_entries_of_both_spellings(self):
+        # Past the /etc/hosts check with a getent that resolves the node,
+        # the rewrite must start from the union of no_proxy and NO_PROXY:
+        # an entry only one of them held must survive in both.
+        self.write_exec('getent', '#!/bin/bash\n'
+                        'echo "10.0.2.2 STREAM pve1.example.test"\n')
+        self.write_exec('sudo', '#!/bin/bash\ncat > /dev/null\n')
+        self.write_facts()
+        result = self.run_script(PUBLISH, ['--workdir', self.workdir],
+                                 extra_env={'no_proxy': 'localhost,lower',
+                                            'NO_PROXY': 'upper,localhost'})
+        self.assertEqual(0, result.returncode, result.stderr)
+        with open(self.github_env) as f:
+            env_lines = f.read().splitlines()
+        merged = 'localhost,lower,upper,pve1.example.test,10.0.2.2'
+        self.assertEqual(['no_proxy=' + merged, 'NO_PROXY=' + merged],
+                         env_lines)
 
     def test_good_facts_get_as_far_as_the_runner_hosts_file(self):
         # The positive control: good facts and a matching ticket pass every

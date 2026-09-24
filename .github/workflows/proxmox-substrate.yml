@@ -27,6 +27,10 @@ on:
       # start with "proxmox-", so a pull request touching it would
       # otherwise never run the lane that lints and owns it.
       - 'tools/*proxmox*'
+      # Shared files the action runs too: proxmox-single-node.yml imports
+      # the first and proxmox-deploy.sh calls the second.
+      - 'ansible/tasks/wait-for-cloud-init.yml'
+      - 'tools/install-collection.sh'
       - '.github/workflows/proxmox-substrate.yml'
   workflow_dispatch:
   schedule:
@@ -78,7 +82,9 @@ jobs:
 
       - name: Deploy the Proxmox VE node
         id: deploy
-        timeout-minutes: 90
+        # Under the job's 90, so a slow deploy fails as this step and the
+        # job's timeout stays the backstop.
+        timeout-minutes: 75
         uses: ./deploy-proxmox-on-shakenfist
 
       # Proves the action's outputs, on their own, are what a consumer
