@@ -495,6 +495,26 @@
     {
       "path": "tools/report-proxmox-substrate-failure.sh",
       "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
