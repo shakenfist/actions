@@ -80,9 +80,14 @@ chmod 0700 "${workdir}"
 # instance-creating path here does it. This is a plain clone rather than
 # actions/checkout because actions/checkout refuses to write anywhere
 # outside GITHUB_WORKSPACE, and the consumer's workspace is not ours to put
-# a checkout in.
+# a checkout in. Deliberately unpinned: this lane wants to run against
+# current shakenfist develop, not a stale ref. The SHA is logged so that a
+# weekly drift failure can be told apart from a shakenfist regression --
+# the substrate's own report-proxmox-substrate-failure.sh points a reader
+# here before blaming Proxmox.
 rm -rf "${workdir}/shakenfist"
 git clone --quiet --depth 1 https://github.com/shakenfist/shakenfist "${workdir}/shakenfist"
+echo "shakenfist checkout: $(git -C "${workdir}/shakenfist" rev-parse HEAD)"
 "${here}/tools/install-collection.sh" "${workdir}/shakenfist"
 
 # As JSON, built by jq, rather than as a "k=v k=v" string: ansible splits

@@ -179,36 +179,39 @@
 
     # Copied from kerbside-single-node.yml, less the ci-environment.sh
     # write: this playbook's results go to the files named at the top.
+    # FQCN throughout, unlike the source it was copied from, to match the
+    # rest of this new file rather than carry over kerbside-single-node.yml's
+    # bare module names.
     - name: Additional tasks for CI
       when: running_in_ci | bool
       tags: ci
       block:
       - name: Add environment network interface to primary instance
-        shell: |
+        ansible.builtin.shell: |
           sf-client instance add-interface -n "{{ proxmox_network_name }}" "{{identifier}}"
           sleep 30
 
       - name: Determine the interface name for the new interface
-        shell: |
+        ansible.builtin.shell: |
           ip a | egrep "^[0-9]+: (ens|eth)" | grep -v eth0 | cut -f 2 -d " " | sed 's/:.*//'
         register: primary_new_interface
         retries: 6
         delay: 30
         until: primary_new_interface.stdout != ""
 
-      - debug:
+      - ansible.builtin.debug:
           msg:
             - "New interface on primary: {{ primary_new_interface.stdout }}"
 
       - name: DHCP on new interface
         become: true
-        shell: "dhclient {{ primary_new_interface.stdout }}"
+        ansible.builtin.shell: "dhclient {{ primary_new_interface.stdout }}"
 
       - name: Collect address details for new interface
-        shell: "ip -4 addr show {{ primary_new_interface.stdout }} | grep inet | sed -e 's/.*inet //' -e 's|/.*||'"
+        ansible.builtin.shell: "ip -4 addr show {{ primary_new_interface.stdout }} | grep inet | sed -e 's/.*inet //' -e 's|/.*||'"
         register: primary_new_address
 
-      - debug:
+      - ansible.builtin.debug:
           msg:
             - "New interface address: {{ primary_new_address.stdout }}"
 
@@ -233,7 +236,7 @@
   hosts: allsf
   gather_facts: false
   tasks:
-    - import_tasks: tasks/wait-for-cloud-init.yml
+    - ansible.builtin.import_tasks: tasks/wait-for-cloud-init.yml
 
 # -------------------------------------------------------
 # Play 3: install Proxmox VE

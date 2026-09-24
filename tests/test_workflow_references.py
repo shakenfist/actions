@@ -272,6 +272,50 @@ class ToolScriptReferenceTest(unittest.TestCase):
                         'executable' % (name, job_name, script))
         self.assertTrue(found, 'no tools/ references found to check')
 
+    def test_every_job_running_a_tools_script_checks_out_the_repository(self):
+        # Each job in a workflow gets its own runner and its own empty
+        # workspace, so a checkout in one job does not help another --
+        # proxmox-substrate.yml's report-failure job ran
+        # tools/report-proxmox-substrate-failure.sh as its only step with
+        # no checkout of its own, and could only ever fail with "No such
+        # file or directory". canary.yml's report-failure job gets away
+        # without one only because it inlines its gh commands instead of
+        # naming a tools/ script.
+        #
+        # A job that reaches the tree some other way -- through a
+        # composite action such as setup-test-environment that checks
+        # itself out -- is not this test's business, so a job is only
+        # flagged when it has no uses: step of any kind that could have
+        # brought the repository in.
+        found = False
+        for name, text in workflows():
+            parsed = yaml.safe_load(text)
+            for job_name, job in (parsed.get('jobs') or {}).items():
+                steps = job.get('steps') or []
+                lines = []
+                for step in steps:
+                    run = step.get('run')
+                    if not run:
+                        continue
+                    lines.extend(line for line in run.splitlines()
+                                 if not line.lstrip().startswith('#'))
+                if not self.REFERENCE.search('\n'.join(lines)):
+                    continue
+                found = True
+                has_checkout = any(
+                    (step.get('uses') or '').startswith('actions/checkout')
+                    for step in steps)
+                has_other_uses = any(step.get('uses') for step in steps)
+                with self.subTest(workflow=name, job=job_name):
+                    self.assertTrue(
+                        has_checkout or has_other_uses,
+                        '%s (job %s) runs a tools/ script in a run: step '
+                        'but has no actions/checkout step and no uses: '
+                        'step of any kind that could have brought the '
+                        'repository into its own, separate runner '
+                        'workspace' % (name, job_name))
+        self.assertTrue(found, 'no tools/ references found to check')
+
 
 class ReviewTrackingExclusionTest(unittest.TestCase):
     """The review-tracking exclusions have to agree across three files.

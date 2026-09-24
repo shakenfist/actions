@@ -23,7 +23,10 @@ on:
       - 'ansible/proxmox-single-node.yml'
       - 'ansible/tasks/proxmox/**'
       - 'ansible/vars/proxmox.yml'
-      - 'tools/proxmox-*'
+      # Not 'tools/proxmox-*': report-proxmox-substrate-failure.sh does not
+      # start with "proxmox-", so a pull request touching it would
+      # otherwise never run the lane that lints and owns it.
+      - 'tools/*proxmox*'
       - '.github/workflows/proxmox-substrate.yml'
   workflow_dispatch:
   schedule:
@@ -94,6 +97,10 @@ jobs:
           MINT_SCRIPT: ${{ steps.deploy.outputs.mint_script }}
         run: |
           out="$(mktemp -d)/second.vv"
+          # Holds a live SPICE password, same as the .vv files
+          # proxmox-self-check.sh and proxmox-publish-node.sh remove on
+          # their own way out.
+          trap 'rm -f "${out}"' EXIT
           "${MINT_SCRIPT}" --api-url "${API_URL}" --node "${NODE}" --vmid "${VMID}" --token-id "${TOKEN_ID}" --token-file "${TOKEN_FILE}" --ca-file "${CA_FILE}" --out "${out}"
           python3 tools/proxmox-connect-probe.py "${out}"
 
@@ -114,6 +121,11 @@ jobs:
       contents: read
       issues: write
     steps:
+      # This job runs on its own runner, not the substrate job's, so it
+      # starts with an empty workspace: report-proxmox-substrate-failure.sh
+      # does not exist here until it is checked out.
+      - uses: actions/checkout@v7
+
       - name: File or update the proxmox-substrate failure issue
         env:
           GH_TOKEN: ${{ github.token }}

@@ -44,7 +44,13 @@ body=$(printf '%s\n' \
     "keyring checksum, a moved pve-no-subscription package, a changed" \
     "API shape -- before it first shows up as a red lane in a client" \
     "repository's own proxmox lane. Diagnose from the run log; a" \
-    "failure here is a substrate problem, not a client one.")
+    "failure here is usually a substrate problem, not a client one." \
+    "" \
+    "One thing to rule out first: proxmox-deploy.sh clones" \
+    "shakenfist/shakenfist unpinned, deliberately, so this lane also" \
+    "runs against whatever shakenfist's default branch holds at mint" \
+    "time. Check the run log's \"shakenfist checkout: <sha>\" line" \
+    "before assuming Proxmox drifted.")
 
 if [ -n "${existing}" ]; then
     echo "Commenting on existing proxmox-substrate issue #${existing}."

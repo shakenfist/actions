@@ -256,7 +256,7 @@ Fist filters the fabric by the addresses it handed out, so a nested
 guest with its own MAC and address is dropped on the floor either way.
 A portless bridge -- the setup Proxmox itself documents for a host
 with a single routable address -- avoids both failure modes. NAT and
-DHCP for the guest network are ported behind toggles that default off,
+DHCP for the guest network are put behind toggles that default off,
 because nothing on a console path needs the guest to have an address
 or egress of its own.
 

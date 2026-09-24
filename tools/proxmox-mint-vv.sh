@@ -53,6 +53,13 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# EPOCHREALTIME's fractional part is formatted with the shell's own
+# LC_NUMERIC decimal separator, not always ".". This script publishes that
+# value as its stdout contract, and proxmox-self-check.sh parses it back
+# with awk, so pin the locale here rather than let a runner's locale choose
+# the separator silently.
+export LC_ALL=C
+
 usage() {
     sed -n '7,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
     exit 2

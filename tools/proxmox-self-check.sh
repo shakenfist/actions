@@ -21,6 +21,12 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# EPOCHREALTIME's fractional part follows the shell's own LC_NUMERIC, and
+# this script both reads its own EPOCHREALTIME and awk-parses the mint
+# script's, so a locale using a comma separator would otherwise make
+# "elapsed" silently wrong.
+export LC_ALL=C
+
 fail() {
     echo "::error title=Proxmox substrate::$*"
     echo "proxmox-self-check.sh: $*" >&2

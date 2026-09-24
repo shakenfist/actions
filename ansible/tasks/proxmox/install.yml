@@ -120,11 +120,18 @@
     state: present
   register: _pve_kernel
 
+# Gated on the running kernel as well as the package change: a run that
+# installed proxmox-default-kernel and then died before or during the
+# reboot (the 90 minute job timeout, a cancel-in-progress pull_request
+# run) leaves the package already present on the next attempt, so
+# _pve_kernel.changed alone would skip the reboot forever and the next
+# task would fail on uname -r with no way to recover short of deleting
+# the instance. ansible_kernel is already gathered by this play.
 - name: Reboot onto the Proxmox kernel
   ansible.builtin.reboot:
     reboot_timeout: 600
     post_reboot_delay: 10
-  when: _pve_kernel.changed
+  when: _pve_kernel.changed or 'pve' not in ansible_kernel
 
 - name: Confirm we are running a Proxmox kernel
   ansible.builtin.command: uname -r
