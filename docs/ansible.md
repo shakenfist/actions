@@ -235,6 +235,62 @@ Order matters as much as it does for the readiness gate, and for a
 related reason: cloud-init holds the apt lock while it runs, so this play
 must come after the gate rather than before it.
 
+## Proxmox node
+
+`ansible/proxmox-single-node.yml` brings up a single-node Proxmox VE 9
+hypervisor the same way the topology playbooks bring up a Shaken Fist
+under-cloud: as an instance in the runner's own namespace, with the
+runner joining its network directly (the same add-interface block the
+CI section of `kerbside-single-node.yml` uses). It is wrapped by the
+`deploy-proxmox-on-shakenfist` composite action; see
+[actions.md](actions.md#deploy-proxmox-on-shakenfist) for its inputs
+and outputs.
+
+**The guest bridge has no ports.** `vmbr0`, the bridge the smoke
+guest's NIC attaches to, is not bridged over the node's management
+NIC, and the node is not given a second Shaken Fist NIC to bridge
+instead. Enslaving the management NIC to the bridge would tear down
+the address Ansible is connected over mid-play; giving the node a
+second NIC and bridging that keeps the connection alive, but Shaken
+Fist filters the fabric by the addresses it handed out, so a nested
+guest with its own MAC and address is dropped on the floor either way.
+A portless bridge -- the setup Proxmox itself documents for a host
+with a single routable address -- avoids both failure modes. NAT and
+DHCP for the guest network are ported behind toggles that default off,
+because nothing on a console path needs the guest to have an address
+or egress of its own.
+
+**Three names for the node must agree, and the play asserts it.** A
+SPICE console ticket carries a `proxy` URL naming the node by FQDN and
+a `host-subject` the client pins the certificate's CN against, and PVE
+builds those two from different inputs: the certificate's CN comes
+from the node's FQDN at install time, and the ticket's `proxy` host
+from `hostname -f` at mint time. If those two -- and the domain the
+fabric actually handed the node -- ever disagree, a console client is
+handed a proxy address that resolves nowhere, or a certificate that
+does not match the name it dialled, and that failure would otherwise
+first surface much later as an opaque TLS or DNS error in whatever
+client is under test, rather than as a substrate defect. So the play
+asserts, right after install, that `hostname -f`, the node
+certificate's CN and a freshly minted ticket's `proxy` host and
+`host-subject` CN all name the same FQDN, and prints all four either
+way. The domain half of that FQDN is taken from the fabric's own
+resolver search list; there is deliberately no invented fallback
+domain, because an invented one is exactly the kind of mismatch this
+assertion exists to catch.
+
+**What was deliberately not ported.** This playbook is adapted from a
+role that was validated once against a real node in a private
+environment. What did not come across: a task that printed the node's
+credentials for a human operator to read, a fixed non-secret root
+password meaningful only on a private fabric, and a couple of
+preflight checks that exist only because that private environment
+borrows its readiness gate from somewhere else. None of them does
+anything for a console broker, which never logs into the Proxmox web
+UI and treats the API token as the only credential that matters --
+and the first one, run in this repository's public CI logs, would
+have published that credential.
+
 ## CI caching
 
 The playbooks configure remote VMs to use local caches:

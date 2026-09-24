@@ -300,3 +300,85 @@ wheel on the runner first.
 | `token_duration` | No | `300` | `KERBSIDE_TOKEN_DURATION` (seconds) set in SF |
 | `kerbside_src` | Yes | - | Runner path to the kerbside checkout to deploy |
 | `proxy_wheel` | Yes | - | Runner path/glob to the staged kerbside-proxy wheel |
+
+## deploy-proxmox-on-shakenfist
+
+Stands up a single-node Proxmox VE 9 hypervisor as an instance in the
+runner's own Shaken Fist namespace: a booted SPICE smoke guest, a
+least-privilege API token, and a runner that can resolve and reach the
+node by its FQDN. Everything happens inside the calling job, because a
+Proxmox console ticket lasts only about 30 seconds and a client under
+test has to mint and connect within that window. The action's own
+files -- the playbook, its task files and the two `tools/proxmox-*`
+helpers -- are resolved through `github.action_path`, so a caller
+always gets them from the same ref as the `action.yml` it resolved; see
+[ansible.md](ansible.md#proxmox-node) for what the playbook does and
+[ci.md](ci.md) for the lane this makes possible.
+
+**Usage:**
+
+```yaml
+- name: Deploy a Proxmox VE node
+  id: proxmox
+  timeout-minutes: 90
+  uses: shakenfist/actions/deploy-proxmox-on-shakenfist@main
+
+- name: Mint a console ticket and connect, immediately
+  env:
+    MINT_SCRIPT: ${{ steps.proxmox.outputs.mint_script }}
+    API_URL: ${{ steps.proxmox.outputs.api_url }}
+    NODE: ${{ steps.proxmox.outputs.node_name }}
+    VMID: ${{ steps.proxmox.outputs.vmid }}
+    TOKEN_ID: ${{ steps.proxmox.outputs.token_id }}
+    TOKEN_FILE: ${{ steps.proxmox.outputs.token_file }}
+    CA_FILE: ${{ steps.proxmox.outputs.ca_file }}
+  run: |
+    "${MINT_SCRIPT}" --api-url "${API_URL}" --node "${NODE}" --vmid "${VMID}" \
+        --token-id "${TOKEN_ID}" --token-file "${TOKEN_FILE}" --ca-file "${CA_FILE}" \
+        --out "${RUNNER_TEMP}/console.vv"
+    # Dial the .vv here, straight away: a Proxmox ticket is good for
+    # about 30 seconds from the mint.
+```
+
+The calling job needs at least an `s` runner
+(`runs-on: [self-hosted, vm, <image>, s]`): the deploy drives an
+Ansible run from the runner itself, the same reason `build-smoke-cluster`
+gives for its own minimum, and a sizeless `vm` job silently falls back
+to `xs` (see `AGENTS.md`, *A `vm` runs-on must also name a size*).
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `base_user` | No | `debian` | The user the Debian base image logs in as |
+| `node_address` | No | `10.0.2.2` | The node's address on the `proxmox` network the playbook creates (`10.0.2.0/24`); must sit inside that block |
+| `smoke_vmid` | No | `100` | The VM id of the SPICE smoke guest. PVE requires 100 or more |
+| `workdir` | No | `''` | Runner directory, created `0700`, for the token secret, the node CA, the deployment facts and a shakenfist checkout. Empty means `$RUNNER_TEMP/proxmox` |
+
+**Outputs:**
+
+| Name | Description |
+|------|-------------|
+| `node_name` | The PVE node name, used in API paths (`/nodes/<node_name>/...`) |
+| `node_address` | The node address the runner reaches it on |
+| `node_fqdn` | The node FQDN: the host of a ticket's proxy URL, and the CN of its certificate. Resolvable on the runner through `/etc/hosts` |
+| `api_url` | `https://<node_fqdn>:8006`, the PVE API |
+| `token_id` | The API token id, `user@realm!token` |
+| `token_file` | Path to a `0600` file holding the API token secret. **A live credential**: never print it, pass it on a command line, or upload it. It is masked in the job log |
+| `ca_file` | Path to the node's root CA (PEM), for verifying the API and SPICE TLS |
+| `vmid` | The VM id of the running SPICE smoke guest |
+| `kvm` | `"true"` if the node had `/dev/kvm`, `"false"` if the guest runs under TCG |
+| `pve_version` | The `pve-manager` version the node reports |
+| `mint_script` | Absolute path to `proxmox-mint-vv.sh`, which mints a `.vv` through the API token: `--api-url --node --vmid --token-id --token-file --ca-file --out` |
+
+**Side effects on the runner, for the rest of the job:** the node's
+FQDN is added to `/etc/hosts`, mapped to its address, and both are
+appended to `no_proxy` and `NO_PROXY` -- the runner image exports
+`http_proxy`/`https_proxy` for a squid cache that cannot route to the
+node's network. Neither is undone at the end of the job; the runner is
+single-use.
+
+**Mint immediately before connecting.** A Proxmox console ticket is
+good for about 30 seconds from the mint, so a consumer should call
+`mint_script` as the last thing before dialling, not earlier in the
+job -- and never re-use a ticket a previous step already minted.
