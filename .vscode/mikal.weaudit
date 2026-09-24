@@ -515,6 +515,26 @@
     {
       "path": "docs",
       "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/extract-review-json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-unparsed-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-pr-with-claude.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_verdict.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

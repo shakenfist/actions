@@ -261,9 +261,21 @@
       "sha": "d361f1309338099b9280abb7a395228251120978",
       "date": "2026-09-07"
     },
+    "review-pr-with-claude/extract-review-json.py": {
+      "sha": "2fcc9819219c7623abf13c842ca2d3db1323f283",
+      "date": "2026-09-25"
+    },
     "review-pr-with-claude/render-review.py": {
       "sha": "fdc6746c850520c6753fff7ecbb8ed8200ec009b",
       "date": "2026-09-07"
+    },
+    "review-pr-with-claude/render-unparsed-review.py": {
+      "sha": "534dde87ee8d0f0d8461b2ec06cd1625e3043bb3",
+      "date": "2026-09-25"
+    },
+    "review-pr-with-claude/review-pr-with-claude.sh": {
+      "sha": "619a7702a9243c0313807f6c6302dd2a4fb82a12",
+      "date": "2026-09-25"
     },
     "review-pr-with-claude/review-schema.json": {
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
@@ -345,9 +357,17 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "85608a45c89602ddbc1fe38e997a2b420da83850",
+      "date": "2026-09-25"
+    },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
       "date": "2026-09-10"
+    },
+    "tools/ci_headroom_verdict.sh": {
+      "sha": "612248f12a74c44f3de7470f3b5115168b12cbe1",
+      "date": "2026-09-25"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
