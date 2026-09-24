@@ -1,0 +1,125 @@
+name: 'Deploy Proxmox VE on Shaken Fist'
+description: >-
+  Stand up a single-node Proxmox VE 9 hypervisor as an instance in the
+  runner's own Shaken Fist namespace, with a booted SPICE guest and a
+  least-privilege API token, and set the runner up to reach it by name.
+  Everything happens inside the calling job, so a console client in a later
+  step of that job can mint a ticket and connect within the ~30 seconds a
+  Proxmox ticket lasts. The action's own files (playbook, task files and
+  helpers) are resolved through github.action_path, so they always come from
+  the same ref as this action.yml. Side effects on the runner, for the rest
+  of the job: the node's FQDN is added to /etc/hosts, and the FQDN and
+  address are appended to no_proxy and NO_PROXY. Composite-action steps
+  cannot carry timeouts, so put timeout-minutes on the step that uses this
+  action.
+
+inputs:
+  base_user:
+    description: 'The user the Debian base image logs in as.'
+    required: false
+    default: 'debian'
+  node_address:
+    description: >-
+      The node's address on the "proxmox" network the playbook creates,
+      which is 10.0.2.0/24; it must sit inside that block.
+    required: false
+    default: '10.0.2.2'
+  smoke_vmid:
+    description: 'The VM id of the SPICE smoke guest. PVE requires 100 or more.'
+    required: false
+    default: '100'
+  workdir:
+    description: >-
+      Runner directory, created 0700, for the token secret, the node CA, the
+      deployment facts and a shakenfist checkout. Empty means
+      $RUNNER_TEMP/proxmox.
+    required: false
+    default: ''
+
+outputs:
+  node_name:
+    description: 'The PVE node name, used in API paths (/nodes/<node_name>/...).'
+    value: ${{ steps.publish.outputs.node_name }}
+  node_address:
+    description: 'The node address the runner reaches it on.'
+    value: ${{ steps.publish.outputs.node_address }}
+  node_fqdn:
+    description: >-
+      The node FQDN: the host of a ticket's proxy URL, and the CN of its
+      certificate. Resolvable on the runner through /etc/hosts.
+    value: ${{ steps.publish.outputs.node_fqdn }}
+  api_url:
+    description: 'https://<node_fqdn>:8006, the PVE API.'
+    value: ${{ steps.publish.outputs.api_url }}
+  token_id:
+    description: 'The API token id, user@realm!token.'
+    value: ${{ steps.publish.outputs.token_id }}
+  token_file:
+    description: >-
+      Path to a 0600 file holding the API token secret. A live credential:
+      never print it, pass it on a command line, or upload it. It is masked
+      in the job log.
+    value: ${{ steps.publish.outputs.token_file }}
+  ca_file:
+    description: "Path to the node's root CA (PEM), for verifying the API and SPICE TLS."
+    value: ${{ steps.publish.outputs.ca_file }}
+  vmid:
+    description: 'The VM id of the running SPICE smoke guest.'
+    value: ${{ steps.publish.outputs.vmid }}
+  kvm:
+    description: '"true" if the node had /dev/kvm, "false" if the guest runs under TCG.'
+    value: ${{ steps.publish.outputs.kvm }}
+  pve_version:
+    description: 'The pve-manager version the node reports.'
+    value: ${{ steps.publish.outputs.pve_version }}
+  mint_script:
+    description: >-
+      Absolute path to proxmox-mint-vv.sh, which mints a .vv through the API
+      token: --api-url --node --vmid --token-id --token-file --ca-file --out.
+    value: ${{ steps.publish.outputs.mint_script }}
+
+runs:
+  using: "composite"
+  steps:
+    # Inputs reach every step through env:, never interpolated into a
+    # command line: an input carrying a quote or a shell metacharacter
+    # would otherwise run as shell here. See setup-kerbside-environment.
+    - name: Choose the work directory
+      id: workdir
+      shell: bash
+      env:
+        INPUT_WORKDIR: ${{ inputs.workdir }}
+      run: echo "path=${INPUT_WORKDIR:-${RUNNER_TEMP}/proxmox}" >> "${GITHUB_OUTPUT}"
+
+    - name: Deploy the Proxmox VE node
+      shell: bash
+      env:
+        WORKDIR: ${{ steps.workdir.outputs.path }}
+        BASE_USER: ${{ inputs.base_user }}
+        NODE_ADDRESS: ${{ inputs.node_address }}
+        SMOKE_VMID: ${{ inputs.smoke_vmid }}
+      run: |
+        "${GITHUB_ACTION_PATH}/../tools/proxmox-deploy.sh" --workdir "${WORKDIR}" \
+            --base-user "${BASE_USER}" --node-address "${NODE_ADDRESS}" --smoke-vmid "${SMOKE_VMID}"
+
+    # Masks the token secret first, before anything else in the job reads
+    # it, then takes the node's FQDN from a ticket minted through the API,
+    # maps it in /etc/hosts and no_proxy, and writes the outputs.
+    - name: Hand the node to the runner
+      id: publish
+      shell: bash
+      env:
+        WORKDIR: ${{ steps.workdir.outputs.path }}
+      run: '"${GITHUB_ACTION_PATH}/../tools/proxmox-publish-node.sh" --workdir "${WORKDIR}"'
+
+    - name: Check a fresh ticket opens a tunnel from the runner
+      shell: bash
+      env:
+        WORKDIR: ${{ steps.workdir.outputs.path }}
+        API_URL: ${{ steps.publish.outputs.api_url }}
+        NODE: ${{ steps.publish.outputs.node_name }}
+        VMID: ${{ steps.publish.outputs.vmid }}
+        TOKEN_ID: ${{ steps.publish.outputs.token_id }}
+      run: |
+        "${GITHUB_ACTION_PATH}/../tools/proxmox-self-check.sh" --workdir "${WORKDIR}" \
+            --api-url "${API_URL}" --node "${NODE}" --vmid "${VMID}" --token-id "${TOKEN_ID}"
