@@ -161,18 +161,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_workflow_references.py",
-      "author": "mikal"
-    },
-    {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
       "path": "renovate.json",
       "author": "mikal"
     },
@@ -309,10 +297,6 @@
       "author": "mikal"
     },
     {
-      "path": ".gitleaks.toml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image.yml",
       "author": "mikal"
     },
@@ -365,10 +349,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/vars",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
@@ -393,15 +373,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-topology-slim-tier.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {
@@ -418,14 +390,6 @@
     },
     {
       "path": "setup-kerbside-environment",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ansible_readiness.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ansible.md",
       "author": "mikal"
     }
   ],

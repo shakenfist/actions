@@ -41,21 +41,9 @@
       "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
       "date": "2026-09-19"
     },
-    ".gitleaks.toml": {
-      "sha": "6be5dc4d7c4b805de45535976696180385593cce",
-      "date": "2026-09-10"
-    },
     ".pre-commit-config.yaml": {
       "sha": "e3dfd65f4fe369bc94a4dc14b7fbb785c6eb1edd",
       "date": "2026-09-16"
-    },
-    "AGENTS.md": {
-      "sha": "cac66d0242b71f0f0aacea98370994045880dcc3",
-      "date": "2026-09-07"
-    },
-    "README.md": {
-      "sha": "44e645c02c975d08358d2c878665f497c7ce31f2",
-      "date": "2026-09-07"
     },
     "ansible/ci-dependencies.yml": {
       "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
@@ -177,10 +165,6 @@
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
     },
-    "docs/ansible.md": {
-      "sha": "d0aaae66b49ddac0da3b8036256b770a36baef66",
-      "date": "2026-09-23"
-    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -233,10 +217,6 @@
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
       "date": "2026-09-07"
     },
-    "tests/test_ansible_readiness.py": {
-      "sha": "cfa8c5fc0492bb16119914ec8e745f826ae138c6",
-      "date": "2026-09-23"
-    },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
@@ -264,10 +244,6 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
-    },
-    "tests/test_workflow_references.py": {
-      "sha": "570c9811fe57225d0a2287f492d167cd4a71c015",
-      "date": "2026-09-07"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
