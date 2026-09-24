@@ -1,0 +1,34 @@
+---
+# Switch off any enterprise .sources files that are present.
+#
+# proxmox-ve installs repository definitions pointing at enterprise.proxmox.com
+# for both PVE and Ceph. Without a subscription those return 401, and apt
+# treats that as a failure of the WHOLE "apt update" rather than of that one
+# repository -- so every later apt run on the box breaks. deb822 has an Enabled
+# field for exactly this.
+#
+# Included twice, deliberately: once before install.yml's own apt work (where
+# it is a no-op on a fresh box, and the thing that lets a re-run get past the
+# repositories the previous run installed), and once immediately after
+# proxmox-ve is installed (where the files first appear).
+
+# The regex is anchored on purpose. ansible.builtin.find matches "contains"
+# with re.match, not re.search, so a bare "enterprise.proxmox.com" silently
+# matches nothing at all and the whole task skips -- which is exactly the bug
+# that shipped the first time this was written.
+- name: Find the enterprise repository definitions
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: "*.sources"
+    contains: '^URIs:.*enterprise\.proxmox\.com'
+  register: _pve_enterprise_repos
+
+- name: Disable the enterprise repositories
+  ansible.builtin.lineinfile:
+    path: "{{ item.path }}"
+    regexp: "^Enabled:"
+    line: "Enabled: false"
+    insertafter: EOF
+  loop: "{{ _pve_enterprise_repos.files }}"
+  loop_control:
+    label: "{{ item.path }}"

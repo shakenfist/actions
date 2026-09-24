@@ -57,6 +57,7 @@ them.
 | `setup-kerbside-environment` | Checks out the Kerbside-side repositories |
 | `deploy-kolla-ansible` | Bootstraps and deploys Kolla-Ansible on a test VM |
 | `deploy-kerbside-on-shakenfist` | Deploys a Kerbside proxy onto a running cluster's primary |
+| `deploy-proxmox-on-shakenfist` | Deploys a single-node Proxmox VE hypervisor, with a booted SPICE guest and an API token, in the runner's own namespace |
 
 **Reusable workflows** are invoked as whole jobs, and bring their own
 runner and permissions.
@@ -69,13 +70,14 @@ runner and permissions.
 | `issue-link-check.yml` | Fails a pull request that will not close the issues it says it fixes |
 | `ci.yml` | This repository's own pull request checks |
 | `canary.yml` | This repository's post-merge integration check |
+| `proxmox-substrate.yml` | Pre-merge and weekly check of `deploy-proxmox-on-shakenfist`, filing an issue on drift |
 | `pr-retest.yml` | Re-runs `ci.yml` on a bot comment |
 | `pr-re-review.yml` | Re-runs the reviewer, with `force`, on a bot comment |
 | `prune-reviews.yml` | Drops review marks made stale by a push to main and commits the regenerated state back |
 | `renovate.yml` | Hourly dependency updater for this repository's own pins |
 | `codeql-analysis.yml` | CodeQL over the workflows and the Python helpers |
 
-The last seven are the exception to "nothing here runs for itself" --
+The last eight are the exception to "nothing here runs for itself" --
 they exist only for this repository and are not consumed downstream. The
 two bot-triggered ones are the shared templates from
 `shakenfist/development`, deployed here late: this repository ships the

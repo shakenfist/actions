@@ -1,0 +1,110 @@
+---
+# An API account for whatever is going to broker this node's consoles --
+# kerbside, in the case this deployment exists for. A dedicated user with an
+# API token rather than root@pam: the token can be revoked on its own, and a
+# console broker has no business holding a root credential.
+#
+# THE SECRET. PVE returns a token's secret once, at creation, and this runs in
+# public CI logs. So every task that sees it carries no_log: true, it is never
+# held in a fact that outlives this file, and it reaches the runner only as
+# the 0600 file named by proxmox_token_file. Anything that needs it reads that
+# file; nothing prints it.
+
+- name: Check whether the console user already exists
+  ansible.builtin.command: "pveum user list --output-format json"
+  register: _pve_users
+  changed_when: false
+
+- name: Create the console user
+  ansible.builtin.command: >-
+    pveum user add {{ proxmox_api_user }}
+    --comment "Console broker (kerbside), created by shakenfist/actions"
+  changed_when: true
+  when: proxmox_api_user not in (_pve_users.stdout | from_json | map(attribute='userid') | list)
+
+- name: Read the current ACL
+  ansible.builtin.command: "pveum acl list --output-format json"
+  register: _pve_acl
+  changed_when: false
+
+- name: Grant the console user its roles
+  ansible.builtin.command: >-
+    pveum acl modify {{ item.path }}
+    --users {{ proxmox_api_user }}
+    --roles {{ item.role }}
+  loop: "{{ proxmox_api_roles }}"
+  loop_control:
+    label: "{{ item.path }} -> {{ item.role }}"
+  changed_when: true
+  when: >-
+    (_pve_acl.stdout | from_json
+     | selectattr('path', 'equalto', item.path)
+     | selectattr('ugid', 'equalto', proxmox_api_user)
+     | selectattr('roleid', 'equalto', item.role) | list | length) == 0
+
+- name: Check whether the API token already exists
+  ansible.builtin.command: "pveum user token list {{ proxmox_api_user }} --output-format json"
+  register: _pve_tokens
+  changed_when: false
+
+# A re-run against a node that already has the token cannot recover its
+# secret -- PVE never reveals it again -- so it is only usable if the runner
+# still holds the file an earlier run wrote. If it does not, replace the token
+# rather than hand the caller a token id with no secret behind it.
+- name: Check whether the runner already holds the token secret
+  ansible.builtin.stat:
+    path: "{{ proxmox_token_file }}"
+  delegate_to: localhost
+  become: false
+  register: _pve_token_file
+
+- name: Remove a token whose secret the runner no longer holds
+  ansible.builtin.command: >-
+    pveum user token remove {{ proxmox_api_user }} {{ proxmox_api_token }}
+  changed_when: true
+  when:
+    - proxmox_api_token in (_pve_tokens.stdout | from_json | map(attribute='tokenid') | list)
+    - not _pve_token_file.stat.exists
+  register: _pve_token_removed
+
+# privsep=0 deliberately. A privilege-separated token carries its own ACL in
+# addition to the user's, and a token created with no ACL of its own therefore
+# has no permissions at all -- which looks exactly like a broken credential
+# when the broker first tries to use it.
+#
+# no_log: true because the JSON this prints carries the secret as "value".
+- name: Create the API token
+  ansible.builtin.command: >-
+    pveum user token add {{ proxmox_api_user }} {{ proxmox_api_token }}
+    --privsep 0 --output-format json
+  register: _pve_token_add
+  changed_when: true
+  no_log: true
+  when: >-
+    _pve_token_removed is changed
+    or proxmox_api_token not in (_pve_tokens.stdout | from_json | map(attribute='tokenid') | list)
+
+- name: Ensure the directory for the token secret exists on the runner
+  ansible.builtin.file:
+    path: "{{ proxmox_token_file | dirname }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+# Straight from the registered output to the file, with no fact in between:
+# a fact would sit in hostvars for the rest of the run, where any later debug
+# of hostvars would print it.
+- name: Write the token secret to the runner
+  ansible.builtin.copy:
+    content: "{{ (_pve_token_add.stdout | from_json).value }}"
+    dest: "{{ proxmox_token_file }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: _pve_token_add is not skipped
+
+- name: Record the token id
+  ansible.builtin.set_fact:
+    proxmox_api_token_id: "{{ proxmox_api_user }}!{{ proxmox_api_token }}"

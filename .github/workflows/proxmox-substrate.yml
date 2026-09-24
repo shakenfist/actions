@@ -1,0 +1,139 @@
+# Pre-merge and drift-detection lane for deploy-proxmox-on-shakenfist.
+#
+# Unlike most of what "what you can and cannot verify before merging" in
+# AGENTS.md describes, this is a real pre-merge test: the action resolves
+# its playbook, task files and helpers through github.action_path, so a relative reference to this action here
+# runs the PULL REQUEST'S version of all of them, not main's. That is the one
+# composite action in this repository this is true for today -- every
+# other one is still only exercised post-merge, by canary.yml.
+#
+# This lane is advisory, not required: it is path-filtered, and a
+# required check that can be skipped by a path filter blocks a pull
+# request forever the day it never runs (ryll's docs/ci.md, "It is
+# deliberately not a gate", makes the same argument for its mermaid
+# lane). It also does not exercise a consumer's use of the action; that
+# is the job of each consumer's own lane, such as ryll's
+# proxmox-functional.yml.
+name: Proxmox substrate
+
+on:
+  pull_request:
+    paths:
+      - 'deploy-proxmox-on-shakenfist/**'
+      - 'ansible/proxmox-single-node.yml'
+      - 'ansible/tasks/proxmox/**'
+      - 'ansible/vars/proxmox.yml'
+      # Not 'tools/proxmox-*': report-proxmox-substrate-failure.sh does not
+      # start with "proxmox-", so a pull request touching it would
+      # otherwise never run the lane that lints and owns it.
+      - 'tools/*proxmox*'
+      # Shared files the action runs too: proxmox-single-node.yml imports
+      # the first and proxmox-deploy.sh calls the second.
+      - 'ansible/tasks/wait-for-cloud-init.yml'
+      - 'tools/install-collection.sh'
+      - '.github/workflows/proxmox-substrate.yml'
+  workflow_dispatch:
+  schedule:
+    # 03:17 UTC every Sunday -- a quiet hour, offset from renovate's
+    # hourly cron and codeql-analysis.yml's Tuesday run so the three
+    # scheduled workflows in this repository do not all wake the fleet
+    # at once. This is where upstream Proxmox drift (a rotated keyring
+    # checksum, a moved pve-no-subscription package) is meant to
+    # surface: as an issue against this repository, before it trips a
+    # ryll or kerbside pull request that changed nothing Proxmox-related.
+    - cron: '17 3 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  substrate:
+    name: Deploy a Proxmox node
+    # SECURITY: fork pull requests do not run this job. It executes the
+    # pull request's own ansible, task files and helper scripts on a
+    # self-hosted runner that holds /srv/github/id_ci, the key that
+    # reaches every node in the CI mesh -- the same reasoning as ci.yml's
+    # lint and unit-tests jobs. schedule and workflow_dispatch carry no
+    # pull_request payload, so the first term passes them through
+    # unconditionally.
+    if: |
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, vm, debian-13, m]
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    # Job-level, not workflow-level, so this job does not cancel
+    # report-failure or vice versa. The group deliberately does not
+    # branch on github.event_name: schedule and workflow_dispatch share
+    # github.ref (the default branch), so a manual dispatch queues
+    # behind an in-flight weekly run instead of racing it for the same
+    # nested Proxmox node, and cancel-in-progress only ever fires for
+    # pull_request, where github.ref is unique per PR. See ryll's
+    # docs/ci.md, "Concurrency", for the general form and for why a
+    # scheduled run must never be the one that gets cancelled.
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-substrate
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    steps:
+      # Needed so that the relative `uses:` below resolves against this
+      # pull request's checkout rather than failing to find the action.
+      - uses: actions/checkout@v7
+
+      - name: Deploy the Proxmox VE node
+        id: deploy
+        # Under the job's 90, so a slow deploy fails as this step and the
+        # job's timeout stays the backstop.
+        timeout-minutes: 75
+        uses: ./deploy-proxmox-on-shakenfist
+
+      # Proves the action's outputs, on their own, are what a consumer
+      # (ryll's proxmox-functional.yml, for one) actually needs: mint independently of the action's own internal
+      # self-check, using only the published outputs, and open the
+      # tunnel a real client would.
+      - name: Mint a second ticket from the published outputs and re-probe
+        env:
+          API_URL: ${{ steps.deploy.outputs.api_url }}
+          NODE: ${{ steps.deploy.outputs.node_name }}
+          VMID: ${{ steps.deploy.outputs.vmid }}
+          TOKEN_ID: ${{ steps.deploy.outputs.token_id }}
+          TOKEN_FILE: ${{ steps.deploy.outputs.token_file }}
+          CA_FILE: ${{ steps.deploy.outputs.ca_file }}
+          MINT_SCRIPT: ${{ steps.deploy.outputs.mint_script }}
+        run: |
+          out="$(mktemp -d)/second.vv"
+          # Holds a live SPICE password, same as the .vv files
+          # proxmox-self-check.sh and proxmox-publish-node.sh remove on
+          # their own way out.
+          trap 'rm -f "${out}"' EXIT
+          "${MINT_SCRIPT}" --api-url "${API_URL}" --node "${NODE}" --vmid "${VMID}" --token-id "${TOKEN_ID}" --token-file "${TOKEN_FILE}" --ca-file "${CA_FILE}" --out "${out}"
+          python3 tools/proxmox-connect-probe.py "${out}"
+
+  # A canary nobody looks at is not a canary. Only the weekly schedule
+  # files here: a pull request or workflow_dispatch failure already has
+  # an author looking at their own run, but a scheduled failure has
+  # nobody, and a broken deploy-proxmox-on-shakenfist should surface as
+  # an issue against this repository before it trips a consumer's own
+  # Proxmox lane. Modelled on canary.yml's report-failure
+  # job, one issue per outage rather than one per run.
+  report-failure:
+    name: Report proxmox-substrate failure
+    needs: [substrate]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: [self-hosted, static]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # This job runs on its own runner, not the substrate job's, so it
+      # starts with an empty workspace: report-proxmox-substrate-failure.sh
+      # does not exist here until it is checked out.
+      - uses: actions/checkout@v7
+
+      - name: File or update the proxmox-substrate failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: tools/report-proxmox-substrate-failure.sh

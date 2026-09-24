@@ -24,3 +24,15 @@
 
 [extend]
 useDefault = true
+
+# Published SHA-256 checksums pinned in Ansible vars, such as
+# proxmox_keyring_sha256 in ansible/vars/proxmox.yml. They are digests
+# of public downloads, not credentials; the generic-api-key rule fires on
+# them only because the variable name contains "key" (as in "keyring")
+# next to a high-entropy value. Keyed on the whole match rather than the
+# value, so a rotated upstream checksum stays allowed while a real secret
+# under any other name is still reported.
+[allowlist]
+description = 'Published SHA-256 checksums of public downloads'
+regexTarget = 'match'
+regexes = ['''_sha256: "[0-9a-f]{64}"''']

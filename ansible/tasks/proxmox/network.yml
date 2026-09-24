@@ -1,0 +1,203 @@
+---
+# The guest network: a portless vmbr0, optionally NATed out the management NIC
+# and optionally with a dnsmasq to hand addresses to whatever boots on it. See
+# the long comment in vars/proxmox.yml for why the bridge deliberately has no
+# ports -- briefly, bridging the ShakenFist NIC drops the session Ansible is
+# running over, and bridging a second ShakenFist NIC hits the fabric's address
+# filtering.
+#
+# The bridge is always built, because the smoke guest's NIC is attached to it.
+# NAT and DHCP are off by default (vars/proxmox.yml says why), and the
+# "restart dnsmasq" handler they notify lives in proxmox-single-node.yml.
+
+# ifupdown2 keeps its lock and state under /run/network, and that directory is
+# created by its own boot service -- which has never run on a fresh install,
+# because this play installed ifupdown2 after boot. Until it has, anything that
+# reloads the network fails with "Another instance of this program is already
+# running", which is not true: ifupdown2's utils.lockFile() opens
+# /run/network/.lock with O_CREAT and treats the resulting FileNotFoundError as
+# a lock conflict.
+#
+# Note what starting this does NOT touch: on the Debian cloud image cloud-init
+# renders its network config for systemd-networkd
+# (/etc/systemd/network/10-cloud-init-eth0.network), so the management NIC is
+# not declared in /etc/network/interfaces at all and is invisible to ifupdown2.
+# An "ifup -a" here cannot disturb the interface this play is running over.
+- name: Enable and start the ifupdown2 networking service
+  ansible.builtin.systemd:
+    name: networking
+    enabled: true
+    state: started
+
+- name: Check whether the guest bridge already exists
+  ansible.builtin.command: "pvesh get /nodes/{{ inventory_hostname }}/network/{{ proxmox_bridge }}"
+  register: _pve_bridge
+  changed_when: false
+  failed_when: false
+
+# Created through the PVE API rather than by writing an interfaces.d fragment.
+# This is not a style preference -- /etc/network/interfaces on a PVE node says
+# in its own header that PVE "will NOT read its network configuration from
+# sourced files, so do not attempt to move any of the PVE managed interfaces
+# into external files", and a bridge is a PVE managed interface. A fragment
+# works until the first reboot, at which point PVE regenerates the file from
+# its own model, the "source" directive goes with it and the bridge never comes
+# back. Going through the API puts the bridge IN that model, so PVE writes the
+# stanza itself and keeps writing it.
+#
+# bridge_ports is deliberately empty (the portless bridge) and bridge_stp/fd
+# are not passed at all -- they are not parameters of the create API, and PVE
+# writes its own "bridge-stp off" / "bridge-fd 0" defaults into the stanza.
+- name: Create the guest bridge
+  ansible.builtin.command: >-
+    pvesh create /nodes/{{ inventory_hostname }}/network
+    --iface {{ proxmox_bridge }}
+    --type bridge
+    --autostart 1
+    --cidr {{ proxmox_vm_gateway }}/{{ proxmox_vm_prefix }}
+    --bridge_ports ""
+  changed_when: true
+  when: _pve_bridge.rc != 0
+  register: _pve_bridge_created
+
+# PVE stages network changes in /etc/network/interfaces.new and only commits
+# them on apply (or at the next boot, via pvenetcommit). Applying here both
+# brings the bridge up now and commits the file, so a reboot cannot resurrect
+# a stale pre-bridge version of it.
+- name: Apply the network configuration
+  ansible.builtin.command: "pvesh set /nodes/{{ inventory_hostname }}/network"
+  changed_when: true
+  when: _pve_bridge_created is changed
+
+- name: Confirm the bridge carries its address
+  ansible.builtin.command: "ip -4 -oneline address show {{ proxmox_bridge }}"
+  register: _pve_bridge_addr
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: proxmox_vm_gateway in _pve_bridge_addr.stdout
+
+- name: Enable IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/99-proxmox-nat.conf
+    sysctl_set: true
+    state: present
+    reload: true
+  when: proxmox_enable_nat
+
+# The masquerade rule gets its own systemd unit rather than a post-up hook in
+# the interface stanza, because that stanza is PVE's file to write and anything
+# added to it by hand is lost the next time PVE regenerates it. A unit ordered
+# after networking.service is both durable and visible.
+- name: Install the guest NAT service
+  ansible.builtin.copy:
+    content: |
+      # Managed by shakenfist/actions' proxmox-single-node.yml.
+      [Unit]
+      Description=Masquerade Proxmox guest traffic out {{ proxmox_mgmt_interface }}
+      After=networking.service
+      Wants=networking.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/sh -c 'iptables -t nat -C POSTROUTING -s {{ proxmox_vm_netblock }} -o {{ proxmox_mgmt_interface }} -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -s {{ proxmox_vm_netblock }} -o {{ proxmox_mgmt_interface }} -j MASQUERADE'
+      ExecStop=/bin/sh -c 'iptables -t nat -D POSTROUTING -s {{ proxmox_vm_netblock }} -o {{ proxmox_mgmt_interface }} -j MASQUERADE || true'
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/proxmox-guest-nat.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: proxmox_enable_nat
+  register: _pve_nat_unit
+
+- name: Enable and start the guest NAT service
+  ansible.builtin.systemd:
+    name: proxmox-guest-nat
+    enabled: true
+    state: "{{ 'restarted' if _pve_nat_unit.changed else 'started' }}"
+    daemon_reload: true
+  when: proxmox_enable_nat
+
+# DHCP for the guests. PVE's SDN stack can do this with a zone, a vnet, a
+# subnet and an IPAM; dnsmasq bound to one interface does the same job here in
+# a file. Note that if SDN is ever enabled on this node its per-zone
+# dnsmasq@<zone> instances expect the default service to be disabled -- so this
+# config is the thing to remove first if that day comes.
+- name: Install dnsmasq for the guest network
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: present
+  when: proxmox_enable_dhcp
+
+- name: Configure dnsmasq to serve only the guest bridge
+  ansible.builtin.copy:
+    content: |
+      # Managed by shakenfist/actions' proxmox-single-node.yml. Bound to
+      # {{ proxmox_bridge }} only: the management NIC keeps the fabric's own
+      # resolver and DHCP server, and a second DHCP server on that network
+      # would be an excellent way to break somebody else's deployment.
+      interface={{ proxmox_bridge }}
+      bind-interfaces
+      except-interface=lo
+      dhcp-range={{ proxmox_vm_dhcp_start }},{{ proxmox_vm_dhcp_end }},{{ proxmox_vm_dhcp_lease }}
+      dhcp-option=option:router,{{ proxmox_vm_gateway }}
+      dhcp-option=option:dns-server,{{ proxmox_vm_gateway }}
+
+      # Upstream resolvers, stated explicitly, because the packaged default
+      # does not work on this image. Debian starts dnsmasq with
+      # "-r /run/dnsmasq/resolv.conf" and expects its resolvconf hook to
+      # populate that file; the hook fails here ("Failed to set DNS
+      # configuration: Link lo is loopback device" -- systemd-resolved's
+      # resolvconf shim refuses the loopback registration), the file is never
+      # created, and dnsmasq ends up with NO forwarders at all. It still serves
+      # DHCP, because that is purely local, so guests get an address, a route
+      # and working NAT -- and every name lookup comes back REFUSED. That
+      # combination is easy to ship without noticing.
+      #
+      # Forward to systemd-resolved's stub rather than to a fabric address:
+      # the stub already tracks whatever resolver DHCP handed the host, so
+      # this survives the host's own lease changing and hardcodes nothing
+      # about the network this node was deployed onto. no-resolv stops dnsmasq
+      # consulting the file that is never there.
+      no-resolv
+      server=127.0.0.53
+    dest: /etc/dnsmasq.d/proxmox-guests.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: proxmox_enable_dhcp
+  notify: restart dnsmasq
+
+# The forwarding config above is only correct while systemd-resolved is the
+# thing behind 127.0.0.53. It is on the Debian cloud image this play targets,
+# but if that ever changes the symptom is guests with addresses and no name
+# resolution, which is exactly the failure the block above exists to stop
+# shipping -- so fail here instead, where the cause is stated.
+- name: Confirm systemd-resolved is what dnsmasq will forward to
+  ansible.builtin.command: systemctl is-active systemd-resolved
+  register: _pve_resolved
+  changed_when: false
+  failed_when: _pve_resolved.stdout.strip() != 'active'
+  when: proxmox_enable_dhcp
+
+- name: Enable and start dnsmasq
+  ansible.builtin.systemd:
+    name: dnsmasq
+    enabled: true
+    state: started
+  when: proxmox_enable_dhcp
+
+# Flush the restart the config change queued, so dnsmasq is serving the
+# configuration this run just wrote rather than the one it booted with.
+#
+# The check that used to follow -- asking the guest resolver to actually
+# resolve a name, because DHCP working proves nothing about resolution -- is
+# not carried here. Nothing on a console path needs guest DNS, and DHCP is
+# off by default; see docs/ansible.md.
+- name: Apply any pending dnsmasq restart
+  ansible.builtin.meta: flush_handlers

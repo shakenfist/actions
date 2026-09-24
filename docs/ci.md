@@ -41,10 +41,12 @@ switching to them would break every consumer.
 
 ## What CI does about it
 
-Five lanes: what is checkable without a cluster, a post-merge check on
+Six lanes: what is checkable without a cluster, a post-merge check on
 what is not, a bot-triggered lane for re-running any of it on request,
-static analysis over the workflows themselves, and a dependency updater
-keeping the pins they all rest on current.
+static analysis over the workflows themselves, a dependency updater
+keeping the pins they all rest on current, and a path-filtered
+pre-merge lane for the one composite action that can be integration
+tested before it lands.
 
 ### Pull request lane -- `ci.yml`
 
@@ -258,6 +260,43 @@ tests read it and a typo in a pattern silently shrinks the set of
 files under review. Content scanners get no exemption in either place
 -- see the `gitleaks` note above.
 
+### Path-filtered lane -- `proxmox-substrate.yml`
+
+The one lane where "assume you cannot test it before merge" (AGENTS.md)
+does not hold. `deploy-proxmox-on-shakenfist` resolves its own
+playbook, task files and helpers through `github.action_path` rather
+than through a checkout of this repository, so a relative `uses:
+./deploy-proxmox-on-shakenfist` step run from here gets the pull
+request's version of every one of those files, not `main`'s.
+`proxmox-substrate.yml` is that step: it deploys a real Proxmox VE
+node on `[self-hosted, vm, debian-13, m]`, then mints a second console
+ticket straight from the action's published outputs and opens a
+tunnel with it -- proving the outputs are independently usable by a
+consumer, not merely internally consistent with the action's own
+self-check.
+
+It runs on `pull_request`, path-filtered to the action, the playbook,
+its task and vars files and the `tools/proxmox-*` helpers; on
+`workflow_dispatch`; and weekly, Sunday 03:17 UTC -- offset from
+renovate's hourly cron and `codeql-analysis.yml`'s Tuesday run so the
+scheduled workflows in this repository do not all wake the fleet at
+once. The weekly run is where upstream Proxmox drift (a rotated
+keyring checksum, a moved package) is meant to surface, as an issue
+against this repository labelled `proxmox-substrate`, before it trips
+a downstream pull request that changed nothing Proxmox-related --
+mirroring `canary.yml`'s one-issue-per-outage pattern. It carries the
+same fork guard as `ci.yml`'s VM jobs, for the same reason: the job
+executes the pull request's own ansible and scripts on a runner
+holding `/srv/github/id_ci`.
+
+Like `canary.yml`, it is advisory rather than required: it is
+path-filtered, and a required check that a path filter can skip blocks
+a pull request forever the day it never runs. It also proves only that
+this repository's own runners can create the node; that a *consumer's*
+runners can is proven by the consumer's own lane, such as ryll's
+`proxmox-functional.yml`, which deploys through this action from the
+other side.
+
 ### Post-merge lane -- `prune-reviews.yml`
 
 A review mark attests to exact file content, so any push to `main` can
@@ -426,18 +465,26 @@ Closing that gap needs either a self-test workflow which duplicates
 `smoke-cluster.yml` using local `./` refs -- and can then drift from the
 thing it is standing in for -- or an end to `@main` pinning across the
 fleet. Neither is obviously worth it yet; the canary is the cheap 80%.
+`deploy-proxmox-on-shakenfist` is the one exception: because it
+resolves its own files through `github.action_path` rather than a
+checkout of this repository, `proxmox-substrate.yml`'s relative
+`uses:` step already exercises a pull request's version of it,
+pre-merge, without duplicating anything -- see *Path-filtered lane --
+`proxmox-substrate.yml`*, above.
 
 **The composite `action.yml` files are not linted.** actionlint checks
 workflow files; the pre-commit hook restricts itself to
 `.github/workflows/`, and actionlint invoked with no arguments globs the
 same directory. So `pr-bot-trigger/`, `review-pr-with-claude/`,
 `setup-test-environment/`, `build-smoke-cluster/`,
-`deploy-kolla-ansible/`, `setup-kerbside-environment/` and
-`deploy-kerbside-on-shakenfist/` are checked by nothing here. That is
-the same set of files the section above says cannot be
-integration-tested pre-merge either, so the repository's primary product
-has both its weakest test story and its weakest lint story. It goes on
-the backlog beside yamllint and ansible-lint.
+`deploy-kolla-ansible/`, `setup-kerbside-environment/`,
+`deploy-kerbside-on-shakenfist/` and `deploy-proxmox-on-shakenfist/`
+are checked by nothing here -- lint and integration testing are
+separate gaps, and the paragraph above is about the latter only.
+Nearly all of that list also cannot be integration-tested pre-merge
+either, so for those the repository's primary product has both its
+weakest test story and its weakest lint story. It goes on the backlog
+beside yamllint and ansible-lint.
 
 Widening the hook's `files:` pattern is not the fix, though it looks
 like one. actionlint has no notion of an action file: pointed at one
@@ -592,6 +639,14 @@ netblock they are reserved on. Same reasoning as the readiness gate,
 with a sharper edge: a collision is a one-in-253 draw, so a regression
 presents as flake rather than as breakage. See
 [ansible.md](ansible.md#the-deployment-vip).
+
+`tests/test_proxmox_shell_validation.py` runs the Proxmox shell helpers
+with hostile arguments -- a newline in a token id or a facts field, a
+userinfo or a path in an API URL, a node address outside the playbook's
+netblock -- with a fake `curl`, `git` and `sudo` first on `PATH`. Each
+rejection must name its own guard, reach no fake and publish nothing.
+The substrate lane only ever passes good values, so it would never
+notice a guard that had stopped rejecting.
 
 Those are all cross-file references or silent-failure guards nothing
 else validates -- actionlint checks a workflow's syntax, not whether

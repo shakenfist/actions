@@ -1,0 +1,227 @@
+---
+# Debian -> Proxmox VE, following the upstream "Install Proxmox VE on Debian 13
+# Trixie" procedure. This is the officially supported install path, and it is
+# the one worth using here rather than the answer-file ISO installer: it keeps
+# cloud-init, the injected SSH key and the ShakenFist agent alive throughout,
+# so the deployment stays an ordinary Ansible run against an ordinary host
+# instead of a blind wait on an installer.
+
+# PVE records the node name in /etc/pve/nodes/<name>/ and hangs every VM, the
+# certificates and the storage config off it. Renaming a node afterwards is a
+# manual surgery, so pin the short name BEFORE pve-manager is installed.
+- name: Set the short hostname PVE will know this node by
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+# Two settings, one reason: cloud-init rebuilds both the hostname and
+# /etc/hosts from its datasource on every boot. preserve_hostname stops the
+# node coming back as the ShakenFist instance name after the kernel reboot in
+# the middle of this file (pve-cluster would then lose its own directory), and
+# manage_etc_hosts must go too -- the Debian image ships it enabled, so every
+# boot otherwise restores a 127.0.1.1 line for the instance name and discards
+# the mapping written below, leaving "hostname -f" answering with a bare short
+# name on a PVE node that needs an FQDN.
+- name: Stop cloud-init resetting the hostname and /etc/hosts on reboot
+  ansible.builtin.copy:
+    content: |
+      # proxmox-single-node.yml renamed this node to the short name PVE knows
+      # it by, and wrote /etc/hosts to match. Do not let the datasource put
+      # the instance name back into either.
+      preserve_hostname: true
+      manage_etc_hosts: false
+    dest: /etc/cloud/cloud.cfg.d/99-proxmox-preserve-hostname.cfg
+    owner: root
+    group: root
+    mode: "0644"
+
+# "hostname --ip-address" must return a real address: pve-manager uses it to
+# generate the node certificate and to decide what it is. The Debian cloud
+# image ships a 127.0.1.1 line for the instance name, which satisfies the
+# lookup with a loopback address and produces a node that cannot be clustered
+# or reached by its own name.
+- name: Remove the Debian 127.0.1.1 hostname line
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    state: absent
+
+- name: Point the hostname at the management address
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "\\s{{ inventory_hostname }}$"
+    line: "{{ proxmox_mgmt_address }} {{ inventory_hostname }}.{{ proxmox_domain }} {{ inventory_hostname }}"
+    state: present
+
+- name: Verify the hostname resolves to a non-loopback address
+  ansible.builtin.command: hostname --ip-address
+  register: _pve_hostname_ip
+  changed_when: false
+  failed_when: proxmox_mgmt_address not in _pve_hostname_ip.stdout
+
+# Before the first download: see resolver-check.yml for why this is a check
+# rather than an edit, and why it runs twice.
+- name: Check the node is not using the leaked libvirt resolver
+  ansible.builtin.include_tasks: tasks/proxmox/resolver-check.yml
+  vars:
+    _pve_resolver_stage: before the kernel reboot
+
+# Through the fleet squid, like the apt traffic: 01proxy only covers apt, and
+# get_url reads its proxy from the environment.
+- name: Install the Proxmox archive keyring
+  ansible.builtin.get_url:
+    url: "{{ proxmox_keyring_url }}"
+    dest: "{{ proxmox_keyring_path }}"
+    checksum: "sha256:{{ proxmox_keyring_sha256 }}"
+    owner: root
+    group: root
+    mode: "0644"
+  environment:
+    http_proxy: "{{ proxmox_http_proxy }}"
+    https_proxy: "{{ proxmox_http_proxy }}"
+
+- name: Add the Proxmox VE repository
+  ansible.builtin.copy:
+    content: |
+      Types: deb
+      URIs: {{ proxmox_repo_uri }}
+      Suites: {{ proxmox_suite }}
+      Components: {{ proxmox_repo_component }}
+      Signed-By: {{ proxmox_keyring_path }}
+    dest: /etc/apt/sources.list.d/pve-install-repo.sources
+    owner: root
+    group: root
+    mode: "0644"
+
+# A fresh box has none of these; a box this play has already run against does,
+# and apt would fail on them before reaching the step that turns them off.
+- name: Disable any enterprise repositories left from a previous run
+  ansible.builtin.include_tasks: tasks/proxmox/disable-enterprise-repos.yml
+
+- name: Update apt and take the pending Debian upgrades
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: full
+    cache_valid_time: 0
+
+# The Proxmox kernel first, on its own, with a reboot before anything else is
+# installed. proxmox-ve's userspace expects to be running on it (zfs, the
+# kernel modules ifupdown2 and the firewall want), and installing the whole set
+# while still on the Debian kernel leaves services failing until the reboot
+# they never quite tell you to do.
+- name: Install the Proxmox kernel
+  ansible.builtin.apt:
+    name: proxmox-default-kernel
+    state: present
+  register: _pve_kernel
+
+# Gated on the running kernel as well as the package change: a run that
+# installed proxmox-default-kernel and then died before or during the
+# reboot (the 90 minute job timeout, a cancel-in-progress pull_request
+# run) leaves the package already present on the next attempt, so
+# _pve_kernel.changed alone would skip the reboot forever and the next
+# task would fail on uname -r with no way to recover short of deleting
+# the instance. ansible_kernel is already gathered by this play.
+- name: Reboot onto the Proxmox kernel
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+    post_reboot_delay: 10
+  when: _pve_kernel.changed or 'pve' not in ansible_kernel
+
+- name: Confirm we are running a Proxmox kernel
+  ansible.builtin.command: uname -r
+  register: _pve_uname
+  changed_when: false
+  failed_when: "'pve' not in _pve_uname.stdout"
+
+# The reboot rebuilt resolved's view from cloud-init's networkd file and a
+# fresh DHCP lease, so whatever the first check saw proves nothing about the
+# rest of the run -- which is most of it.
+- name: Check the reboot did not bring the leaked libvirt resolver back
+  ansible.builtin.include_tasks: tasks/proxmox/resolver-check.yml
+  vars:
+    _pve_resolver_stage: after the kernel reboot
+
+# postfix prompts for a mail configuration on install. Under a non-interactive
+# apt that prompt is skipped and it lands on "No configuration", which leaves a
+# postfix that does not start; preseed it instead so the node has a working
+# local mailer for its own cron and backup output.
+- name: Install debconf-utils
+  ansible.builtin.apt:
+    name: debconf-utils
+    state: present
+
+- name: Preseed postfix so its install does not stall or misconfigure
+  ansible.builtin.debconf:
+    name: postfix
+    question: "{{ item.question }}"
+    vtype: "{{ item.vtype }}"
+    value: "{{ item.value }}"
+  loop:
+    - { question: "postfix/main_mailer_type", vtype: "select", value: "Local only" }
+    - { question: "postfix/mailname", vtype: "string", value: "{{ inventory_hostname }}.{{ proxmox_domain }}" }
+  loop_control:
+    label: "{{ item.question }}"
+
+- name: Install Proxmox VE
+  ansible.builtin.apt:
+    name:
+      - proxmox-ve
+      - postfix
+      - open-iscsi
+      - chrony
+      # ifupdown2 brings the bridge; iptables does the masquerade for it. Named
+      # explicitly because neither is guaranteed present on a cloud image and
+      # network.yml fails in a confusing way without them.
+      - iptables
+    state: present
+
+- name: Disable the enterprise repositories proxmox-ve just installed
+  ansible.builtin.include_tasks: tasks/proxmox/disable-enterprise-repos.yml
+
+- name: Remove the Debian kernel and os-prober
+  ansible.builtin.apt:
+    name:
+      - linux-image-amd64
+      - os-prober
+    state: absent
+    purge: true
+  register: _pve_debian_kernel
+
+# The versioned Debian kernel image the meta-package pulled in is left behind
+# by the removal above (apt only auto-removes it later), and it is what grub
+# would offer as an alternative boot entry. The apt module cannot glob, so this
+# is a command.
+- name: Remove the versioned Debian kernel images
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      { dpkg-query -W -f='${Package} ${Status}\n' 'linux-image-*-amd64' 2>/dev/null || true; }
+      | awk '$4 == "installed" && $1 !~ /pve/ {print $1}'
+      | xargs --no-run-if-empty apt-get -y purge
+    executable: /bin/bash
+  register: _pve_kernel_purge
+  changed_when: "'Removing' in _pve_kernel_purge.stdout"
+
+- name: Rebuild the grub configuration
+  ansible.builtin.command: update-grub
+  changed_when: true
+  when: _pve_debian_kernel.changed or _pve_kernel_purge.changed
+
+# There is deliberately no root password. PVE's web UI authenticates root
+# against PAM, and the cloud image ships root locked, so the UI cannot be
+# logged into -- which is correct for a CI node in a public repository's
+# logs. Nothing here uses the UI; everything that needs the API uses the
+# token api.yml creates.
+
+- name: Wait for the PVE API to answer
+  ansible.builtin.command: pvesh get /version --output-format json
+  register: _pve_version
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: _pve_version.rc == 0
+
+# A fact, so the facts file the playbook writes at the end can read it.
+- name: Record the deployed version
+  ansible.builtin.set_fact:
+    proxmox_deployed_version: "{{ (_pve_version.stdout | from_json).version }}"

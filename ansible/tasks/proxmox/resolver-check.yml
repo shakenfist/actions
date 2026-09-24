@@ -1,0 +1,55 @@
+---
+# Refuse to carry on with the hypervisor's libvirt default-network gateway
+# (192.168.122.1) among the node's resolvers. shakenfist/shakenfist#3300
+# reported ShakenFist guests getting it ahead of the real resolver, where it
+# is a black hole: every cache miss costs a ~5s timeout, which sshd pays on
+# each new connection, so a run of this length slows to a crawl rather than
+# failing.
+#
+# A check, not an edit, because of how this image gets its resolver. The
+# debian:13 image (shakenfist/images, debian-12-extras + debian-13-extras)
+# installs systemd-resolved, which makes /etc/resolv.conf a symlink to its
+# stub file -- one "nameserver 127.0.0.53" line, rewritten on every boot.
+# The upstream servers live in resolved's per-link lists, fed by the
+# networkd file cloud-init renders from network_data.json and by DHCP; on a
+# dns: true network ShakenFist names only the network's router in both.
+# The lineinfile this replaces stripped the black hole from /etc/resolv.conf
+# and so could never have matched here (every lane run reported it
+# unchanged), nor survived the kernel reboot if it had. Checking the list
+# resolved actually uses, before the install and again after that reboot,
+# is what turns the #3300 regression into a named failure instead of a
+# slow one.
+#
+# If this ever fires, the durable fix for this image is a networkd drop-in
+# for the file "networkctl status" names ("[Network]" with an empty DNS=
+# to reset the list, then the good servers, and "[DHCPv4] UseDNS=false"),
+# which survives both reboots and lease renewals -- an edit to
+# /etc/resolv.conf does neither.
+- name: Read the resolvers the node actually queries ({{ _pve_resolver_stage }})
+  ansible.builtin.shell:
+    cmd: |
+      set -o errexit -o pipefail
+      echo "/etc/resolv.conf -> $(readlink -f /etc/resolv.conf)"
+      grep -E '^nameserver' /etc/resolv.conf || echo 'no nameserver lines'
+      # When resolv.conf is resolved's stub, its one line is 127.0.0.53 and
+      # says nothing about the upstreams, so ask resolved. If that fails
+      # while resolved owns the file, this cannot tell, and says so by
+      # failing rather than passing on the stub's line alone.
+      if systemctl is-active --quiet systemd-resolved; then
+        resolvectl dns
+      fi
+    executable: /bin/bash
+  register: _pve_resolvers
+  changed_when: false
+
+- name: Refuse the leaked libvirt resolver (shakenfist#3300, {{ _pve_resolver_stage }})
+  ansible.builtin.assert:
+    that:
+      - _pve_resolvers.stdout is not search('(?<![0-9.])192[.]168[.]122[.]1(?![0-9])')
+    fail_msg: >-
+      The node is using the hypervisor's libvirt resolver 192.168.122.1
+      ({{ _pve_resolver_stage }}), which is unreachable from a guest; see
+      shakenfist/shakenfist#3300 and the comment at the top of
+      tasks/proxmox/resolver-check.yml for the durable fix. What the node
+      reports: {{ _pve_resolvers.stdout_lines }}
+    success_msg: "{{ _pve_resolvers.stdout_lines }}"

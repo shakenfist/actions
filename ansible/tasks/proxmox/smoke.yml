@@ -1,0 +1,138 @@
+---
+# A booted guest with a SPICE display. This is the deployment's proof that it
+# works, and it is also the point of the deployment: a console for kerbside to
+# be pointed at once a Proxmox source driver exists. It plays the same role as
+# the kerbside oVirt lane's smoke-test VM.
+
+- name: Ensure the image cache directory exists
+  ansible.builtin.file:
+    path: /var/lib/vz/template/cache
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Fetch the cirros image
+  ansible.builtin.get_url:
+    url: "{{ proxmox_smoke_image_url }}"
+    dest: "/var/lib/vz/template/cache/{{ proxmox_smoke_image_url | basename }}"
+    checksum: "{{ ('sha256:' ~ proxmox_smoke_image_sha256) if proxmox_smoke_verify_image else omit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  # Through the fleet squid, like the apt traffic and the keyring.
+  environment:
+    http_proxy: "{{ proxmox_http_proxy }}"
+    https_proxy: "{{ proxmox_http_proxy }}"
+
+# Nested KVM is normally available on ShakenFist but is not guaranteed (a
+# hypervisor without nested virtualisation enabled offers none). PVE will
+# happily create a VM with kvm=1 on a host with no /dev/kvm and then fail to
+# start it, with an error that blames the VM rather than the host -- so decide
+# here.
+- name: Check for hardware virtualisation
+  ansible.builtin.stat:
+    path: /dev/kvm
+  register: _pve_kvm
+
+- name: Warn if the guest will run under emulation
+  ansible.builtin.debug:
+    msg: >-
+      /dev/kvm is missing on this host, so the smoke guest is created with
+      kvm=0 and runs under TCG emulation. It still boots and still paints a
+      SPICE console -- it is just slow.
+  when: not _pve_kvm.stat.exists
+
+- name: Check whether the smoke guest already exists
+  ansible.builtin.command: "qm config {{ proxmox_smoke_vmid }}"
+  register: _pve_smoke_config
+  changed_when: false
+  failed_when: false
+
+# --vga qxl is the whole point: it is what makes this a SPICE console rather
+# than a VNC one. import-from does the disk import inline, which avoids the
+# two-step "importdisk then attach the volume id it printed" dance. --onboot 1
+# so that a rebooted deployment still has a console target on it.
+- name: Create the smoke guest
+  ansible.builtin.command: >-
+    qm create {{ proxmox_smoke_vmid }}
+    --name {{ proxmox_smoke_name }}
+    --memory {{ proxmox_smoke_memory }}
+    --cores {{ proxmox_smoke_cores }}
+    --ostype l26
+    --kvm {{ 1 if _pve_kvm.stat.exists else 0 }}
+    --net0 virtio,bridge={{ proxmox_bridge }}
+    --scsihw virtio-scsi-pci
+    --scsi0 {{ proxmox_vm_storage }}:0,import-from=/var/lib/vz/template/cache/{{ proxmox_smoke_image_url | basename }}
+    --boot order=scsi0
+    --vga qxl
+    --agent 0
+    --onboot 1
+  changed_when: true
+  when: _pve_smoke_config.rc != 0
+
+- name: Start the smoke guest
+  ansible.builtin.command: "qm start {{ proxmox_smoke_vmid }}"
+  register: _pve_smoke_start
+  changed_when: "'already running' not in _pve_smoke_start.stderr"
+  failed_when:
+    - _pve_smoke_start.rc != 0
+    - "'already running' not in _pve_smoke_start.stderr"
+
+- name: Wait for the guest to be running
+  ansible.builtin.command: "qm status {{ proxmox_smoke_vmid }}"
+  register: _pve_smoke_status
+  changed_when: false
+  retries: 12
+  delay: 5
+  until: "'status: running' in _pve_smoke_status.stdout"
+
+# The end-to-end check. Proxmox binds qemu's SPICE listener to loopback with
+# mandatory TLS and fronts it with spiceproxy, a pve-manager daemon on 3128
+# that authenticates a ticket embedded in the HTTP CONNECT pseudo-hostname --
+# so "is there a SPICE console here" is not answered by a port scan, it is
+# answered by asking the API to issue that ticket. This call returns the same
+# payload a .vv file carries.
+#
+# no_log: true because that payload is a live console credential: a SPICE
+# password, and a CONNECT pseudo-hostname carrying a proxy ticket. Both expire
+# within a minute, but this runs in public CI logs. Only the two names the
+# playbook's FQDN assertion compares are taken out of it, below.
+- name: Ask the API for a SPICE console ticket
+  ansible.builtin.command: >-
+    pvesh create /nodes/{{ inventory_hostname }}/qemu/{{ proxmox_smoke_vmid }}/spiceproxy
+    --output-format json
+  register: _pve_spiceproxy
+  changed_when: false
+  no_log: true
+
+- name: Confirm spiceproxy is listening
+  ansible.builtin.command: "ss -ltn sport = :3128"
+  register: _pve_spiceproxy_port
+  changed_when: false
+  failed_when: "'LISTEN' not in _pve_spiceproxy_port.stdout"
+
+# The proxy URL's host and the CN of host-subject -- the name a client is told
+# to dial and the name it is told to pin -- and nothing else from the ticket.
+# host-subject reads "OU=PVE Cluster Node,O=Proxmox Virtual Environment,CN=<fqdn>".
+#
+# no_log as well, because a template error here would quote the ticket it was
+# parsing. The playbook's FQDN assertion prints the two names this extracts.
+- name: Record the names the console ticket carries
+  ansible.builtin.set_fact:
+    # A regex, not urlsplit('hostname'): that lowercases the host, as
+    # Python's urlsplit does, and the assertion this feeds compares the
+    # names exactly -- PVE's own proxy URL keeps the case hostname -f has.
+    proxmox_ticket_proxy_host: >-
+      {{ (_pve_spiceproxy.stdout | from_json).proxy
+         | regex_replace('^[A-Za-z][A-Za-z0-9+.-]*://([^:/]+).*$', '\1') }}
+    proxmox_ticket_subject_cn: >-
+      {{ (_pve_spiceproxy.stdout | from_json)['host-subject']
+         | split(',') | map('trim') | select('match', 'CN=')
+         | map('regex_replace', '^CN=', '') | first | default('') }}
+  no_log: true
+
+- name: Record what the smoke guest was built with
+  ansible.builtin.set_fact:
+    proxmox_deployed_smoke_vmid: "{{ proxmox_smoke_vmid }}"
+    proxmox_deployed_kvm: "{{ _pve_kvm.stat.exists }}"

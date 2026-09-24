@@ -33,6 +33,13 @@ branch; a downstream run against your branch still pulls
 GitHub limitation, not an oversight, and it is written up in
 [docs/ci.md](docs/ci.md).
 
+That still holds for every action whose files come from the caller's
+checkout. The exception is an action that resolves its own files through
+`github.action_path` -- today only `deploy-proxmox-on-shakenfist` --
+which a relative `uses:` here exercises at the pull request's version;
+see "Path-filtered lane -- `proxmox-substrate.yml`" in
+[docs/ci.md](docs/ci.md).
+
 What you can do:
 
 * `pre-commit run --all-files` -- actionlint, shellcheck, flake8,
