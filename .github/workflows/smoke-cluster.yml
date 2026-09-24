@@ -52,19 +52,8 @@ on:
         type: string
         default: localhost
       base_image:
-        # Bookworm, deliberately. The eol-distro audit does not judge
-        # guest images and this one is why: moving the under-cloud to
-        # sf://label/ci-images/debian-13 builds a cluster fine, and then
-        # every instance booted on it reports its agent as "not ready (no
-        # contact)". The three test_agentop_deadlines tests that wait on
-        # agent readiness went from 137-207 seconds to ~1820 seconds each
-        # and timed out the step -- see run 35483225701. The guest is
-        # unchanged across that comparison, so what breaks is the agent's
-        # side channel to a trixie hypervisor, which is a shakenfist bug
-        # rather than a label to bump here. Tracked as
-        # shakenfist/shakenfist#4280.
         type: string
-        default: 'sf://label/ci-images/debian-12'
+        default: 'sf://label/ci-images/debian-13'
       base_image_user:
         type: string
         default: debian
