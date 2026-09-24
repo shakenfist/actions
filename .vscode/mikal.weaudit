@@ -377,14 +377,6 @@
       "author": "mikal"
     },
     {
-      "path": "build-smoke-cluster/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "build-smoke-cluster",
-      "author": "mikal"
-    },
-    {
       "path": "setup-kerbside-environment/action.yml",
       "author": "mikal"
     },

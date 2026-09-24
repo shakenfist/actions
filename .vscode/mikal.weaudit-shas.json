@@ -153,10 +153,6 @@
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
     },
-    "build-smoke-cluster/action.yml": {
-      "sha": "91be93ba31ca164a354d952d731b814f27b03d96",
-      "date": "2026-09-23"
-    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
