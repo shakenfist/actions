@@ -5,6 +5,10 @@
       "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
       "date": "2026-09-23"
     },
+    ".github/workflows/canary.yml": {
+      "sha": "1159519ae7e3050ab79640707f04d4dceb0088de",
+      "date": "2026-09-25"
+    },
     ".github/workflows/ci.yml": {
       "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
       "date": "2026-09-23"
@@ -33,6 +37,10 @@
       "sha": "800a9f74077797366c4e533cab91a080dcbf31d7",
       "date": "2026-09-04"
     },
+    ".github/workflows/proxmox-substrate.yml": {
+      "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
+      "date": "2026-09-25"
+    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
@@ -41,9 +49,29 @@
       "sha": "c0b66818f4babdbf6ac0861756cdbd61993b7612",
       "date": "2026-09-19"
     },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "93dde749f81be8afa55e02750cf018d535d90bdd",
+      "date": "2026-09-25"
+    },
+    ".gitleaks.toml": {
+      "sha": "3356d24cc9173f00903be688807febacdff3838d",
+      "date": "2026-09-25"
+    },
     ".pre-commit-config.yaml": {
       "sha": "e3dfd65f4fe369bc94a4dc14b7fbb785c6eb1edd",
       "date": "2026-09-16"
+    },
+    "AGENTS.md": {
+      "sha": "508384790b3a8cc0d67ee92d20191d6feaf4a9bf",
+      "date": "2026-09-25"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
+      "date": "2026-09-25"
+    },
+    "README.md": {
+      "sha": "7160b8d593cb16ac50d79827f7633192a674a70b",
+      "date": "2026-09-25"
     },
     "ansible/ci-dependencies.yml": {
       "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
@@ -129,6 +157,10 @@
       "sha": "6aa5551a01095f63871470e4f7d3dd0766e7657a",
       "date": "2026-09-19"
     },
+    "ansible/proxmox-single-node.yml": {
+      "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
+      "date": "2026-09-25"
+    },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
       "date": "2026-09-16"
@@ -136,6 +168,34 @@
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "093197e5ef09e23b2b23ab811aa52b6aa14e63d4",
       "date": "2026-09-23"
+    },
+    "ansible/tasks/proxmox/api.yml": {
+      "sha": "eac6217cefb86ebf075610d8d25ccddfa1d016fa",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/disable-enterprise-repos.yml": {
+      "sha": "0e40eed764df8284e452a7ab42de7107f6cc76a9",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/install.yml": {
+      "sha": "c25cede1dde1588f6918bc34e4fd7080c0eaa47d",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/network.yml": {
+      "sha": "5a2415fe0898a6e7ba277f8c1a59b65fb38f52a1",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/resolver-check.yml": {
+      "sha": "8d7d74dcd55aacab7105bee5bd38bc17c3eee9ff",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/smoke.yml": {
+      "sha": "9bd4a745f9405005da47b230014ec8283aa5fd00",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/storage.yml": {
+      "sha": "efbc46f19348fb79dfbc826b49e236ef7f0a3a08",
+      "date": "2026-09-25"
     },
     "ansible/tasks/reserve-deployment-vip.yml": {
       "sha": "b115cb6e27c1cd7e9600ca1f7914d26c8f3c662a",
@@ -153,6 +213,14 @@
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
     },
+    "ansible/vars/proxmox.yml": {
+      "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
+      "date": "2026-09-25"
+    },
+    "build-smoke-cluster/action.yml": {
+      "sha": "eb511b439cff3e8944847ec1e89a4069789d9fca",
+      "date": "2026-09-25"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -160,6 +228,26 @@
     "deploy-kolla-ansible/action.yml": {
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
+    },
+    "deploy-proxmox-on-shakenfist/action.yml": {
+      "sha": "a0482369068dad005b507e65eec0fc7091df433c",
+      "date": "2026-09-25"
+    },
+    "docs/actions.md": {
+      "sha": "3d3f2ab7dc425ac46ce7604c216b55a8a5923aba",
+      "date": "2026-09-25"
+    },
+    "docs/ansible.md": {
+      "sha": "8a8bd0730d3cb9663c75f54c433d091d8b139565",
+      "date": "2026-09-25"
+    },
+    "docs/ci.md": {
+      "sha": "db13ef57cf233cca3ed54512ebdb6fa43477f3d2",
+      "date": "2026-09-25"
+    },
+    "docs/consuming.md": {
+      "sha": "a866f80a8925cd6d1659da5bf010a63679804deb",
+      "date": "2026-09-25"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -189,9 +277,21 @@
       "sha": "d361f1309338099b9280abb7a395228251120978",
       "date": "2026-09-07"
     },
+    "review-pr-with-claude/extract-review-json.py": {
+      "sha": "2fcc9819219c7623abf13c842ca2d3db1323f283",
+      "date": "2026-09-25"
+    },
     "review-pr-with-claude/render-review.py": {
       "sha": "fdc6746c850520c6753fff7ecbb8ed8200ec009b",
       "date": "2026-09-07"
+    },
+    "review-pr-with-claude/render-unparsed-review.py": {
+      "sha": "534dde87ee8d0f0d8461b2ec06cd1625e3043bb3",
+      "date": "2026-09-25"
+    },
+    "review-pr-with-claude/review-pr-with-claude.sh": {
+      "sha": "619a7702a9243c0313807f6c6302dd2a4fb82a12",
+      "date": "2026-09-25"
     },
     "review-pr-with-claude/review-schema.json": {
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
@@ -213,9 +313,17 @@
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
       "date": "2026-09-07"
     },
+    "tests/test_ansible_readiness.py": {
+      "sha": "8739790d8d8737d9633b86f822a877af5acc2662",
+      "date": "2026-09-25"
+    },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
+    },
+    "tests/test_ci_headroom_verdict.py": {
+      "sha": "0e23d713a7d914bb23dbe39f4957447611f4fd9e",
+      "date": "2026-09-25"
     },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
@@ -229,9 +337,29 @@
       "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
       "date": "2026-09-07"
     },
+    "tests/test_extract_review_json.py": {
+      "sha": "931046d9d97e51628b277472fd7910cfd575772e",
+      "date": "2026-09-25"
+    },
+    "tests/test_proxmox_action_outputs.py": {
+      "sha": "12558cd32b1f9c698051f2c7808eae59bef460e5",
+      "date": "2026-09-25"
+    },
+    "tests/test_proxmox_connect_probe.py": {
+      "sha": "f747c6e4a4c2b9bf7fa7e4ef1bf26e865d62263a",
+      "date": "2026-09-25"
+    },
+    "tests/test_proxmox_shell_validation.py": {
+      "sha": "f6635a8138ed046ef6f7d72aa90d915dbe8086b4",
+      "date": "2026-09-25"
+    },
     "tests/test_render_review.py": {
       "sha": "b0463699eba93deed6751d8a26a40764b7e8c1e4",
       "date": "2026-09-07"
+    },
+    "tests/test_render_unparsed_review.py": {
+      "sha": "fdc7bb260f7b53af5b35b953694ef726a0b59740",
+      "date": "2026-09-25"
     },
     "tests/test_run_remote.py": {
       "sha": "a0778f7c03c11c37d2472b12fe3ffa6ff7facacf",
@@ -240,6 +368,10 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "429491897b6aadc06c0a56cadaef04da39ad52db",
+      "date": "2026-09-25"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
@@ -273,9 +405,17 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "85608a45c89602ddbc1fe38e997a2b420da83850",
+      "date": "2026-09-25"
+    },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
       "date": "2026-09-10"
+    },
+    "tools/ci_headroom_verdict.sh": {
+      "sha": "612248f12a74c44f3de7470f3b5115168b12cbe1",
+      "date": "2026-09-25"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
@@ -336,6 +476,30 @@
     "tools/ovirt-prepare-host.sh": {
       "sha": "5669bb69a3c1ff56cbd19c50f149814a98bec1a8",
       "date": "2026-09-10"
+    },
+    "tools/proxmox-connect-probe.py": {
+      "sha": "bbdfa86125b915c20c38e0215c22999a233661e6",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-deploy.sh": {
+      "sha": "04508d3a27f26a81a35ba661a2cb4b07948674a2",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-mint-vv.sh": {
+      "sha": "e1bb3e3ab87435e10586fee74775af2f9bdf2b25",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-publish-node.sh": {
+      "sha": "c8328ca2a411ed5828f92b518a00c8cd18882272",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-self-check.sh": {
+      "sha": "72392455aaae9b2375e982bf0778b4ab5897fde3",
+      "date": "2026-09-25"
+    },
+    "tools/report-proxmox-substrate-failure.sh": {
+      "sha": "5a5f99cfce84892e3f96b5412e57016acadb269d",
+      "date": "2026-09-25"
     },
     "tools/review-tracking.sh": {
       "sha": "040c56e4d763109492f79f0f3cc796231047c68c",

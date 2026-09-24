@@ -383,6 +383,206 @@
     {
       "path": "setup-kerbside-environment",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/canary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/proxmox-substrate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/api.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/disable-enterprise-repos.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/install.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/network.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/resolver-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/smoke.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/storage.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars/proxmox.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/proxmox-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-connect-probe.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-deploy.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-mint-vv.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-publish-node.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-self-check.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/report-proxmox-substrate-failure.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/extract-review-json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-unparsed-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-pr-with-claude.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_verdict.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_render_unparsed_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_shell_validation.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ansible_readiness.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_headroom_verdict.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_extract_review_json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_action_outputs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_connect_probe.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".gitleaks.toml",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
