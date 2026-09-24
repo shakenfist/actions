@@ -1,0 +1,101 @@
+---
+# Storage. The ISO installer builds an LVM-thin pool and points "local-lvm" at
+# it; the Debian install path does not, so a fresh node here has exactly one
+# storage ("local", a directory under /var/lib/vz) and it is not allowed to
+# hold a VM disk. Both halves of that are fixed below.
+
+- name: Read the current storage configuration
+  ansible.builtin.command: "pvesm status --content images"
+  register: _pve_image_storages
+  changed_when: false
+  failed_when: false
+
+- name: Allow disk images on the local directory storage
+  ansible.builtin.command: "pvesm set local --content {{ proxmox_local_content }}"
+  changed_when: true
+  # pvesm set is not idempotent in its reporting -- it succeeds and says
+  # nothing either way -- so ask first whether "local" already accepts images.
+  when: "'local ' not in _pve_image_storages.stdout"
+
+# The blank disk, if the playbook attached one. "No partition table, no
+# filesystem, no children, not the disk we booted from" is the same test
+# cephadm makes when it looks for OSD devices -- here there is no orchestrator
+# to ask, so make it explicitly and refuse to guess if more than one candidate
+# turns up.
+- name: Find candidate blank disks
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      lsblk --json --output NAME,TYPE,FSTYPE,MOUNTPOINT,SIZE
+      | python3 -c "import json,sys;
+      d=json.load(sys.stdin)['blockdevices'];
+      print(' '.join(x['name'] for x in d
+      if x['type']=='disk' and not x.get('children') and not x.get('fstype')
+      and not x.get('mountpoint')))"
+    executable: /bin/bash
+  register: _pve_blank_disks
+  changed_when: false
+  when: proxmox_thinpool_enabled
+
+- name: Record the blank disk to use for the thin pool
+  ansible.builtin.set_fact:
+    proxmox_thinpool_device: "/dev/{{ _pve_blank_disks.stdout.split() | first }}"
+  when:
+    - proxmox_thinpool_enabled
+    - _pve_blank_disks.stdout.split() | length == 1
+
+- name: Note that the thin pool is being skipped
+  ansible.builtin.debug:
+    msg: >-
+      {{ (_pve_blank_disks.stdout.split() | length) }} blank disks found
+      ({{ _pve_blank_disks.stdout | default('none') }}); expected exactly one.
+      Skipping the LVM-thin pool -- VM disks will live on the "local"
+      directory storage, which works but is a file on the root filesystem.
+  when:
+    - proxmox_thinpool_enabled
+    - _pve_blank_disks.stdout.split() | length != 1
+
+- name: Check whether the thin pool storage already exists
+  ansible.builtin.command: "pvesm status --storage {{ proxmox_thinpool_storage }}"
+  register: _pve_thinpool_status
+  changed_when: false
+  failed_when: false
+  when: proxmox_thinpool_device is defined
+
+- name: Build the LVM-thin pool
+  when:
+    - proxmox_thinpool_device is defined
+    - _pve_thinpool_status.rc != 0
+  block:
+    - name: Create the volume group
+      community.general.lvg:
+        vg: "{{ proxmox_thinpool_vg }}"
+        pvs: "{{ proxmox_thinpool_device }}"
+
+    # 95% rather than 100%: a thin pool needs room for its own metadata volume,
+    # and lvcreate's automatic metadata sizing fails outright on a pool that
+    # was told to take every extent.
+    - name: Create the thin pool logical volume
+      community.general.lvol:
+        vg: "{{ proxmox_thinpool_vg }}"
+        lv: "{{ proxmox_thinpool_lv }}"
+        size: "95%FREE"
+        opts: "--type thin-pool"
+
+    - name: Register the thin pool with PVE
+      ansible.builtin.command: >-
+        pvesm add lvmthin {{ proxmox_thinpool_storage }}
+        --vgname {{ proxmox_thinpool_vg }}
+        --thinpool {{ proxmox_thinpool_lv }}
+        --content images,rootdir
+      changed_when: true
+
+- name: Report the configured storages
+  ansible.builtin.command: pvesm status
+  register: _pve_storage_status
+  changed_when: false
+
+- name: Record the storage the smoke guest should use
+  ansible.builtin.set_fact:
+    proxmox_vm_storage: >-
+      {{ proxmox_thinpool_storage if (proxmox_thinpool_storage in _pve_storage_status.stdout) else 'local' }}

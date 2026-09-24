@@ -453,6 +453,7 @@ class ReadinessGateTest(unittest.TestCase):
             'kerbside-multi-node-2.yml',
             'kerbside-multi-node.yml',
             'kerbside-single-node.yml',
+            'proxmox-single-node.yml',
         }
         found = set()
         for name, doc in self.docs.items():

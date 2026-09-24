@@ -1,0 +1,130 @@
+---
+# Proxmox VE layered onto a stock Debian base image, for
+# proxmox-single-node.yml. See docs/ansible.md for the mechanics and the
+# gotchas; this file is just the knobs.
+#
+# Everything here is a plain variable file loaded with vars_files, so -e
+# extra-vars still outrank it: -e proxmox_smoke_enabled=false works.
+
+# WHICH PROXMOX. PVE 9.x is built on Debian 13 (trixie) and the two are not
+# interchangeable -- a trixie suite against a bookworm base (or the reverse)
+# resolves into a broken dependency set rather than failing cleanly. The suite
+# is therefore derived from the base image the playbook asked for, and both are
+# stated in one place.
+proxmox_suite: trixie
+
+# pve-no-subscription, never pve-enterprise. The enterprise repo requires a
+# subscription key and returns 401 without one, which does not merely skip that
+# repo -- it fails the whole "apt update" and every subsequent install. The
+# proxmox-ve package ships enterprise .sources files for both PVE and Ceph, so
+# the play disables those after install rather than leaving apt broken.
+proxmox_repo_component: pve-no-subscription
+proxmox_repo_uri: "http://download.proxmox.com/debian/pve"
+
+# The archive keyring, fetched with its published checksum. Proxmox publishes a
+# per-suite keyring; the checksum is from the "Install Proxmox VE on Debian 13
+# Trixie" wiki page and is verified on download, so a mirror serving something
+# else fails here rather than at signature-check time.
+proxmox_keyring_url: "https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg"
+proxmox_keyring_sha256: "136673be77aba35dcce385b28737689ad64fd785a797e57897589aed08db6e45"
+proxmox_keyring_path: /usr/share/keyrings/proxmox-archive-keyring.gpg
+
+# The fleet's squid cache, the same address every other CI playbook here
+# points apt at (docs/ansible.md, "CI caching"). apt reaches it through
+# /etc/apt/apt.conf.d/01proxy; the two downloads that are not apt -- the
+# keyring and the cirros image -- pass it as an environment to get_url.
+proxmox_http_proxy: "http://192.168.1.15:3128"
+
+# The domain half of the node FQDN, taken from the fabric's own search
+# domain. This is not cosmetic and it is not free to choose: PVE generates the
+# node certificate against the FQDN, and every SPICE console ticket it issues
+# carries BOTH a "proxy" URL naming that FQDN and a "host-subject" the client
+# is expected to pin the certificate against. Invent a domain here and a remote
+# console client is handed a proxy address that resolves nowhere and a subject
+# that does not match the name it was told to dial. Taking the search domain
+# ShakenFist already serves keeps hostname -f, the certificate and the ticket
+# saying the same resolvable thing.
+#
+# There is deliberately no fallback. An invented default domain is exactly
+# the bug that shipped once already: hostname -f said one thing and the
+# certificate another. An empty search list fails the play before anything is
+# installed instead, and the FQDN assertion at the end of the play checks that
+# all the sources still agree.
+proxmox_domain: "{{ ansible_dns.search | default([], true) | first | default('', true) }}"
+
+# GUEST NETWORK. vmbr0 is deliberately a PORTLESS bridge, not a bridge over the
+# management NIC.
+#
+# Every other way of doing this breaks something. Enslaving the ShakenFist NIC
+# to vmbr0 tears down the address Ansible is connected over mid-play (the same
+# failure the oVirt all-in-one deployments hit when host-deploy bridges the
+# hypervisor's NIC). Giving the host a second ShakenFist NIC and bridging that
+# instead keeps the session alive, but ShakenFist filters the fabric by the
+# addresses it handed out, so nested guests with their own MACs and addresses
+# are dropped on the floor.
+#
+# A portless bridge plus masquerade -- the setup Proxmox documents for hosts
+# with a single routable address -- avoids both: the management NIC is never
+# touched, and guest traffic leaves as the host.
+proxmox_bridge: vmbr0
+proxmox_vm_netblock: "10.10.0.0/24"
+proxmox_vm_gateway: "10.10.0.1"
+proxmox_vm_prefix: 24
+proxmox_vm_dhcp_start: "10.10.0.100"
+proxmox_vm_dhcp_end: "10.10.0.200"
+proxmox_vm_dhcp_lease: "12h"
+# Guests get DHCP from a dnsmasq bound to vmbr0 only. PVE's SDN stack can do
+# this too, but SDN wants its own zone/vnet/subnet objects and an IPAM, which is
+# a lot of moving parts for "the smoke guest should get an address".
+#
+# Both default OFF here. Nothing on a console path needs the guest to have an
+# address or egress: a SPICE console is served by qemu on the host and reached
+# through the host's spiceproxy, and the smoke guest paints its console whether
+# or not it ever gets a lease. Turning them on works, but nothing in CI checks
+# that the guest resolver actually resolves, so do not rely on guest DNS.
+proxmox_enable_dhcp: false
+proxmox_enable_nat: false
+
+# STORAGE. A Debian-path install has no LVM-thin pool -- that layout is
+# something the ISO installer builds -- so out of the box "local" is a
+# directory on the root filesystem and the node cannot store a VM disk at all
+# until its content types are widened. The play does that unconditionally, and
+# additionally builds a real thin pool on a blank disk when one was attached,
+# which is what the ISO install would have given us.
+proxmox_local_content: "images,rootdir,iso,vztmpl,backup,snippets"
+proxmox_thinpool_enabled: true
+proxmox_thinpool_storage: "local-lvm"
+proxmox_thinpool_vg: "pve"
+proxmox_thinpool_lv: "data"
+
+# API ACCOUNT for kerbside (or anything else driving the node's consoles).
+# Created with an API token rather than a password so the credential can be
+# revoked on its own. privsep=0 because a privilege-separated token is capped
+# by its own ACL as well as the user's, and an empty token ACL means "no
+# permissions at all" -- the usual first surprise with PVE tokens.
+proxmox_api_user: "kerbside@pve"
+proxmox_api_token: "console"
+# PVEVMUser carries VM.Console (what a SPICE console needs) plus VM.Audit and
+# power management; PVEAuditor on / lets the caller enumerate nodes and VMs to
+# find a console in the first place. Least privilege here is asserted, not
+# proven -- only this pair has been exercised.
+proxmox_api_roles:
+  - { path: "/vms", role: "PVEVMUser" }
+  - { path: "/", role: "PVEAuditor" }
+
+# SMOKE GUEST. A booted VM with a SPICE display, so the deployment ends with
+# something a console broker can actually be pointed at -- the same role the
+# kerbside oVirt lane's smoke-test VM plays. Cirros because it boots to a login
+# prompt in a few seconds on 512MB.
+proxmox_smoke_enabled: true
+proxmox_smoke_vmid: 100
+proxmox_smoke_name: "spice-target"
+proxmox_smoke_memory: 512
+proxmox_smoke_cores: 1
+proxmox_smoke_image_url: "http://download.cirros-cloud.net/0.6.3/cirros-0.6.3-x86_64-disk.img"
+proxmox_smoke_image_sha256: "7d6355852aeb6dbcd191bcda7cd74f1536cfe5cbf8a10495a7283a8396e4b75b"
+# The download is plain HTTP (cirros publishes no HTTPS mirror), so the
+# checksum above -- taken from the release's SHA256SUMS -- is the only
+# integrity story there is. It is enforced by default, which does mean the
+# constant has to move whenever proxmox_smoke_image_url does.
+proxmox_smoke_verify_image: true

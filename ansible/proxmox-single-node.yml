@@ -1,0 +1,382 @@
+---
+# Bring up a single-node Proxmox VE 9 hypervisor as an instance in the
+# runner's own ShakenFist namespace, installed the officially supported way --
+# layered onto a stock Debian 13 base image with apt -- and leave a booted
+# guest with a SPICE console on it, a least-privilege API token for it, and a
+# runner that can reach the node.
+#
+# WHY NOT THE ISO. Proxmox has had an answer-file driven unattended installer
+# since PVE 8.2 (proxmox-auto-install-assistant, answer.toml fetched from the
+# ISO, a labelled partition, or HTTP), and ShakenFist can boot an ISO as a
+# type=cdrom disk, so that route is open. It is still the wrong one here: it
+# means building an ISO per deployment, booting it blind, and hoping a
+# first-boot hook planted a key. The install-on-Debian path keeps cloud-init,
+# the injected SSH key and the ShakenFist agent alive the whole way through, so
+# this stays an ordinary Ansible run against an ordinary host -- the same
+# reason kerbside's oVirt lane layers ovirt-engine onto a Rocky image rather
+# than installing oVirt Node.
+#
+# TOPOLOGY (the runner's own namespace, one ShakenFist network "proxmox")
+# ----------------------------------------------------------------------
+#   pve1  10.0.2.2 (+ floating)  the hypervisor: API on 8006, spiceproxy on
+#                                3128. The instance is pve1-<identifier>; the
+#                                host and the PVE node are both "pve1".
+#   vmbr0 10.10.0.1/24           a PORTLESS bridge on the host, for the smoke
+#                                guest's NIC. NAT and DHCP for it are off by
+#                                default; see vars/proxmox.yml.
+#   the runner                   joins "proxmox" as a second interface, as in
+#                                kerbside-single-node.yml, so it can reach
+#                                10.0.2.2 directly.
+#
+# The bridge has no ports on purpose. Enslaving the ShakenFist NIC to it would
+# tear down the address this playbook is connected over, and bridging a second
+# ShakenFist NIC instead runs into the fabric filtering traffic from addresses
+# it did not hand out. vars/proxmox.yml has the long version.
+#
+# RESOURCE FOOTPRINT: 4 vCPU / 8 GB RAM / 100 GB of disk in one instance. The
+# second (blank) disk becomes an LVM-thin pool called local-lvm, which is what
+# the ISO installer would have built and what makes VM storage on this node
+# behave like a real one. The runner's size is separate from this, and is the
+# caller's choice; docs/actions.md gives the minimum.
+#
+# Normally run by the deploy-proxmox-on-shakenfist composite action. By hand,
+# from a CI runner:
+#
+#   ansible-playbook -i /home/debian/ansible-hosts \
+#       ansible/proxmox-single-node.yml \
+#       -e identifier=$(hostname) \
+#       -e proxmox_token_file=/tmp/proxmox/token \
+#       -e proxmox_ca_file=/tmp/proxmox/pve-root-ca.pem \
+#       -e proxmox_facts_file=/tmp/proxmox/facts.json
+#
+# No smoke guest (and so no ticket half to the FQDN assertion):
+#       -e proxmox_smoke_enabled=false
+#
+# WHAT COMES BACK is three files on the runner, never a printed credential:
+#   proxmox_token_file   the API token secret, mode 0600, and nothing else
+#   proxmox_ca_file      the node's root CA, /etc/pve/pve-root-ca.pem
+#   proxmox_facts_file   JSON: node name, FQDN, address, PVE version, token
+#                        id, smoke vmid and whether /dev/kvm existed
+
+# -------------------------------------------------------
+# Play 1: provision the hypervisor and put the runner on its network
+# -------------------------------------------------------
+- name: Provision the Proxmox host
+  hosts: localhost
+  gather_facts: false
+  # As every other provisioning playbook here: the sf_* modules run with the
+  # runner's own ShakenFist credentials, reached the same way they do.
+  connection: ssh
+  vars:
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
+    base_user: debian
+    proxmox_network_name: proxmox
+    proxmox_netblock: "10.0.2.0/24"
+    # Must sit inside proxmox_netblock. It is also the address the runner's
+    # /etc/hosts maps the node's FQDN to.
+    proxmox_node_address: "10.0.2.2"
+    # debian:13 and PVE 9 go together -- PVE 9.x is built on trixie, and the
+    # apt suite in vars/proxmox.yml follows from this image. A bookworm base
+    # needs PVE 8.x and proxmox_suite=bookworm.
+    proxmox_base_image: "debian:13"
+    proxmox_node_cpu: 4
+    proxmox_node_ram: 8192
+    proxmox_node_root_disk: 40
+    # Becomes the LVM-thin pool. storage.yml finds it by being the only disk
+    # with no partition table on it, so there is exactly one, and it is blank.
+    proxmox_node_data_disk: 60
+    # As in kerbside-single-node.yml: true when this is driven from a
+    # ShakenFist CI runner that is itself the instance named
+    # "{{ identifier }}". The CI block below adds the test network to that
+    # runner, and the node is then reached on its internal address. A caller
+    # outside the fabric sets this false, skips that block, and reaches the
+    # node on its floating address instead.
+    running_in_ci: true
+
+  tasks:
+    # Before anything is booked on the fabric: a missing output path would
+    # otherwise surface twenty minutes in, after the install, with a node
+    # nobody can use.
+    - name: Check the caller passed what this playbook needs
+      ansible.builtin.assert:
+        that:
+          - identifier is defined
+          - identifier | length > 0
+          - proxmox_token_file is defined
+          - proxmox_ca_file is defined
+          - proxmox_facts_file is defined
+        fail_msg: >-
+          proxmox-single-node.yml needs identifier (the runner's own
+          hostname in CI), proxmox_token_file, proxmox_ca_file and
+          proxmox_facts_file. See the usage comment at the top of the
+          playbook.
+
+    # Idempotent: a no-op in CI (the runner already lives in this
+    # namespace) but the off-fabric path needs it created.
+    - name: Ensure the ShakenFist namespace exists
+      shakenfist.shakenfist.sf_namespace:
+        name: "{{ identifier }}"
+        state: present
+
+    # Registered because the instance below references the network by UUID,
+    # not by name: sf_instance compares the requested networkspec against what
+    # the API reports, and the API reports a UUID -- so a networkspec naming
+    # the network compares dirty on every run and the instance is deleted and
+    # recreated. sf_network is itself idempotent, so this costs nothing.
+    - name: Create the management network
+      shakenfist.shakenfist.sf_network:
+        netblock: "{{ proxmox_netblock }}"
+        name: "{{ proxmox_network_name }}"
+        namespace: "{{ identifier }}"
+        state: present
+        dns: true
+      register: proxmox_network
+
+    # Namespace-unique instance name: ShakenFist checks instance names across
+    # all namespaces in the operator context, so a static name collides with a
+    # leftover deployment. The guest hostname is set back to the short name by
+    # tasks/proxmox/install.yml -- PVE hangs /etc/pve/nodes/<name>, the node
+    # certificate and every VM off it, and renaming a node afterwards is manual
+    # surgery.
+    - name: Create the Proxmox instance
+      shakenfist.shakenfist.sf_instance:
+        name: "pve1-{{ identifier }}"
+        cpu: "{{ proxmox_node_cpu }}"
+        ram: "{{ proxmox_node_ram }}"
+        disks:
+          - "{{ proxmox_node_root_disk }}@{{ proxmox_base_image }}"
+          - "{{ proxmox_node_data_disk }}"
+        networkspecs:
+          - "network_uuid={{ proxmox_network.meta.uuid }},address={{ proxmox_node_address }},float=true"
+        ssh_key: "{{ lookup('file', sshkey) }}"
+        namespace: "{{ identifier }}"
+        side_channels:
+          - sf-agent2
+        # user_data is deliberately NOT passed: the debian:13 image already has
+        # the "debian" user this play logs in as, and sf_instance only compares
+        # the value when it is not None -- so passing "" makes the instance
+        # compare dirty on every run and be rebuilt. Omitting it is what makes
+        # a re-run converge.
+        state: present
+        await: true
+        await_timeout: 600
+      register: proxmox_instance
+
+    - name: Add the Proxmox host to ansible
+      ansible.builtin.add_host:
+        hostname: pve1
+        ansible_ssh_host: >-
+          {{ proxmox_instance.meta.interfaces[0].ipv4
+             if running_in_ci | bool
+             else proxmox_instance.meta.interfaces[0].floating }}
+        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
+        ansible_ssh_user: "{{ base_user }}"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
+        sf_uuid: "{{ proxmox_instance.meta.uuid }}"
+        proxmox_mgmt_address: "{{ proxmox_node_address }}"
+        groups: allsf
+
+    # Copied from kerbside-single-node.yml, less the ci-environment.sh
+    # write: this playbook's results go to the files named at the top.
+    - name: Additional tasks for CI
+      when: running_in_ci | bool
+      tags: ci
+      block:
+      - name: Add environment network interface to primary instance
+        shell: |
+          sf-client instance add-interface -n "{{ proxmox_network_name }}" "{{identifier}}"
+          sleep 30
+
+      - name: Determine the interface name for the new interface
+        shell: |
+          ip a | egrep "^[0-9]+: (ens|eth)" | grep -v eth0 | cut -f 2 -d " " | sed 's/:.*//'
+        register: primary_new_interface
+        retries: 6
+        delay: 30
+        until: primary_new_interface.stdout != ""
+
+      - debug:
+          msg:
+            - "New interface on primary: {{ primary_new_interface.stdout }}"
+
+      - name: DHCP on new interface
+        become: true
+        shell: "dhclient {{ primary_new_interface.stdout }}"
+
+      - name: Collect address details for new interface
+        shell: "ip -4 addr show {{ primary_new_interface.stdout }} | grep inet | sed -e 's/.*inet //' -e 's|/.*||'"
+        register: primary_new_address
+
+      - debug:
+          msg:
+            - "New interface address: {{ primary_new_address.stdout }}"
+
+    # Cheap early gate: a banner means sshd is listening, which is not the
+    # same as the guest being ready. The real gate is the next play.
+    - name: Wait for the instance to present an "OpenSSH" prompt
+      ansible.builtin.wait_for:
+        port: 22
+        host: "{{ hostvars['pve1'].ansible_ssh_host }}"
+        search_regex: OpenSSH
+        delay: 30
+        timeout: 300
+
+# -------------------------------------------------------
+# Play 2: readiness
+# -------------------------------------------------------
+# See tasks/wait-for-cloud-init.yml for why the banner wait above is not
+# enough on its own: sshd presents a banner early in boot and then
+# cloud-init regenerates the host keys and restarts it, so anything
+# connecting in that window is dropped.
+- name: Wait for instances to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+
+# -------------------------------------------------------
+# Play 3: install Proxmox VE
+# -------------------------------------------------------
+# The task files are separate because the reboot in install.yml cuts the run
+# in half -- everything before it is "a Debian box becoming a PVE box", and
+# everything after it can assume /etc/pve, qm, pvesm and pveum exist.
+- name: Install Proxmox VE
+  hosts: pve1
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/proxmox.yml
+  vars:
+    # The NIC the masquerade rule sends guest traffic out of, when NAT is on.
+    # Taken from the default route rather than named, because the interface
+    # name depends on the image's udev naming and is not this playbook's
+    # business.
+    proxmox_mgmt_interface: "{{ ansible_default_ipv4.interface }}"
+
+  handlers:
+    - name: restart dnsmasq
+      ansible.builtin.systemd:
+        name: dnsmasq
+        state: restarted
+
+  tasks:
+    # As ci-topology-slim-primary-released.yml does for every other CI node.
+    # download.proxmox.com and deb.debian.org are both plain HTTP apt
+    # sources, so all of the install's package traffic goes through the cache.
+    - name: Configure apt to use HTTP cache proxy
+      ansible.builtin.copy:
+        content: |
+          Acquire::http::Proxy "{{ proxmox_http_proxy }}";
+          Acquire::https::Proxy "{{ proxmox_http_proxy }}";
+        dest: /etc/apt/apt.conf.d/01proxy
+        owner: root
+        group: root
+        mode: "0644"
+
+    # The first half of the FQDN assertion, and the half that has to come
+    # before anything is installed: install.yml writes the FQDN into
+    # /etc/hosts and pve-manager builds the node certificate from it. See
+    # proxmox_domain in vars/proxmox.yml for why there is no fallback.
+    - name: Require a search domain from the fabric
+      ansible.builtin.assert:
+        that:
+          - proxmox_domain | length > 0
+        fail_msg: >-
+          The node's resolver has no search domain (search list:
+          {{ ansible_dns.search | default([]) }}), so there is no FQDN to
+          give it that a client could also resolve. The ShakenFist network
+          is created with dns: true, which is what normally provides one.
+        success_msg: "Node FQDN will be {{ inventory_hostname }}.{{ proxmox_domain }}"
+
+    - name: Install Proxmox VE onto the Debian base
+      ansible.builtin.import_tasks: tasks/proxmox/install.yml
+
+    - name: Configure the guest bridge, and NAT and DHCP if enabled
+      ansible.builtin.import_tasks: tasks/proxmox/network.yml
+
+    - name: Configure storage
+      ansible.builtin.import_tasks: tasks/proxmox/storage.yml
+
+    - name: Create the console API account
+      ansible.builtin.import_tasks: tasks/proxmox/api.yml
+
+    - name: Boot a SPICE smoke guest
+      ansible.builtin.import_tasks: tasks/proxmox/smoke.yml
+      when: proxmox_smoke_enabled | bool
+
+    # The same CA a console ticket's "ca" field carries, so a caller can
+    # verify the API with it before it has a ticket.
+    - name: Fetch the node's root CA to the runner
+      ansible.builtin.fetch:
+        src: /etc/pve/pve-root-ca.pem
+        dest: "{{ proxmox_ca_file }}"
+        flat: true
+
+    # The second half of the FQDN assertion. A console client is handed a
+    # proxy URL to dial and a certificate subject to pin, and PVE takes the
+    # two from different places: the certificate was generated from the name
+    # the node had when pve-manager was installed, and the ticket's proxy URL
+    # from what "hostname -f" says now. When those disagreed, the proxy named
+    # a host that resolved nowhere and the subject did not match the name
+    # dialled -- a failure a green deploy does not show, and that a client
+    # test later reports as its own TLS or DNS error. So compare them all
+    # here, and print them, pass or fail.
+    - name: Read the node's FQDN
+      ansible.builtin.command: hostname -f
+      register: _pve_hostname_f
+      changed_when: false
+
+    - name: Read the subject of the node certificate
+      ansible.builtin.command: >-
+        openssl x509 -noout -subject -nameopt RFC2253
+        -in /etc/pve/local/pve-ssl.pem
+      register: _pve_cert_subject
+      changed_when: false
+
+    - name: Collect the names that must agree
+      ansible.builtin.set_fact:
+        _pve_fqdn_names: >-
+          {{ {'hostname -f': _pve_hostname_f.stdout | trim,
+              'certificate CN': _pve_cert_subject.stdout
+                  | trim | regex_replace('^subject=', '') | split(',')
+                  | map('trim') | select('match', 'CN=')
+                  | map('regex_replace', '^CN=', '') | first | default('')}
+             | combine({'ticket proxy host': proxmox_ticket_proxy_host,
+                        'ticket host-subject CN': proxmox_ticket_subject_cn}
+                       if proxmox_smoke_enabled | bool else {}) }}
+
+    - name: Assert that every name for the node is the same FQDN
+      ansible.builtin.assert:
+        that:
+          - _pve_fqdn_names.values() | unique | list | length == 1
+          - (_pve_fqdn_names.values() | first) == (inventory_hostname ~ '.' ~ proxmox_domain)
+        fail_msg: >-
+          The node's names disagree. Expected every one to be
+          {{ inventory_hostname }}.{{ proxmox_domain }}, found
+          {{ _pve_fqdn_names | to_json }}
+        success_msg: >-
+          Every name is {{ inventory_hostname }}.{{ proxmox_domain }}:
+          {{ _pve_fqdn_names | to_json }}
+
+    # Everything a caller needs to find and use the node, except the two
+    # files above. Nothing secret: the token secret is only ever in
+    # proxmox_token_file.
+    - name: Write the deployment facts to the runner
+      ansible.builtin.copy:
+        content: >-
+          {{ {'node_name': inventory_hostname,
+              'node_fqdn': _pve_hostname_f.stdout | trim,
+              'node_address': proxmox_mgmt_address,
+              'domain': proxmox_domain,
+              'pve_version': proxmox_deployed_version,
+              'token_id': proxmox_api_token_id,
+              'vmid': (proxmox_deployed_smoke_vmid | int)
+                      if proxmox_smoke_enabled | bool else None,
+              'kvm': (proxmox_deployed_kvm | bool)
+                     if proxmox_smoke_enabled | bool else None}
+             | to_nice_json }}
+        dest: "{{ proxmox_facts_file }}"
+        mode: "0644"
+      delegate_to: localhost
+      become: false
