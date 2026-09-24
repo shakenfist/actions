@@ -120,7 +120,12 @@
 # parsing. The playbook's FQDN assertion prints the two names this extracts.
 - name: Record the names the console ticket carries
   ansible.builtin.set_fact:
-    proxmox_ticket_proxy_host: "{{ (_pve_spiceproxy.stdout | from_json).proxy | urlsplit('hostname') }}"
+    # A regex, not urlsplit('hostname'): that lowercases the host, as
+    # Python's urlsplit does, and the assertion this feeds compares the
+    # names exactly -- PVE's own proxy URL keeps the case hostname -f has.
+    proxmox_ticket_proxy_host: >-
+      {{ (_pve_spiceproxy.stdout | from_json).proxy
+         | regex_replace('^[A-Za-z][A-Za-z0-9+.-]*://([^:/]+).*$', '\1') }}
     proxmox_ticket_subject_cn: >-
       {{ (_pve_spiceproxy.stdout | from_json)['host-subject']
          | split(',') | map('trim') | select('match', 'CN=')

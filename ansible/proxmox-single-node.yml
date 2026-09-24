@@ -349,7 +349,11 @@
     - name: Assert that every name for the node is the same FQDN
       ansible.builtin.assert:
         that:
-          - _pve_fqdn_names.values() | unique | list | length == 1
+          # case_sensitive: Jinja's unique folds case by default, which would
+          # pass names that differ only in case. DNS would not care, but a
+          # client pinning host-subject against the certificate compares
+          # strings, so hold every source to the same spelling.
+          - _pve_fqdn_names.values() | unique(case_sensitive=true) | list | length == 1
           - (_pve_fqdn_names.values() | first) == (inventory_hostname ~ '.' ~ proxmox_domain)
         fail_msg: >-
           The node's names disagree. Expected every one to be
