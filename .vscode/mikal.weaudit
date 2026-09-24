@@ -535,6 +535,54 @@
     {
       "path": "tools/ci_headroom_verdict.sh",
       "author": "mikal"
+    },
+    {
+      "path": "tests/test_render_unparsed_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_shell_validation.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ansible_readiness.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_headroom_verdict.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_extract_review_json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_action_outputs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_connect_probe.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".gitleaks.toml",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

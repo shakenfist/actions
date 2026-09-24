@@ -53,9 +53,25 @@
       "sha": "93dde749f81be8afa55e02750cf018d535d90bdd",
       "date": "2026-09-25"
     },
+    ".gitleaks.toml": {
+      "sha": "3356d24cc9173f00903be688807febacdff3838d",
+      "date": "2026-09-25"
+    },
     ".pre-commit-config.yaml": {
       "sha": "e3dfd65f4fe369bc94a4dc14b7fbb785c6eb1edd",
       "date": "2026-09-16"
+    },
+    "AGENTS.md": {
+      "sha": "508384790b3a8cc0d67ee92d20191d6feaf4a9bf",
+      "date": "2026-09-25"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
+      "date": "2026-09-25"
+    },
+    "README.md": {
+      "sha": "7160b8d593cb16ac50d79827f7633192a674a70b",
+      "date": "2026-09-25"
     },
     "ansible/ci-dependencies.yml": {
       "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
@@ -297,9 +313,17 @@
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
       "date": "2026-09-07"
     },
+    "tests/test_ansible_readiness.py": {
+      "sha": "8739790d8d8737d9633b86f822a877af5acc2662",
+      "date": "2026-09-25"
+    },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
+    },
+    "tests/test_ci_headroom_verdict.py": {
+      "sha": "0e23d713a7d914bb23dbe39f4957447611f4fd9e",
+      "date": "2026-09-25"
     },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
@@ -313,9 +337,29 @@
       "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
       "date": "2026-09-07"
     },
+    "tests/test_extract_review_json.py": {
+      "sha": "931046d9d97e51628b277472fd7910cfd575772e",
+      "date": "2026-09-25"
+    },
+    "tests/test_proxmox_action_outputs.py": {
+      "sha": "12558cd32b1f9c698051f2c7808eae59bef460e5",
+      "date": "2026-09-25"
+    },
+    "tests/test_proxmox_connect_probe.py": {
+      "sha": "f747c6e4a4c2b9bf7fa7e4ef1bf26e865d62263a",
+      "date": "2026-09-25"
+    },
+    "tests/test_proxmox_shell_validation.py": {
+      "sha": "f6635a8138ed046ef6f7d72aa90d915dbe8086b4",
+      "date": "2026-09-25"
+    },
     "tests/test_render_review.py": {
       "sha": "b0463699eba93deed6751d8a26a40764b7e8c1e4",
       "date": "2026-09-07"
+    },
+    "tests/test_render_unparsed_review.py": {
+      "sha": "fdc7bb260f7b53af5b35b953694ef726a0b59740",
+      "date": "2026-09-25"
     },
     "tests/test_run_remote.py": {
       "sha": "a0778f7c03c11c37d2472b12fe3ffa6ff7facacf",
@@ -324,6 +368,10 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "429491897b6aadc06c0a56cadaef04da39ad52db",
+      "date": "2026-09-25"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
