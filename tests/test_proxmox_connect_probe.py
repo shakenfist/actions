@@ -28,7 +28,6 @@ probe = load_script('tools/proxmox-connect-probe.py', 'proxmox_connect_probe')
 
 
 REAL_HOST = 'pvespiceproxy:6aaf3e30:100:pve1:61000::0ce019e3c7ab'
-REAL_PASSWORD = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
 
 
 def write_vv(tmp_path, **fields):
@@ -41,12 +40,16 @@ def write_vv(tmp_path, **fields):
 
 
 def real_vv_fields(**overrides):
+    # No "password" field: read_vv never looks at one, and a fixture
+    # writing a hardcoded value under that key -- even an obviously fake
+    # one -- is indistinguishable from a real secret to a static scanner
+    # (this tripped CodeQL's clear-text-storage-of-sensitive-information
+    # query on this file's first version).
     fields = {
         'type': 'spice',
         'proxy': 'http://pve1.example:3128',
         'host': REAL_HOST,
         'tls-port': '61000',
-        'password': REAL_PASSWORD,
         'host-subject': ('OU=PVE Cluster Node,O=Proxmox Virtual '
                          'Environment,CN=pve1.example'),
         # Escaped, not a real newline: see the module docstring above.
@@ -162,9 +165,13 @@ class ConnectTargetTest(unittest.TestCase):
 
 
 class NoCredentialLeaksTest(unittest.TestCase):
-    """Nothing in this module's error paths may print host or password."""
+    """Nothing in read_vv's error paths may print the pseudo-hostname.
 
-    def test_read_vv_errors_never_mention_the_password(self):
+    "host" carries a live proxy ticket (see the module docstring), so an
+    error naming it would print a credential to a public CI log.
+    """
+
+    def test_read_vv_errors_never_mention_the_host(self):
         tmpdir = tempfile.mkdtemp()
         self.addCleanup(lambda: __import__('shutil').rmtree(tmpdir))
         path = os.path.join(tmpdir, 'test.vv')
@@ -173,7 +180,6 @@ class NoCredentialLeaksTest(unittest.TestCase):
         write_vv(path, **fields)
         with self.assertRaises(probe.ProbeError) as cm:
             probe.read_vv(path)
-        self.assertNotIn(REAL_PASSWORD, str(cm.exception))
         self.assertNotIn(REAL_HOST, str(cm.exception))
 
 
