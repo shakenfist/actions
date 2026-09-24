@@ -141,6 +141,10 @@
       "sha": "6aa5551a01095f63871470e4f7d3dd0766e7657a",
       "date": "2026-09-19"
     },
+    "ansible/proxmox-single-node.yml": {
+      "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
+      "date": "2026-09-25"
+    },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
       "date": "2026-09-16"
@@ -148,6 +152,34 @@
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "093197e5ef09e23b2b23ab811aa52b6aa14e63d4",
       "date": "2026-09-23"
+    },
+    "ansible/tasks/proxmox/api.yml": {
+      "sha": "eac6217cefb86ebf075610d8d25ccddfa1d016fa",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/disable-enterprise-repos.yml": {
+      "sha": "0e40eed764df8284e452a7ab42de7107f6cc76a9",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/install.yml": {
+      "sha": "c25cede1dde1588f6918bc34e4fd7080c0eaa47d",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/network.yml": {
+      "sha": "5a2415fe0898a6e7ba277f8c1a59b65fb38f52a1",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/resolver-check.yml": {
+      "sha": "8d7d74dcd55aacab7105bee5bd38bc17c3eee9ff",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/smoke.yml": {
+      "sha": "9bd4a745f9405005da47b230014ec8283aa5fd00",
+      "date": "2026-09-25"
+    },
+    "ansible/tasks/proxmox/storage.yml": {
+      "sha": "efbc46f19348fb79dfbc826b49e236ef7f0a3a08",
+      "date": "2026-09-25"
     },
     "ansible/tasks/reserve-deployment-vip.yml": {
       "sha": "b115cb6e27c1cd7e9600ca1f7914d26c8f3c662a",
@@ -165,6 +197,14 @@
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
     },
+    "ansible/vars/proxmox.yml": {
+      "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
+      "date": "2026-09-25"
+    },
+    "build-smoke-cluster/action.yml": {
+      "sha": "eb511b439cff3e8944847ec1e89a4069789d9fca",
+      "date": "2026-09-25"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -172,6 +212,10 @@
     "deploy-kolla-ansible/action.yml": {
       "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
       "date": "2026-09-07"
+    },
+    "deploy-proxmox-on-shakenfist/action.yml": {
+      "sha": "a0482369068dad005b507e65eec0fc7091df433c",
+      "date": "2026-09-25"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -348,6 +392,30 @@
     "tools/ovirt-prepare-host.sh": {
       "sha": "5669bb69a3c1ff56cbd19c50f149814a98bec1a8",
       "date": "2026-09-10"
+    },
+    "tools/proxmox-connect-probe.py": {
+      "sha": "bbdfa86125b915c20c38e0215c22999a233661e6",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-deploy.sh": {
+      "sha": "04508d3a27f26a81a35ba661a2cb4b07948674a2",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-mint-vv.sh": {
+      "sha": "e1bb3e3ab87435e10586fee74775af2f9bdf2b25",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-publish-node.sh": {
+      "sha": "c8328ca2a411ed5828f92b518a00c8cd18882272",
+      "date": "2026-09-25"
+    },
+    "tools/proxmox-self-check.sh": {
+      "sha": "72392455aaae9b2375e982bf0778b4ab5897fde3",
+      "date": "2026-09-25"
+    },
+    "tools/report-proxmox-substrate-failure.sh": {
+      "sha": "5a5f99cfce84892e3f96b5412e57016acadb269d",
+      "date": "2026-09-25"
     },
     "tools/review-tracking.sh": {
       "sha": "040c56e4d763109492f79f0f3cc796231047c68c",

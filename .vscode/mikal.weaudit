@@ -403,6 +403,98 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/api.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/disable-enterprise-repos.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/install.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/network.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/resolver-check.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/smoke.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/storage.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars/proxmox.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/proxmox-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-connect-probe.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-deploy.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-mint-vv.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-publish-node.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-self-check.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/report-proxmox-substrate-failure.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
