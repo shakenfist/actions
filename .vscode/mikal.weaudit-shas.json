@@ -17,10 +17,6 @@
       "sha": "cbe1fe485f10c876d4e8367aadc00fa0fcb81910",
       "date": "2026-08-24"
     },
-    ".github/workflows/export-repo-config.yml": {
-      "sha": "dae3139f272bd9d9bb745f42e91ee8629144492c",
-      "date": "2026-08-24"
-    },
     ".github/workflows/issue-link-check.yml": {
       "sha": "4e5b158307670d19c1fa45d791bd97803df1c3e0",
       "date": "2026-09-09"
