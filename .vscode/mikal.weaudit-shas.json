@@ -17,6 +17,10 @@
       "sha": "cbe1fe485f10c876d4e8367aadc00fa0fcb81910",
       "date": "2026-08-24"
     },
+    ".github/workflows/export-repo-config.yml": {
+      "sha": "7eca59de2b06750d8558a0116f75e724a1422ed4",
+      "date": "2026-09-26"
+    },
     ".github/workflows/issue-link-check.yml": {
       "sha": "4e5b158307670d19c1fa45d791bd97803df1c3e0",
       "date": "2026-09-09"
@@ -40,6 +44,10 @@
     ".github/workflows/prune-reviews.yml": {
       "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
       "date": "2026-08-24"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
+      "date": "2026-09-26"
     },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "93dde749f81be8afa55e02750cf018d535d90bdd",
