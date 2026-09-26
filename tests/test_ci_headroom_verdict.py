@@ -183,7 +183,9 @@ class WiringTestCase(unittest.TestCase):
         self.assertIn("steps.functional.outcome == 'failure'", step)
         self.assertNotIn('if: failure()', step)
 
-    def test_the_gate_input_exists_and_defaults_to_on(self):
+    def test_the_gate_input_exists_and_defaults_to_off(self):
+        # Off by default so a caller no warn window has measured is never
+        # gated by omission; shakenfist opts its measured shapes in.
         # The block runs from the input's own line to the next line at the
         # same indentation, which is the sibling input after it.
         lines = self.workflow.splitlines()
@@ -195,7 +197,7 @@ class WiringTestCase(unittest.TestCase):
             block.append(line)
         block = '\n'.join(block)
         self.assertIn('type: boolean', block)
-        self.assertIn('default: true', block)
+        self.assertIn('default: false', block)
 
 
 if __name__ == '__main__':

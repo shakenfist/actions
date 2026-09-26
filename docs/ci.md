@@ -238,8 +238,11 @@ The response is a fleet sizing question -- the cluster the suite ran on
 was too tightly packed to schedule reliably, or so empty that CI is
 paying for capacity it never uses -- and it is answered in
 [PLAN-ci-cloud-sizing.md](https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing.md),
-not here. If the band itself is wrong and the fleet is red because of
-it, `headroom_gate: false` in a caller suppresses the gate without
+not here. The gate is off unless a caller passes `headroom_gate`
+truthy, and only the shakenfist repository's merge matrix does, on the
+job shapes its warn window measured; every other caller gets the verdict
+as information. If the band itself is wrong and an armed caller is red
+because of it, `headroom_gate: false` there suppresses the gate without
 suppressing the verdict, which is the fast remedy while the band is
 refitted; the band lives in the shakenfist repository and this workflow
 is consumed at `@main`, so there is no downstream revert to reach for.
