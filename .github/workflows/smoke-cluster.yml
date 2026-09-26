@@ -58,15 +58,19 @@ on:
         type: string
         default: debian
       headroom_gate:
-        # Whether the cluster headroom band verdict may fail this job. The
-        # band is fitted and maintained in the shakenfist repository, and
-        # this workflow is consumed @main with no pin, so a band that turns
-        # out to be too tight can turn every functional job in the fleet red
-        # without anything landing here. Setting this false in a caller is
-        # the fast remedy; it suppresses only the gate, and the verdict is
-        # still computed and printed. See tools/ci_headroom_verdict.sh.
+        # Whether the cluster headroom band verdict may fail this job. Off
+        # unless a caller opts in: the band is fitted in the shakenfist
+        # repository against the job shapes a warn window measured, and a
+        # caller which never had a window -- a single-node smoke cloud in a
+        # downstream repository, say -- should not be gated on a band nobody
+        # checked against its shape. This workflow is consumed @main with no
+        # pin, so a gate-by-default would arm every caller that omits the
+        # input the moment the band ships. An armed caller that needs the
+        # gate off sets this false; that suppresses only the gate, and the
+        # verdict is still computed and printed either way. See
+        # tools/ci_headroom_verdict.sh.
         type: boolean
-        default: true
+        default: false
       stestr_config:
         type: string
         default: smoke-ci.conf
