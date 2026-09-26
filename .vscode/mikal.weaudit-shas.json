@@ -5,10 +5,6 @@
       "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
       "date": "2026-09-23"
     },
-    ".github/workflows/canary.yml": {
-      "sha": "1159519ae7e3050ab79640707f04d4dceb0088de",
-      "date": "2026-09-25"
-    },
     ".github/workflows/ci.yml": {
       "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
       "date": "2026-09-23"
@@ -48,10 +44,6 @@
     ".github/workflows/renovate.yml": {
       "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
       "date": "2026-09-26"
-    },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "93dde749f81be8afa55e02750cf018d535d90bdd",
-      "date": "2026-09-25"
     },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
@@ -241,14 +233,6 @@
       "sha": "8a8bd0730d3cb9663c75f54c433d091d8b139565",
       "date": "2026-09-25"
     },
-    "docs/ci.md": {
-      "sha": "db13ef57cf233cca3ed54512ebdb6fa43477f3d2",
-      "date": "2026-09-25"
-    },
-    "docs/consuming.md": {
-      "sha": "a866f80a8925cd6d1659da5bf010a63679804deb",
-      "date": "2026-09-25"
-    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -320,10 +304,6 @@
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
-    },
-    "tests/test_ci_headroom_verdict.py": {
-      "sha": "0e23d713a7d914bb23dbe39f4957447611f4fd9e",
-      "date": "2026-09-25"
     },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
@@ -412,10 +392,6 @@
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
       "date": "2026-09-10"
-    },
-    "tools/ci_headroom_verdict.sh": {
-      "sha": "612248f12a74c44f3de7470f3b5115168b12cbe1",
-      "date": "2026-09-25"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",

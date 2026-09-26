@@ -377,15 +377,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/canary.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/proxmox-substrate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/smoke-cluster.yml",
       "author": "mikal"
     },
     {
@@ -489,18 +481,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
-      "author": "mikal"
-    },
-    {
       "path": "review-pr-with-claude/extract-review-json.py",
       "author": "mikal"
     },
@@ -517,10 +497,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_headroom_verdict.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_render_unparsed_review.py",
       "author": "mikal"
     },
@@ -530,10 +506,6 @@
     },
     {
       "path": "tests/test_ansible_readiness.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ci_headroom_verdict.py",
       "author": "mikal"
     },
     {
@@ -574,14 +546,6 @@
     },
     {
       "path": ".github/workflows/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
       "author": "mikal"
     }
   ],
