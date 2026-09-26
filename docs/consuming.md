@@ -105,9 +105,8 @@ committed vCPU to the schedulable ledger, judged against a band fitted
 to a distribution of past CI runs. When that verdict says the cluster
 was outside the band and the job has opted in to the gate (see below),
 the collection step exits non-zero and the job fails, with a message
-saying so in as many words. Nothing else in the
-probe can do that: every other failure it meets is logged and
-swallowed.
+saying so in as many words. Nothing else in the probe can do that:
+every other failure it meets is logged and swallowed.
 
 The distinction worth knowing when you see one is that this is not a
 test failure and usually not about your change. It says the cluster the
@@ -120,21 +119,28 @@ You will see it before you open the log: a band violation annotates the
 run with "Cluster headroom outside the CI sizing band", which renders at
 the top of the run summary.
 
-The gate is off unless you opt in with `headroom_gate: true` (or an
-expression, so a repository variable can switch it off without a
-commit). Without it the verdict is still computed and printed, it just
-cannot fail your job. Opt in only for a job shape a warn window has
-measured: the band is fitted in the shakenfist repository against the
-shapes it has harvested, and this workflow is consumed at `@main`, so
-there is no version of it you can pin to instead.
+The gate is off unless you opt in. Without it the verdict is still
+computed and printed, it just cannot fail your job. Opt in only for a
+job shape a warn window has measured: the band is fitted in the
+shakenfist repository against the shapes it has harvested, and this
+workflow is consumed at `@main`, so there is no version of it you can
+pin to instead. Opting in is one input:
 
 ```yaml
     with:
       component: your-repo-name
       component_ref: ${{ github.sha }}
-      tier: smoke
-      headroom_gate: ${{ vars.CI_HEADROOM_GATE != 'false' }}
+      tier: full
+      headroom_gate: true
 ```
+
+An armed caller that wants to be able to switch the gate off without a
+commit can pass an expression over a repository variable instead, as
+shakenfist's merge matrix does with
+`${{ vars.CI_HEADROOM_GATE != 'false' }}`: armed while the variable is
+unset, disarmed by setting it to `false`. The expression has to evaluate
+to a boolean -- `${{ vars.X }}` on its own is a string, and fails the
+input's `type: boolean` validation before the job starts.
 
 Only Mode 1 is affected. Mode 2 builds its own cluster and never runs
 the collection step.

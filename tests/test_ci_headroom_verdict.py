@@ -20,12 +20,15 @@ import re
 import subprocess
 import unittest
 
+import yaml
+
 from tests.helpers import REPO_ROOT
 
 
 VERDICT = os.path.join(REPO_ROOT, 'tools', 'ci_headroom_verdict.sh')
 COLLECT = os.path.join(REPO_ROOT, 'tools', 'ci_headroom_collect.sh')
 WORKFLOW = os.path.join(REPO_ROOT, '.github', 'workflows', 'smoke-cluster.yml')
+CANARY = os.path.join(REPO_ROOT, '.github', 'workflows', 'canary.yml')
 
 # What the report's source has to contain before this script will believe
 # its exit status means a band violation. Named here as well as in the
@@ -50,9 +53,14 @@ class VerdictTestCase(unittest.TestCase):
         return path
 
     def run_verdict(self, *argv, **env):
+        # Armed unless a test says otherwise: a test that expects exit 0 for
+        # some other reason -- version skew, a report that is merely unhappy
+        # -- would otherwise pass because the gate was off, not because its
+        # own guard held. Pass CI_HEADROOM_GATE=None to leave it unset.
         environment = dict(os.environ)
-        environment.pop('CI_HEADROOM_GATE', None)
+        environment['CI_HEADROOM_GATE'] = 'true'
         environment.update(env)
+        environment = {k: v for k, v in environment.items() if v is not None}
         return subprocess.run(
             ['bash', VERDICT] + list(argv), cwd=REPO_ROOT, check=False,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
@@ -107,7 +115,7 @@ class VerdictTestCase(unittest.TestCase):
         self.assertIn('does not implement', result.stdout)
 
     def test_the_off_switch_suppresses_the_gate(self):
-        for value in ('false', 'False', '0', 'no', 'off', 'OFF'):
+        for value in ('false', 'False', '0', 'no', 'off', 'OFF', ''):
             with self.subTest(value=value):
                 result = self.run_verdict(
                     self.write_report(BAND_VIOLATION),
@@ -122,10 +130,18 @@ class VerdictTestCase(unittest.TestCase):
             self.write_report(BAND_VIOLATION), CI_HEADROOM_GATE='false')
         self.assertIn('verdict stands', result.stdout)
 
-    def test_anything_but_an_off_value_leaves_the_gate_on(self):
-        # The default is on, and so is any value that is not recognisably
-        # a negative -- a typo must not silently disarm the gate.
-        for value in ('true', 'True', '1', 'yes', '', 'maybe'):
+    def test_an_unset_switch_leaves_the_gate_off(self):
+        # Off unless opted in, the same default smoke-cluster.yml gives the
+        # input, so a direct invocation matches a caller which never armed.
+        result = self.run_verdict(
+            self.write_report(BAND_VIOLATION), CI_HEADROOM_GATE=None)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('switched off', result.stdout)
+
+    def test_anything_but_an_off_value_arms_the_gate(self):
+        # Any set value that is not recognisably a negative arms it -- a
+        # typo in an armed caller must not silently disarm the gate.
+        for value in ('true', 'True', '1', 'yes', 'maybe'):
             with self.subTest(value=value):
                 result = self.run_verdict(
                     self.write_report(BAND_VIOLATION),
@@ -182,6 +198,16 @@ class WiringTestCase(unittest.TestCase):
         step = step[:step.index('- name: Check for exceptions on disk')]
         self.assertIn("steps.functional.outcome == 'failure'", step)
         self.assertNotIn('if: failure()', step)
+
+    def test_the_canary_is_deliberately_not_gated(self):
+        # The canary runs a single-node smoke cloud, a shape no warn window
+        # measured. Pinned so a change to the input's default cannot arm or
+        # disarm it without this file saying which was meant.
+        with open(CANARY) as f:
+            canary = yaml.safe_load(f)
+        inputs = canary['jobs']['smoke']['with']
+        self.assertIn('headroom_gate', inputs)
+        self.assertIs(inputs['headroom_gate'], False)
 
     def test_the_gate_input_exists_and_defaults_to_off(self):
         # Off by default so a caller no warn window has measured is never

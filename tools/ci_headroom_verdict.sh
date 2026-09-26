@@ -39,15 +39,20 @@
 # rename on either side breaks the match and stops gating loudly, rather than
 # gating on a coincidence.
 #
-# The second is an off switch. shakenfist's functional-tests.yml consumes
-# smoke-cluster.yml @main with no pin, and the band itself is fitted and
-# maintained in the shakenfist repository, so a band that turns out to be too
-# tight -- or an under-cloud that drifts, which is the condition this
-# instrument exists to detect -- can turn every functional job in the fleet
-# red without anything landing here at all. CI_HEADROOM_GATE=false, plumbed
-# as smoke-cluster.yml's headroom_gate input, downgrades a band violation to
-# the same logged-and-swallowed path as everything else, so the remedy is one
-# line in a caller rather than a cross-repository commit.
+# The second is the arming switch, CI_HEADROOM_GATE, plumbed from
+# smoke-cluster.yml's headroom_gate input. The gate is off unless it is set
+# to something other than a recognisable negative: unset and empty are off,
+# so a direct invocation behaves like a caller which never opted in, while a
+# typo in an armed value still gates rather than silently disarming. The
+# band is fitted in the shakenfist repository against the job shapes its
+# warn window measured, so smoke-cluster.yml defaults the input to false and
+# a caller opts in for a measured shape. Because that workflow is consumed
+# @main with no pin, a band that turns out to be too tight -- or an
+# under-cloud that drifts, which is the condition this instrument exists to
+# detect -- can turn an armed caller red without anything landing here at
+# all; headroom_gate: false in that caller downgrades a band violation to
+# the same logged-and-swallowed path as everything else, so the remedy is
+# one line rather than a cross-repository commit.
 
 report="${1:-}"
 if [ -z "${report}" ]; then
@@ -84,7 +89,7 @@ if ! grep -q -- "${band_violation_sentinel}" "${report}" 2>/dev/null; then
     exit 0
 fi
 
-case "${CI_HEADROOM_GATE:-true}" in
+case "${CI_HEADROOM_GATE:-false}" in
     0|false|False|FALSE|no|No|NO|off|Off|OFF)
         echo
         echo "The headroom verdict above is a band violation, but the gate is"
