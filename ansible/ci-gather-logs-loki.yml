@@ -208,7 +208,14 @@
       debug:
         msg: "{{ loki_dump.stdout | default('') | trim }}"
 
+    # The script prints its reason to stderr, but the script module runs it
+    # over ssh with a tty, which merges stderr into stdout. Fall back to
+    # stdout so this task names the reason rather than ansible's generic
+    # "non-zero return code".
     - name: Fail the gather if the Loki dump did not work
       fail:
-        msg: "{{ loki_dump.stderr | default('') | trim or loki_dump.msg | default('the Loki dump did not run') }}"
+        msg: >-
+          {{ (loki_dump.stderr | default('') | trim)
+             or (loki_dump.stdout | default('') | trim)
+             or (loki_dump.msg | default('the Loki dump did not run')) }}
       when: loki_dump is failed or loki_dump is unreachable

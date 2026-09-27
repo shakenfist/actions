@@ -250,6 +250,12 @@ class PlaybookTestCase(unittest.TestCase):
         self.assertEqual(1, len(fails))
         self.assertIn('loki_dump is failed', fails[0]['when'])
 
+    def test_the_failure_names_the_dumps_reason(self):
+        # Over ssh with a tty the script's stderr arrives in stdout, so a
+        # message built from stderr alone reads "non-zero return code".
+        fails = [t for t in self.plays[-1]['tasks'] if 'fail' in t]
+        self.assertIn('loki_dump.stdout', fails[0]['fail']['msg'])
+
 
 if __name__ == '__main__':
     unittest.main()

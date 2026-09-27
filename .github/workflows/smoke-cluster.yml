@@ -401,11 +401,12 @@ jobs:
       # every few seconds cannot see a refusal, which begins and ends between
       # samples, and a refusal census cannot see a cloud sitting half empty for
       # an hour (D9). The census is its own filtered Loki query rather than the
-      # unfiltered dump ci-gather-logs-loki.yml already puts in the bundle,
-      # which returns the first 5000 lines of the deploy and never reaches the
-      # test window (D11). A third instrument is reported beside them but not
-      # produced here: the capacity waits the functional suite itself recorded
-      # (D14 of PLAN-transient-capacity-refusals phase 2). See the header of
+      # unfiltered dump ci-gather-logs-loki.yml puts in the bundle, which is
+      # taken later by "Gather logs" and capped at its newest 200000 entries,
+      # so on a busy run it need not hold every refusal (D11). A third
+      # instrument is reported beside them but not produced here: the
+      # capacity waits the functional suite itself recorded (D14 of
+      # PLAN-transient-capacity-refusals phase 2). See the header of
       # tools/ci_headroom_collect.sh.
       #
       # All three outputs stay in /srv/ci/traces on the primary, which the
