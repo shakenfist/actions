@@ -559,6 +559,18 @@
     {
       "path": ".github",
       "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
