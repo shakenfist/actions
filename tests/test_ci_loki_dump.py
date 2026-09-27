@@ -150,6 +150,9 @@ class MainTestCase(unittest.TestCase):
         self.assertEqual('empty', self.read_output()['status'])
 
 
+# A test fixture bound to loopback that only ever sends the literal Content-Type below, so no outside
+# data reaches send_header().
+# audit-ok: header-sanitization
 class Handler(http.server.BaseHTTPRequestHandler):
     responses = []
     requests = []
