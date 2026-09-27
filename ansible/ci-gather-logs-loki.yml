@@ -9,10 +9,18 @@
 #       directly (clingwrap/main.py gather(): os.path.exists(target) ->
 #       open(target)). The built-in target name "shakenfist-ci-failure"
 #       is NOT used here.
-#   (b) adds a PRIMARY-ONLY task that curls Loki's query_range for the
-#       run's logs ({job="shakenfist"}, wide window, high limit) into the
-#       bundle directory, so the central Loki view lands in the aggregated
-#       artifact -- useful even when the per-node shipper itself failed.
+#   (b) ends with a play on the primary which dumps Loki's view of the
+#       run ({job="shakenfist"}) with tools/ci_loki_dump.py and fetches it
+#       into the bundle as loki/loki-shakenfist.json, so the central Loki
+#       view lands in the aggregated artifact -- useful even when the
+#       per-node shipper itself failed.
+#
+# The localhost play below is the CI RUNNER, not the primary: ansible is
+# run from the runner with connection: local. The dump used to curl
+# localhost:3100 from that play, found nothing listening, and wrote an
+# empty file behind a green task in every bundle (shakenfist/actions#16).
+# Loki is installed only on the primary, which every topology names
+# "primary" in the inventory, so the dump now runs there.
 #
 # This is the playbook CI actually runs: smoke-cluster.yml and
 # shakenfist's functional-tests.yml both invoke it. The pre-Loki
@@ -33,13 +41,6 @@
     PIP_INDEX_URL: https://devpi.home.stillhq.com/root/pypi/+simple/
 
   vars:
-    # Loki lives on the primary; this playbook's localhost play runs on
-    # the primary, so the dump targets localhost.
-    loki_base_url: http://localhost:3100
-    # Wide window: the CI Loki is fresh per run, so everything in it is
-    # from this run. 6h comfortably covers a CI run.
-    loki_query_window_seconds: 21600
-    loki_query_limit: 5000
     cwd_local_path: "{{ playbook_dir }}/files/shakenfist-ci-failure-loki.cwd"
     cwd_remote_path: /tmp/shakenfist-ci-failure-loki.cwd
 
@@ -68,38 +69,6 @@
       shell: |
         unzip -q /tmp/{{ inventory_hostname }}.zip -d /srv/github/bundle/{{ inventory_hostname }}/ || true
         chmod -R ugo+rw /srv/github/
-
-    # ------------------------------------------------------------------
-    # Primary-only central Loki dump. The primary is where Loki runs and
-    # is this localhost play's host, so we dump here exactly once.
-    # ------------------------------------------------------------------
-    - name: Ensure Loki dump directory exists in the bundle
-      file:
-        path: /srv/github/bundle/loki
-        state: directory
-        mode: u+rwx,g+rwx,o+rwx
-
-    - name: Dump central Loki view into the bundle (primary only)
-      shell: |
-        set -o pipefail
-        end_ns=$(date +%s)000000000
-        start_ns=$(( $(date +%s) * 1000000000 - {{ loki_query_window_seconds }} * 1000000000 ))
-        curl -sS -G "{{ loki_base_url }}/loki/api/v1/query_range" \
-          --data-urlencode 'query={job="shakenfist"}' \
-          --data-urlencode "start=${start_ns}" \
-          --data-urlencode "end=${end_ns}" \
-          --data-urlencode "limit={{ loki_query_limit }}" \
-          --data-urlencode "direction=forward" \
-          > /srv/github/bundle/loki/loki-shakenfist.json || true
-        chmod -R ugo+rw /srv/github/
-      args:
-        executable: /bin/bash
-      register: loki_dump
-      failed_when: false
-
-    - name: Dump Loki dump result
-      debug:
-        msg: "Loki dump rc={{ loki_dump.rc }} stderr={{ loki_dump.stderr }}"
 
 - hosts: all
   gather_facts: yes
@@ -198,3 +167,55 @@
           debug:
             msg: "{{ file_listing.stdout }}"
       when: inventory_hostname != "localhost"
+
+# Central Loki dump. This play is last on purpose: when every host in a
+# play fails ansible stops the playbook, and a broken Loki must not cost
+# the per-node gather above. It fails the gather step when the dump did
+# not work, which is the loud outcome wanted -- the step carries
+# continue-on-error in every caller, so a merge is not gated on it.
+- hosts: primary
+  gather_facts: no
+  ignore_unreachable: yes
+
+  vars:
+    # Wide window: the CI Loki is fresh per run, so everything in it is
+    # from this run. 6h comfortably covers a CI run.
+    loki_query_window_seconds: 21600
+    loki_dump_remote_path: /tmp/loki-shakenfist.json
+
+  tasks:
+    - name: Dump central Loki view on the primary
+      script: >-
+        {{ playbook_dir }}/../tools/ci_loki_dump.py
+        --window-seconds {{ loki_query_window_seconds }}
+        --output {{ loki_dump_remote_path }}
+      args:
+        executable: python3
+      register: loki_dump
+      ignore_errors: yes
+
+    # The file is fetched whether or not the dump worked: on failure it
+    # holds a "status" saying why, so the bundle says so too rather than
+    # carrying an empty file that reads like a quiet cluster.
+    - name: Fetch the Loki dump into the bundle
+      fetch:
+        src: "{{ loki_dump_remote_path }}"
+        dest: /srv/github/bundle/loki/loki-shakenfist.json
+        flat: yes
+        fail_on_missing: no
+
+    - name: Report the Loki dump
+      debug:
+        msg: "{{ loki_dump.stdout | default('') | trim }}"
+
+    # The script prints its reason to stderr, but the script module runs it
+    # over ssh with a tty, which merges stderr into stdout. Fall back to
+    # stdout so this task names the reason rather than ansible's generic
+    # "non-zero return code".
+    - name: Fail the gather if the Loki dump did not work
+      fail:
+        msg: >-
+          {{ (loki_dump.stderr | default('') | trim)
+             or (loki_dump.stdout | default('') | trim)
+             or (loki_dump.msg | default('the Loki dump did not run')) }}
+      when: loki_dump is failed or loki_dump is unreachable

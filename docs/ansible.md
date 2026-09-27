@@ -8,7 +8,11 @@ the main caller.
 - **ci-image.yml**: Builds CI base images with pre-installed packages.
 - **ci-dependencies.yml**: Downloads and caches VM images.
 - **ci-topology-\*.yml**: Provisions multi-node test clusters.
-- **ci-gather-logs.yml**: Collects logs from test nodes after runs.
+- **ci-gather-logs-loki.yml**: Collects logs from test nodes after runs,
+  plus a dump of the cluster's central Loki; see
+  [Gathering logs](#gathering-logs). `smoke-cluster.yml` and shakenfist's
+  functional tests both run it.
+- **ci-gather-logs.yml**: The pre-Loki version of the above, kept beside it.
 
 `ci-topology-*.yml` is where the shape of the under-cloud is chosen:
 `localhost` for the single-node smoke case, `slim-primary` and
@@ -603,6 +607,39 @@ thing left to inspect when a build fails, and conductor's
 `cleanup_stale_builders()` and `cleanup_stale_snapshots()` run before
 every build, so the capacity comes back at the next attempt rather
 than being held indefinitely.
+
+## Gathering logs
+
+`ci-gather-logs-loki.yml` runs from the CI runner after the tests, in a
+step marked `continue-on-error` so that log collection never gates a
+merge. It runs clingwrap on the runner and on every inventory node and
+unpacks the results into the bundle, one directory per node.
+
+Its last play dumps the cluster's central Loki view into the bundle as
+`loki/loki-shakenfist.json`. That play runs on the host named `primary`
+-- every topology names its primary that -- because Loki is installed
+only there and listens on its localhost. The dump is
+`tools/ci_loki_dump.py`, shipped to the primary with ansible's `script`
+module. It pages backward through the last six hours of
+`{job="shakenfist"}` in steps of Loki's 5000 entry query limit, keeps at
+most the newest 200000 entries, and writes them in the shape of a Loki
+`query_range` response with a `dump` object alongside:
+
+```
+{"status": "success", "data": {"resultType": "streams", "result": [...]},
+ "dump": {"entries": ..., "pages": ..., "truncated": false, ...}}
+```
+
+`truncated: true` means the cap was reached and the oldest entries --
+the start of the deploy -- are missing. A dump that fails for any reason
+still writes the file, with `status` set to `error` (and the reason in
+`dump.error`) or `empty` (Loki answered but held nothing), and fails the
+gather step. That is deliberate: until
+[#16](https://github.com/shakenfist/actions/issues/16) the dump ran on the
+runner, where nothing listens on port 3100, and every bundle carried a
+zero byte file behind a green step, which reads exactly like a quiet
+cluster. A failed "Gather logs" step -- the job itself stays green -- is
+now the signal to look.
 
 ## CI runner log shipping
 

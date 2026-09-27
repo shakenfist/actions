@@ -59,11 +59,14 @@
 # not this one cannot distinguish the defect from its lookalike.
 #
 # The census cannot reuse the Loki dump that ansible/ci-gather-logs-loki.yml
-# already puts in every bundle. That one is an unfiltered {job="shakenfist"}
-# with limit 5000 and direction=forward over a six hour window, so it returns
-# the first 5000 lines of the DEPLOY and never reaches the test window at all.
-# Filtered to the scheduler's stage events and the guard's three audit
-# messages, the same limit is still comfortable for a smoke run. The guard
+# puts in every bundle. That one is taken later, by the "Gather logs" step,
+# and is an unfiltered {job="shakenfist"} which tools/ci_loki_dump.py caps
+# at its newest 200000 entries, so on a busy run it need not hold every
+# refusal. (Until shakenfist/actions#16 it was a single forward query which
+# could only ever have returned the first 5000 lines of the DEPLOY -- and
+# which ran on the runner, where it collected nothing.) Filtered to the
+# scheduler's stage events and the guard's three audit messages, the
+# census_limit below is still comfortable for a smoke run. The guard
 # messages do not change that much: all three are emitted once per placement
 # (shakenfist/instance.py), whereas the stage events are emitted once per
 # candidate node considered, so a placement which evaluates many candidates
@@ -74,8 +77,8 @@
 #
 # Loki is installed only on the primary, in every topology
 # (build-smoke-cluster/action.yml), and the census runs on the primary, so
-# http://localhost:3100 is correct here -- exactly as the gather playbook does
-# and explains.
+# http://localhost:3100 is correct here -- as it is for tools/ci_loki_dump.py,
+# which the gather playbook runs on the primary for the same reason.
 #
 # Usage:
 #   tools/ci_headroom_collect.sh <primary> <ssh-user> [label]
