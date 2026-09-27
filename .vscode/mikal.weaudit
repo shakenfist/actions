@@ -551,6 +551,46 @@
     {
       "path": ".pre-commit-config.yaml",
       "author": "mikal"
+    },
+    {
+      "path": "tools/ci_loki_dump.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_loki_dump.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-gather-logs-loki.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
