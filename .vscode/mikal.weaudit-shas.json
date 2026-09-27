@@ -49,10 +49,6 @@
       "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
       "date": "2026-09-26"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "430b9cf1e11b89ad46815fe5aa83303dfdc4c94b",
-      "date": "2026-09-27"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -76,10 +72,6 @@
     "ansible/ci-dependencies.yml": {
       "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
       "date": "2026-09-19"
-    },
-    "ansible/ci-gather-logs-loki.yml": {
-      "sha": "668fff5e2d83203244e09ec79e6f5c72453fc1f6",
-      "date": "2026-09-09"
     },
     "ansible/ci-gather-logs.yml": {
       "sha": "8f72cef07419e05672c015976536ec6132663911",
@@ -235,10 +227,6 @@
     },
     "docs/actions.md": {
       "sha": "3d3f2ab7dc425ac46ce7604c216b55a8a5923aba",
-      "date": "2026-09-25"
-    },
-    "docs/ansible.md": {
-      "sha": "8a8bd0730d3cb9663c75f54c433d091d8b139565",
       "date": "2026-09-25"
     },
     "docs/ci.md": {
@@ -404,10 +392,6 @@
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
-    },
-    "tools/ci_headroom_collect.sh": {
-      "sha": "85608a45c89602ddbc1fe38e997a2b420da83850",
-      "date": "2026-09-25"
     },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
