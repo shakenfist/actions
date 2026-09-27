@@ -571,6 +571,14 @@
     {
       "path": "docs",
       "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_headroom_verdict.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_verdict.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
