@@ -29,14 +29,6 @@
       "sha": "7782339f38c7d1daa88a7019483318ee8fe34491",
       "date": "2026-09-04"
     },
-    ".github/workflows/pr-re-review.yml": {
-      "sha": "4ed90cdbe3b57683fc8b1c23f1a3e1e9b6fbe01f",
-      "date": "2026-09-04"
-    },
-    ".github/workflows/pr-retest.yml": {
-      "sha": "800a9f74077797366c4e533cab91a080dcbf31d7",
-      "date": "2026-09-04"
-    },
     ".github/workflows/proxmox-substrate.yml": {
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
@@ -241,10 +233,6 @@
       "sha": "b93411f389507fd6cc548cd0aecff4165fb3cc93",
       "date": "2026-09-28"
     },
-    "docs/ci.md": {
-      "sha": "eb0272690a7b2dd22205f956d205b37a5b642c02",
-      "date": "2026-09-27"
-    },
     "docs/consuming.md": {
       "sha": "a0aa60713de2fac7b0c86bcc77cea345a5aff09b",
       "date": "2026-09-27"
@@ -324,10 +312,6 @@
     "tests/test_ci_headroom_verdict.py": {
       "sha": "ac07471a9545b9b5eea32873d65d48fab34a1815",
       "date": "2026-09-27"
-    },
-    "tests/test_ci_loki_dump.py": {
-      "sha": "8e707825aeda275511829f6ef6ef78ee259a7a77",
-      "date": "2026-09-28"
     },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",

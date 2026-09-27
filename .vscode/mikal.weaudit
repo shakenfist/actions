@@ -17,14 +17,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/netplan-eth1.yaml",
       "author": "mikal"
     },
@@ -533,10 +525,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/consuming.md",
       "author": "mikal"
     },
@@ -561,27 +549,11 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ci_loki_dump.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/smoke-cluster.yml",
       "author": "mikal"
     },
     {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
