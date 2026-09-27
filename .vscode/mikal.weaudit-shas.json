@@ -49,6 +49,10 @@
       "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
       "date": "2026-09-26"
     },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "c4844831965e276a4804384ce7e0a17e367d94a3",
+      "date": "2026-09-28"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -72,6 +76,10 @@
     "ansible/ci-dependencies.yml": {
       "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
       "date": "2026-09-19"
+    },
+    "ansible/ci-gather-logs-loki.yml": {
+      "sha": "c92a50883620511719b88a3f14e7db8a98811731",
+      "date": "2026-09-28"
     },
     "ansible/ci-gather-logs.yml": {
       "sha": "8f72cef07419e05672c015976536ec6132663911",
@@ -229,6 +237,10 @@
       "sha": "3d3f2ab7dc425ac46ce7604c216b55a8a5923aba",
       "date": "2026-09-25"
     },
+    "docs/ansible.md": {
+      "sha": "b93411f389507fd6cc548cd0aecff4165fb3cc93",
+      "date": "2026-09-28"
+    },
     "docs/ci.md": {
       "sha": "eb0272690a7b2dd22205f956d205b37a5b642c02",
       "date": "2026-09-27"
@@ -313,6 +325,10 @@
       "sha": "ac07471a9545b9b5eea32873d65d48fab34a1815",
       "date": "2026-09-27"
     },
+    "tests/test_ci_loki_dump.py": {
+      "sha": "8e707825aeda275511829f6ef6ef78ee259a7a77",
+      "date": "2026-09-28"
+    },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
       "date": "2026-09-09"
@@ -393,6 +409,10 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "4a9b1541f33a020fd0b74f9536bea264842f87ee",
+      "date": "2026-09-28"
+    },
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
       "date": "2026-09-10"
@@ -408,6 +428,10 @@
     "tools/ci_log_checks_loki.sh": {
       "sha": "34a7cdd80ac2418dbe1c45ecb69f81702bce62c8",
       "date": "2026-09-10"
+    },
+    "tools/ci_loki_dump.py": {
+      "sha": "da0c391434cab5219ece4bccd37ed44a117b6684",
+      "date": "2026-09-28"
     },
     "tools/ci_node_checks.sh": {
       "sha": "9af141aea39f45ae3d9638a468a73d69f07988f0",
