@@ -5,6 +5,10 @@
       "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
       "date": "2026-09-23"
     },
+    ".github/workflows/canary.yml": {
+      "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
+      "date": "2026-09-27"
+    },
     ".github/workflows/ci.yml": {
       "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
       "date": "2026-09-23"
@@ -45,9 +49,17 @@
       "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
       "date": "2026-09-26"
     },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "430b9cf1e11b89ad46815fe5aa83303dfdc4c94b",
+      "date": "2026-09-27"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "0e5b5b30fab247efe17e192313d94ac0db3a3690",
+      "date": "2026-09-27"
     },
     "AGENTS.md": {
       "sha": "508384790b3a8cc0d67ee92d20191d6feaf4a9bf",
@@ -229,6 +241,14 @@
       "sha": "8a8bd0730d3cb9663c75f54c433d091d8b139565",
       "date": "2026-09-25"
     },
+    "docs/ci.md": {
+      "sha": "eb0272690a7b2dd22205f956d205b37a5b642c02",
+      "date": "2026-09-27"
+    },
+    "docs/consuming.md": {
+      "sha": "a0aa60713de2fac7b0c86bcc77cea345a5aff09b",
+      "date": "2026-09-27"
+    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -300,6 +320,10 @@
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
+    },
+    "tests/test_ci_headroom_verdict.py": {
+      "sha": "ac07471a9545b9b5eea32873d65d48fab34a1815",
+      "date": "2026-09-27"
     },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
@@ -388,6 +412,10 @@
     "tools/ci_headroom_launch.sh": {
       "sha": "a14a59350783c9a6c2dad5daa1e8bf9971a3125d",
       "date": "2026-09-10"
+    },
+    "tools/ci_headroom_verdict.sh": {
+      "sha": "42791bf6675388312114c537574c0ccfe5dbb951",
+      "date": "2026-09-27"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",

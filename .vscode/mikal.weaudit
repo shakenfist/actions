@@ -543,6 +543,46 @@
     {
       "path": ".github/workflows/export-repo-config.yml",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/canary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_headroom_verdict.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_verdict.sh",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
