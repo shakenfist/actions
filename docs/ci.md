@@ -162,8 +162,9 @@ each caller resolves it against its own repository. A fork pull request
 opened from the fork's default branch therefore names `main`. Here the
 consequence is a dispatch: `pr-retest.yml` would run `ci.yml` against
 *this* repository's `main`. It is the only local caller that touches
-`pr-ref` at all -- `pr-re-review.yml` checks out `refs/pull/<n>/merge`
-and never reads it. In the fleet's other callers the same name reaches
+`pr-ref` at all -- `pr-re-review.yml` checks out `refs/pull/<n>/merge`,
+or `refs/pull/<n>/head` when the merge ref is absent or behind, and
+never reads it. In the fleet's other callers the same name reaches
 `actions/checkout` against their own repository and
 `git push origin HEAD:refs/heads/<ref>`, where it lands bot commits on
 the branch the whole fleet pins. Putting the refusal in the action means
@@ -199,14 +200,23 @@ cannot -- see above.
 
 One convention is knowingly not met. AGENTS.md says not to write more
 than about five lines of shell inline in a workflow step -- put it in a
-script under `tools/` so it can be run and tested outside CI. Only
-`pr-retest.yml` breaches it, in its dispatch step and its confirmation
-comment; `pr-re-review.yml` carries no inline shell at all. It is one of
-the fleet's shared templates, and every line this repository rewrites is
-a line that stops matching the other repositories running the same
-workflow, which costs more than it saves while the templates are still
-the source of truth. Recorded here rather than left as a silent conflict
-between the convention and the file.
+script under `tools/` so it can be run and tested outside CI. Both
+bot-triggered workflows breach it: `pr-retest.yml` in its dispatch step
+and its confirmation comment, and `pr-re-review.yml` in the steps that
+resolve which ref to review and confirm the checkout is the commit that
+was validated. They are the fleet's shared templates, and every line
+this repository rewrites is a line that stops matching the other
+repositories running the same workflow, which costs more than it saves
+while the templates are still the source of truth. Recorded here rather
+than left as a silent conflict between the convention and the file.
+
+Both also state the fork guard twice: the job doing the work requires
+`pr-bot-trigger`'s `same-repo` output as well as `authorized`, which
+already folds it in. That is redundant on purpose -- a regression in
+the action, taken at `@main`, cannot quietly widen what runs next to a
+write-scoped token -- and the trigger job fails loudly if the action
+stops reporting either output, rather than reacting with a rocket and
+then doing nothing.
 
 ### Post-merge lane -- `canary.yml`
 
