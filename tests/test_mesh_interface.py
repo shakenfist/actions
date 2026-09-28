@@ -188,7 +188,7 @@ class TestRendererTemplatesAgree(unittest.TestCase):
         for name, text in (('netplan-eth1.yaml', self.netplan),
                            ('networkd-eth1.network', self.networkd)):
             body = '\n'.join(line for line in text.splitlines()
-                              if not line.lstrip().startswith('#'))
+                             if not line.lstrip().startswith('#'))
             for var in ('address', 'macaddr'):
                 self.assertRegex(
                     body, r'\{\{\s*%s\s*\}\}' % var,
