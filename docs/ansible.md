@@ -397,7 +397,7 @@ the conductor's gnome-less marker uses it to decide when a cluster
 rebuilds its cache disk, so a constant naming a label this playbook
 does not snapshot leaves the disk stale without anything reporting it.
 
-Two things about that disk are load bearing and easy to undo by
+Three things about that disk are load bearing and easy to undo by
 accident.
 
 The first is that the filesystem's feature set is written out in full --
@@ -417,7 +417,26 @@ disk either, and a renamed or retired feature fails the build outright.
 Both are preferable to the format drifting quietly under a disk the
 whole fleet mounts.
 
-The second is the pair of assertions that run on the builder
+The second is that the downloads are `get_url`, run by ansible-core
+2.19.0 or later, and the playbook's first task asserts that version.
+From 2.19.0 `get_url` compares what it received with the
+`Content-Length` of the same response and fails the task on a short
+read, which is the only thing that catches a transfer dropping part way
+through a large image on a disk with plenty of room. Before 2.19.0 the
+same truncated download reports `changed`, and the short file is
+published to every runner. Two changes would lose this without anything
+failing, which is why `tests/test_ci_dependencies_downloads.py` guards
+both. The first is moving the loop to the `uri` module, which also
+takes a `dest` but saves a truncated body and reports success. The
+second is running the playbook under an older ansible. The conductor
+installs an unpinned `ansible`, and on a Python older than 3.11 pip
+settles on ansible-core 2.17 without comment. The check compares
+against the download's own response rather than a separate `HEAD`, so
+an image rebuilt upstream mid-build cannot fail a good download, and it
+needs no per-image checksums against images that are rebuilt nightly
+(issue #82).
+
+The third is the pair of assertions that run on the builder
 immediately before the unmount, which are covered with the other image
 verification below.
 
@@ -521,6 +540,7 @@ filesystem as the builder saw it, not for the blob that gets labelled.
 | `ci-image.yml` | Runner logs that reach Loki | `systemctl is-enabled alloy`, when the builder installed it | test instance |
 | `ci-image.yml` | A working docker, for the `docker` extra | `docker version`, on the builder and again from a cold boot | both |
 | `ci-image-desktop.yml` | A graphical session a console can see | `systemctl get-default`, `systemctl is-active display-manager`, and an active graphical session on `seat0` | test instance |
+| `ci-dependencies.yml` | Cache entries CI jobs can read | Each download matches its `Content-Length` | builder, as downloaded |
 | `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a megabyte, and at least 2GB still free | builder, pre-unmount |
 
 Three of those are deliberately weaker than they first appear, and all
@@ -545,7 +565,10 @@ three are worth knowing before you tighten them:
   snapshot, so anything under a megabyte is a failed download rather
   than a small file. A megabyte and not a kilobyte because a squid
   error page is two to four kilobytes, which a kilobyte floor would
-  wave through. It does not check that a given entry is *present*,
+  wave through. This is the failure `get_url`'s length check cannot
+  see: an error page arrives complete, with a correct
+  `Content-Length`, so the floor and the length check each catch what
+  the other does not. It does not check that a given entry is *present*,
   because the list of what should be there lives in the `get_url` loop
   and would have to be kept in step by hand. The free space assertion
   beside it covers the failure the floor is blind to: a download cut
