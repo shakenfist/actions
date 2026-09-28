@@ -9,10 +9,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-auto-review.yml",
       "author": "mikal"
     },
@@ -217,10 +213,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci-prune-reviews.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/clone_with_depends.py",
       "author": "mikal"
     },
@@ -262,10 +254,6 @@
     },
     {
       "path": "tools/ovirt-prepare-host.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/review-tracking.sh",
       "author": "mikal"
     },
     {
@@ -490,10 +478,6 @@
     },
     {
       "path": "tests/test_proxmox_connect_probe.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_workflow_references.py",
       "author": "mikal"
     },
     {

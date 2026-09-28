@@ -33,10 +33,6 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "8d25f804b29cc322de49f8b9ab435d5b88823acc",
-      "date": "2026-08-24"
-    },
     ".github/workflows/renovate.yml": {
       "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
       "date": "2026-09-26"
@@ -357,10 +353,6 @@
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
     },
-    "tests/test_workflow_references.py": {
-      "sha": "429491897b6aadc06c0a56cadaef04da39ad52db",
-      "date": "2026-09-25"
-    },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
       "date": "2026-09-16"
@@ -375,10 +367,6 @@
     },
     "tools/ci-make-inventory.py": {
       "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
-      "date": "2026-09-10"
-    },
-    "tools/ci-prune-reviews.sh": {
-      "sha": "6c9c69ede22885182010ad72df865a9eaf6db5b5",
       "date": "2026-09-10"
     },
     "tools/ci_code_formatting.sh": {
@@ -492,10 +480,6 @@
     "tools/report-proxmox-substrate-failure.sh": {
       "sha": "5a5f99cfce84892e3f96b5412e57016acadb269d",
       "date": "2026-09-25"
-    },
-    "tools/review-tracking.sh": {
-      "sha": "040c56e4d763109492f79f0f3cc796231047c68c",
-      "date": "2026-09-10"
     },
     "tools/run_remote": {
       "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",
