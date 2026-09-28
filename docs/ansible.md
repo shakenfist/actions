@@ -172,14 +172,48 @@ from the guest, not inferred from its Debian release**:
 
 | `mesh_style` | Selected when | Writes |
 |---|---|---|
-| `ifupdown` | Debian 10 and 11 | `/etc/network/interfaces.d/60-sf-mesh-net` |
+| `ifupdown` | Debian 10 or 11 | `/etc/network/interfaces.d/60-sf-mesh-net` |
 | `netplan` | `/usr/sbin/netplan` exists | `/etc/netplan/99-sfci.yaml` |
-| `networkd` | it does not | `/etc/systemd/network/99-sfci-eth1.network` |
+| `networkd` | it does not | `/etc/systemd/network/05-sfci-eth1.network` |
+
+The `ifupdown` arm names its two releases explicitly rather than testing
+`version < 12`. On testing and sid `ansible_distribution_version` is
+`n/a` or a codename, `| int` turns that into 0, and 0 is less than 12 --
+so a networkd-only image would have been sent to the ifupdown arm. Both
+those releases are frozen, so the list cannot go stale.
+
+The `05-` prefix is load bearing. systemd-networkd applies only the
+**first** `.network` file, in lexical order, whose `[Match]` fits a link,
+and cloud-init writes `10-cloud-init-<nic>.network` on an image it
+renders with the networkd backend. A higher-numbered file would lose that
+race silently: `networkctl` reports success having re-applied cloud-init's
+file, and the node comes up with no mesh address.
+
+Nothing renames the interface. Every CI image boots with `net.ifnames=0
+biosdevname=0` (`build.sh` in shakenfist/images), so the mesh NIC is
+already `eth1` -- which is what `networkctl reconfigure` is given, and
+what `tools/ci-make-inventory.py` hands the deploy as `node_mesh_nic`. A
+`.network` file could not rename it anyway; that needs a `.link` file and
+a udev re-trigger, which is no use on a link that already exists.
+
+### Proving it worked
+
+One ungated task after the arms retries `ip -o addr show eth1` until the
+mesh address appears. It is the only thing that proves *any* arm did what
+it claimed, and there are three ways to need it: a file that lost the
+lexical race, a link that is not called `eth1`, and `networkctl
+reconfigure`, which returns when the request is queued rather than when
+the address is configured. All three otherwise end as a healthy-looking
+play and a deploy that cannot reach MariaDB.
 
 The netplan and systemd-networkd templates configure the same interface
 and are kept in step by hand; `tests/test_mesh_interface.py` checks they
 have not drifted on the MTU, on the variables they interpolate, or on the
-rule that neither may set a default route.
+rule that neither may set a default route. The block is also triplicated
+across the three slim topologies, so the tests compare the copies and
+fail if a fix reached only some of them. Moving it into an included task
+file would remove the duplication outright and is the better answer; it
+has not been done here.
 
 This used to be a version test -- "Debian 12 or newer, therefore netplan"
 -- and that is worth knowing about because of how it failed. The trixie CI
@@ -192,9 +226,9 @@ failed with `Destination directory /etc/netplan does not exist`.
 
 An inference about an image drawn from the release it is built on cannot
 stay true, because the images change after the test is written. If you add
-an image that configures its network some third way, add an arm here --
-the tests fail on a playbook that can select a style with no template
-behind it.
+an image that configures its network some third way, add an arm here: the
+tests read the style literals back out of the `mesh_style` expression and
+fail if any of them has no task gated on it.
 
 ## The deployment VIP
 

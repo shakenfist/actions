@@ -379,12 +379,21 @@
         path: /usr/sbin/netplan
       register: mesh_netplan
 
+    # The ifupdown arm names its releases rather than testing "< 12".
+    # ansible_distribution_version is 'n/a' or a codename on testing and
+    # sid, where "| int" yields 0 -- and 0 is less than 12, so a
+    # networkd-only image would have been sent to the ifupdown arm. An
+    # explicit membership test cannot misfire that way, and Debian 10 and
+    # 11 are frozen, so the list cannot go stale either.
+    #
+    # This is the one place a release is genuinely the question. Which of
+    # the two live tools an image uses is still probed, never inferred.
     - name: Decide how the mesh interface is configured
       ansible.builtin.set_fact:
         mesh_style: >-
           {{ 'ifupdown'
              if (ansible_distribution == 'Debian'
-                 and (ansible_distribution_version | int) < 12)
+                 and ansible_distribution_major_version in ['10', '11'])
              else ('netplan' if mesh_netplan.stat.exists else 'networkd') }}
 
     # We cannot do this in the shaken fist network configuration because
@@ -438,6 +447,24 @@
       shell: netplan apply
       when: mesh_style == 'netplan'
 
+    # 05- rather than a high number. systemd-networkd applies only the
+    # first .network file, in lexical order, whose [Match] fits a link,
+    # and cloud-init writes 10-cloud-init-*.network on an image it renders
+    # with the networkd backend. A 99- file would lose to anything
+    # cloud-init had already written for this NIC, and would lose
+    # silently: networkctl would report success having re-applied the
+    # other file, and the node would come up with no mesh address.
+    #
+    # The [Match] is on MAC alone, and this file does not rename the link.
+    # It does not need to. Every CI image boots with "net.ifnames=0
+    # biosdevname=0" (build.sh in shakenfist/images, since 1a638a6), so
+    # the mesh NIC is already eth1 -- the name networkctl is given below,
+    # and the name tools/ci-make-inventory.py hands to the deploy as
+    # node_mesh_nic. A .network file could not rename it in any case;
+    # that needs a .link file and a udev re-trigger, which is no use on a
+    # link that already exists. If that guarantee ever changes, the
+    # assertion after these arms is what says so.
+    #
     # networkctl reload re-reads the unit directory and reconfigure applies
     # it to this one link, which leaves eth0 alone -- and eth0 is the
     # interface ansible is connected over. Restarting systemd-networkd
@@ -446,7 +473,7 @@
     - name: Configure the mesh interface (systemd-networkd)
       template:
         src: files/networkd-eth1.network
-        dest: /etc/systemd/network/99-sfci-eth1.network
+        dest: /etc/systemd/network/05-sfci-eth1.network
         owner: root
         group: root
         mode: u=rw,g=r,o=r
@@ -460,6 +487,27 @@
         networkctl reload
         networkctl reconfigure eth1
       when: mesh_style == 'networkd'
+
+    # Deliberately ungated: whichever arm ran, this is the only task that
+    # proves it worked. Without it a mesh interface that never came up is
+    # not an error here at all -- the play finishes, and the failure
+    # surfaces much later and somewhere else, when nodes cannot reach
+    # MariaDB or Loki on an address nothing ever assigned.
+    #
+    # Three separate ways to arrive at that outcome are why this is worth
+    # a task of its own: a renderer whose file was never selected, a link
+    # that is not called eth1, and a renderer that reported success
+    # before finishing. networkctl reconfigure is the last of those --
+    # it returns when the request is queued, not when the address is
+    # configured -- so this retries rather than checking once.
+    - name: Assert the mesh address came up
+      ansible.builtin.shell: ip -o addr show eth1
+      register: mesh_addr
+      changed_when: false
+      failed_when: false
+      until: (mesh_ip + '/') in (mesh_addr.stdout | default(''))
+      retries: 15
+      delay: 4
 
 - hosts: primary
   gather_facts: yes

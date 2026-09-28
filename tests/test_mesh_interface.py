@@ -38,17 +38,32 @@ from tests.helpers import REPO_ROOT
 
 ANSIBLE_DIR = os.path.join(REPO_ROOT, 'ansible')
 
-# The tasks that write or apply the mesh interface configuration. Matched
-# on the name prefix rather than on the module, because the three arms use
-# three different modules (copy, template and shell) and it is the
-# decision they share -- not the mechanism -- that this file is about.
+# The tasks that write or apply the mesh interface configuration.
+#
+# Three ways in, rather than a name match alone. A name match is what
+# this file started with, and it makes the coverage depend on what a task
+# is called: an arm renamed to "Bring up the mesh NIC" would quietly stop
+# being checked by every test below. So a task also counts if it is gated
+# on the style fact, or if it writes into one of the directories these
+# renderers own. Coverage then follows what a task does.
 MESH_TASK_RE = re.compile(
     r'^(Configure the mesh interface|Enable eth1|Enable networking)')
 
-# The fact the arms are expected to branch on, and the probe it is
-# expected to be derived from.
+NET_CONFIG_DIRS = ('/etc/netplan',
+                   '/etc/systemd/network',
+                   '/etc/network/interfaces.d')
+
+WRITE_MODULES = ('template', 'copy',
+                 'ansible.builtin.template', 'ansible.builtin.copy')
+
 STYLE_FACT = 'mesh_style'
 NETPLAN_PROBE = '/usr/sbin/netplan'
+
+# cloud-init renders 10-cloud-init-<nic>.network on an image it manages
+# with the networkd backend, and systemd-networkd applies only the first
+# matching file in lexical order. Anything we write has to sort ahead of
+# that or it is never selected.
+CLOUD_INIT_PREFIX = '10-'
 
 MTU = '8950'
 
@@ -80,14 +95,55 @@ def tasks(container):
             yield from tasks(container[key])
 
 
+def writes_network_config(task):
+    """True if the task templates or copies into a renderer's directory."""
+    for module in WRITE_MODULES:
+        spec = task.get(module)
+        if isinstance(spec, dict):
+            if str(spec.get('dest', '')).startswith(NET_CONFIG_DIRS):
+                return True
+    return False
+
+
+def is_mesh_task(task):
+    name = task.get('name')
+    if isinstance(name, str) and MESH_TASK_RE.match(name):
+        return True
+    if STYLE_FACT in str(task.get('when', '')):
+        return True
+    return writes_network_config(task)
+
+
+def style_fact_expression(parsed):
+    """Return the mesh_style expression from a playbook, or None."""
+    for task in tasks(parsed):
+        for module in ('set_fact', 'ansible.builtin.set_fact'):
+            spec = task.get(module)
+            if isinstance(spec, dict) and STYLE_FACT in spec:
+                return str(spec[STYLE_FACT])
+    return None
+
+
+def declared_styles(expression):
+    """The style literals the expression can produce.
+
+    A style is a *result* of the ternary, so drop the literals that are
+    part of a test before collecting: the right-hand side of an equality
+    comparison, and the contents of a membership list. Without that,
+    'Debian', '10' and '11' come back as styles and the check is
+    meaningless.
+    """
+    expression = re.sub(r'\[[^\]]*\]', '', expression)
+    expression = re.sub(r"==\s*'[^']*'", '', expression)
+    return set(re.findall(r"'([^']+)'", expression))
+
+
 def mesh_playbooks():
-    """Yield (path, [mesh tasks]) for every playbook that configures a mesh."""
+    """Yield (path, parsed, [mesh tasks]) for each playbook with a mesh."""
     for path, parsed in documents():
-        found = [t for t in tasks(parsed)
-                 if isinstance(t.get('name'), str)
-                 and MESH_TASK_RE.match(t['name'])]
+        found = [t for t in tasks(parsed) if is_mesh_task(t)]
         if found:
-            yield path, found
+            yield path, parsed, found
 
 
 class TestMeshInterfaceDetection(unittest.TestCase):
@@ -99,7 +155,7 @@ class TestMeshInterfaceDetection(unittest.TestCase):
 
     def test_no_mesh_task_branches_on_the_release(self):
         """The regression itself: choosing a live tool by version number."""
-        for path, found in mesh_playbooks():
+        for path, _, found in mesh_playbooks():
             for task in found:
                 when = str(task.get('when', ''))
                 self.assertNotIn(
@@ -109,21 +165,21 @@ class TestMeshInterfaceDetection(unittest.TestCase):
                     'broke every multi-node lane when the under-cloud moved '
                     'to Debian 13; branch on %s instead, which is derived '
                     'from what the guest actually has.'
-                    % (path, task['name'], STYLE_FACT))
+                    % (path, task.get('name'), STYLE_FACT))
 
     def test_mesh_tasks_branch_on_the_detected_style(self):
         """Each arm is selected by the fact, so a new image picks an arm."""
-        for path, found in mesh_playbooks():
+        for path, _, found in mesh_playbooks():
             for task in found:
                 self.assertIn(
                     STYLE_FACT, str(task.get('when', '')),
                     '%s: task %r is not gated on %s, so it runs on images '
                     'it was never meant for.'
-                    % (path, task['name'], STYLE_FACT))
+                    % (path, task.get('name'), STYLE_FACT))
 
     def test_the_style_is_derived_from_probing_the_guest(self):
         """The fact has to come from a probe, not from another guess."""
-        for path, _ in mesh_playbooks():
+        for path, _, _ in mesh_playbooks():
             with open(os.path.join(ANSIBLE_DIR, path)) as f:
                 text = f.read()
             self.assertIn(
@@ -132,20 +188,137 @@ class TestMeshInterfaceDetection(unittest.TestCase):
                 'so %s cannot be derived from what the guest has.'
                 % (path, NETPLAN_PROBE, STYLE_FACT))
 
-    def test_both_renderers_are_available(self):
-        """Every style a playbook can select needs a template to render."""
-        for path, found in mesh_playbooks():
-            styles = set()
+    def test_every_style_has_an_arm(self):
+        """Every value the fact can take must have a task gated on it.
+
+        The previous version of this compared the gated styles against a
+        hardcoded set of three, which said nothing about the expression --
+        a fourth style could be added to the set_fact with no arm behind
+        it and the test still passed. Read the styles out of the
+        expression instead, so the two cannot drift apart.
+        """
+        for path, parsed, found in mesh_playbooks():
+            expression = style_fact_expression(parsed)
+            self.assertIsNotNone(
+                expression,
+                '%s: has mesh tasks but sets no %s' % (path, STYLE_FACT))
+
+            declared = declared_styles(expression)
+            self.assertTrue(
+                declared, '%s: no style literals found in %r'
+                % (path, expression))
+
+            gated = set()
             for task in found:
-                for style in ('netplan', 'networkd', 'ifupdown'):
-                    if "'%s'" % style in str(task.get('when', '')):
-                        styles.add(style)
+                when = str(task.get('when', ''))
+                for style in declared:
+                    if "'%s'" % style in when:
+                        gated.add(style)
+
             self.assertEqual(
-                {'netplan', 'networkd', 'ifupdown'}, styles,
-                '%s: selects %s, so an image that is none of those would '
-                'come up with an unconfigured mesh interface -- which fails '
-                'later and much less legibly than a missing file does.'
-                % (path, sorted(styles)))
+                declared, gated,
+                '%s: %s can produce %s but only %s have a task gated on '
+                'them. An image resolving to an unhandled style comes up '
+                'with an unconfigured mesh NIC and fails later, in the '
+                'deploy.' % (path, STYLE_FACT, sorted(declared),
+                             sorted(gated)))
+
+    def test_the_address_is_asserted_after_the_arms(self):
+        """One ungated task has to prove whichever arm ran worked.
+
+        networkctl reconfigure returns when the request is queued rather
+        than when the address is up, a .network file that loses the
+        lexical race is applied silently, and a link that is not called
+        eth1 is not noticed by anything here. All three end the same way:
+        no mesh address, no error, and a failure much later in the deploy.
+        """
+        for path, parsed, _ in mesh_playbooks():
+            checks = [t for t in tasks(parsed)
+                      if 'mesh_ip' in str(t.get('until', ''))]
+            self.assertTrue(
+                checks,
+                '%s: no task retries until the mesh address is present. '
+                'Without one, an arm that silently did nothing is not an '
+                'error until the deploy cannot reach MariaDB.' % path)
+            for task in checks:
+                self.assertNotIn(
+                    STYLE_FACT, str(task.get('when', '')),
+                    '%s: task %r only asserts the address for one style. '
+                    'Every arm can fail this way.'
+                    % (path, task.get('name')))
+
+
+class TestRendererFilesAreSelectable(unittest.TestCase):
+    """A file systemd-networkd never selects is worse than a missing one."""
+
+    def test_networkd_file_sorts_ahead_of_cloud_init(self):
+        for path, _, found in mesh_playbooks():
+            for task in found:
+                if not writes_network_config(task):
+                    continue
+                for module in WRITE_MODULES:
+                    spec = task.get(module)
+                    if not isinstance(spec, dict):
+                        continue
+                    dest = str(spec.get('dest', ''))
+                    if not dest.startswith('/etc/systemd/network'):
+                        continue
+                    base = os.path.basename(dest)
+                    self.assertLess(
+                        base, CLOUD_INIT_PREFIX,
+                        '%s: %s does not sort ahead of cloud-init\'s %s* '
+                        'files. systemd-networkd applies only the first '
+                        'matching .network file in lexical order, so this '
+                        'one would never be selected -- silently.'
+                        % (path, base, CLOUD_INIT_PREFIX))
+
+
+class TestThePlaybooksAgree(unittest.TestCase):
+    """The block is triplicated, so drift between copies is the risk.
+
+    Moving it into an included task file would remove the duplication
+    outright and is the better answer, but it is a larger change than
+    this one. Until then, a fix applied to two of the three playbooks
+    should fail rather than ship.
+    """
+
+    def _copies(self):
+        return list(mesh_playbooks())
+
+    def test_more_than_one_playbook_has_a_mesh(self):
+        """Otherwise the comparisons below compare nothing."""
+        self.assertGreater(len(self._copies()), 1)
+
+    def test_every_copy_decides_the_style_identically(self):
+        seen = {}
+        for path, parsed, _ in self._copies():
+            expression = style_fact_expression(parsed)
+            seen[path] = ' '.join(str(expression).split())
+        self.assertEqual(
+            1, len(set(seen.values())),
+            'the %s expression differs between playbooks, so some of them '
+            'choose a renderer differently: %s' % (STYLE_FACT, seen))
+
+    def test_every_copy_has_the_same_arms(self):
+        """Same styles, same destinations, in every playbook."""
+        seen = {}
+        for path, _, found in self._copies():
+            arms = set()
+            for task in found:
+                when = ' '.join(str(task.get('when', '')).split())
+                dest = ''
+                for module in WRITE_MODULES:
+                    spec = task.get(module)
+                    if isinstance(spec, dict) and 'dest' in spec:
+                        dest = str(spec['dest'])
+                arms.add((when, dest))
+            seen[path] = frozenset(arms)
+
+        self.assertEqual(
+            1, len(set(seen.values())),
+            'the mesh arms differ between playbooks. A fix applied to '
+            'some but not all of them leaves the others broken: %s'
+            % {p: sorted(a) for p, a in seen.items()})
 
 
 class TestRendererTemplatesAgree(unittest.TestCase):
@@ -163,14 +336,22 @@ class TestRendererTemplatesAgree(unittest.TestCase):
         with open(os.path.join(ANSIBLE_DIR, relative)) as f:
             return f.read()
 
+    def _both(self):
+        return (('netplan-eth1.yaml', self.netplan),
+                ('networkd-eth1.network', self.networkd))
+
+    @staticmethod
+    def _body(text):
+        return '\n'.join(line for line in text.splitlines()
+                         if not line.lstrip().startswith('#'))
+
     def test_both_templates_exist(self):
         self.assertTrue(self.netplan.strip())
         self.assertTrue(self.networkd.strip())
 
     def test_both_set_the_same_mtu(self):
         """The mesh MTU is set by hand because there is no DHCP to learn it."""
-        for name, text in (('netplan-eth1.yaml', self.netplan),
-                           ('networkd-eth1.network', self.networkd)):
+        for name, text in self._both():
             self.assertIn(
                 MTU, text,
                 '%s does not set the mesh MTU of %s. The two renderers '
@@ -185,10 +366,8 @@ class TestRendererTemplatesAgree(unittest.TestCase):
         talk about the mesh address in prose, so a template that hardcoded
         an address would still contain the string and pass.
         """
-        for name, text in (('netplan-eth1.yaml', self.netplan),
-                           ('networkd-eth1.network', self.networkd)):
-            body = '\n'.join(line for line in text.splitlines()
-                             if not line.lstrip().startswith('#'))
+        for name, text in self._both():
+            body = self._body(text)
             for var in ('address', 'macaddr'):
                 self.assertRegex(
                     body, r'\{\{\s*%s\s*\}\}' % var,
@@ -202,10 +381,8 @@ class TestRendererTemplatesAgree(unittest.TestCase):
         That is the whole reason this is configured by ansible after
         cloud-init rather than in the Shaken Fist network definition.
         """
-        for name, text in (('netplan-eth1.yaml', self.netplan),
-                           ('networkd-eth1.network', self.networkd)):
-            body = '\n'.join(line for line in text.splitlines()
-                             if not line.lstrip().startswith('#'))
+        for name, text in self._both():
+            body = self._body(text)
             for key in ('gateway', 'Gateway', 'routes:', 'DHCP='):
                 self.assertNotIn(
                     key, body,
