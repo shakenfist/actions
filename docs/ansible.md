@@ -140,6 +140,62 @@ merge -- the fabric is not available on a dev host -- and because it has
 already been broken once, when only one of twelve provisioning paths
 grew the gate.
 
+## The mesh interface
+
+Multi-node topologies give each node a second NIC on a private mesh
+network, and configure it from ansible rather than from the Shaken Fist
+network definition. Both halves of that are deliberate.
+
+The instance is created with no address on that interface:
+
+```yaml
+networkspecs:
+  - network_uuid={{identifier}},address=10.0.0.10
+  - network_uuid={{meshnetwork['meta']['uuid']}},address=none
+```
+
+`address=none` is there because cloud-init will otherwise sometimes pick
+the mesh interface as the default route, which breaks egress. So the
+address is assigned afterwards, once cloud-init has finished, and the MTU
+is written by hand because there is no lease to learn it from.
+
+Nothing else in the system configures that interface. `ci-make-inventory.py`
+keys the mesh NIC as `eth1`, and `build-smoke-cluster` reads the primary's
+mesh address to point `mariadb_host` and `loki_url` at it, so a node whose
+mesh interface never comes up does not fail here -- it fails later, in the
+deploy, when nodes cannot reach the database.
+
+### Choosing a renderer
+
+Three tools can do the configuring, and which one applies is **detected
+from the guest, not inferred from its Debian release**:
+
+| `mesh_style` | Selected when | Writes |
+|---|---|---|
+| `ifupdown` | Debian 10 and 11 | `/etc/network/interfaces.d/60-sf-mesh-net` |
+| `netplan` | `/usr/sbin/netplan` exists | `/etc/netplan/99-sfci.yaml` |
+| `networkd` | it does not | `/etc/systemd/network/99-sfci-eth1.network` |
+
+The netplan and systemd-networkd templates configure the same interface
+and are kept in step by hand; `tests/test_mesh_interface.py` checks they
+have not drifted on the MTU, on the variables they interpolate, or on the
+rule that neither may set a default route.
+
+This used to be a version test -- "Debian 12 or newer, therefore netplan"
+-- and that is worth knowing about because of how it failed. The trixie CI
+image ships systemd-networkd and no netplan, on purpose: trixie dropped
+ifupdown from the default install, so cloud-init uses the networkd
+renderer, and `elements/debian-13-extras/finalise.d/81-networkd` in
+shakenfist/images enables it. When the CI under-cloud default moved to
+Debian 13, the version test still said netplan, and every multi-node lane
+failed with `Destination directory /etc/netplan does not exist`.
+
+An inference about an image drawn from the release it is built on cannot
+stay true, because the images change after the test is written. If you add
+an image that configures its network some third way, add an arm here --
+the tests fail on a playbook that can select a style with no template
+behind it.
+
 ## The deployment VIP
 
 The kerbside playbooks reserve `vip_address` (default `10.0.2.3`, overridable
