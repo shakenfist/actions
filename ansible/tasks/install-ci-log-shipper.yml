@@ -96,11 +96,11 @@
 # `chmod ugo+rw /var/run/docker.sock` -- i.e. where any job already has a
 # one-line path to root -- a separate account buys nothing real.
 #
-# ExecStartPre waits for the hostname, and that is load bearing. The
-# `host` label is derived from constants.hostname, evaluated once when
-# the config is loaded, and it is the only thing that joins these logs to
-# conductor's own `is offline but still holds job` warning for the same
-# runner. Starting before cloud-init has applied the instance name would
+# The unit waits for the hostname before it execs Alloy, and that is
+# load bearing. The `host` label is derived from constants.hostname,
+# evaluated once when the config is loaded, and it is the only thing that
+# joins these logs to conductor's own `is offline but still holds job`
+# warning for the same runner. Starting before cloud-init has applied the instance name would
 # ship a whole runner's logs under "debian" or "localhost" -- silently,
 # because Alloy would be perfectly healthy.
 #
@@ -123,9 +123,19 @@
 # should happen if this image is ever booted somewhere else: no logs
 # beats mislabelled logs.
 #
-# TimeoutStartSec has to cover the poll. systemd's default is 90s, which
-# would SIGTERM the ExecStartPre long before it gave up and turn the
-# considered ceiling below into a silent ninety second one.
+# The poll lives in ExecStart, ahead of an exec, and must not move back
+# into ExecStartPre. multi-user.target is ordered after every unit it
+# wants, so a unit whose start job lasts twenty minutes holds the target
+# for twenty minutes -- and on debian cloud-final.service is ordered
+# After=multi-user.target, so cloud-init does not finish either. Every
+# host booted from this image that is not a runner, which includes every
+# under-cloud node in the multi-node smoke topologies and the image
+# build's own test instance, then spent twenty minutes in boot and hit
+# the readiness gate's ten minute cap in wait-for-cloud-init.yml
+# (issue #113). A Type=simple unit's start job ends as soon as ExecStart
+# is forked, so the poll costs boot nothing. It also means the default
+# TimeoutStartSec is enough again: nothing slow runs before the unit is
+# considered started.
 - name: Install the Alloy systemd unit
   ansible.builtin.copy:
     dest: /etc/systemd/system/alloy.service
@@ -141,9 +151,7 @@
 
       [Service]
       Type=simple
-      TimeoutStartSec=1500
-      ExecStartPre=/bin/bash -c 'for i in $(seq 1 600); do case "$(hostname)" in sfcbr-*) exit 0 ;; esac; sleep 2; done; echo "hostname still not sfcbr-* after 20m; refusing to ship mislabelled logs, will retry" >&2; exit 1'
-      ExecStart=/usr/local/bin/alloy run --storage.path=/var/lib/alloy --server.http.listen-addr=127.0.0.1:12345 /etc/alloy/config.alloy
+      ExecStart=/bin/bash -c 'for i in $(seq 1 600); do case "$(hostname)" in sfcbr-*) exec /usr/local/bin/alloy run --storage.path=/var/lib/alloy --server.http.listen-addr=127.0.0.1:12345 /etc/alloy/config.alloy ;; esac; sleep 2; done; echo "hostname still not sfcbr-* after 20m; refusing to ship mislabelled logs, will retry" >&2; exit 1'
       Restart=on-failure
       RestartSec=10
 

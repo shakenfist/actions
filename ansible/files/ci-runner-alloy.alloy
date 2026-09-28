@@ -30,7 +30,7 @@
 //
 // Stripping is the correct fix rather than waiting longer for the
 // hostname to settle, because .local is the rocky hostname permanently,
-// not a pre-cloud-init transient. See the ExecStartPre note in
+// not a pre-cloud-init transient. See the hostname poll note in
 // tasks/install-ci-log-shipper.yml, whose `sfcbr-*` glob deliberately
 // still matches the FQDN form for exactly this reason.
 
