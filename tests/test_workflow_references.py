@@ -536,21 +536,26 @@ class LaneConditionTest(unittest.TestCase):
 
 
 class PruneGuardTest(unittest.TestCase):
-    def test_prune_only_runs_on_main(self):
-        # ci-prune-reviews.sh pushes to main whatever ref is checked
-        # out, so a workflow_dispatch on a feature branch would push
-        # that branch's unmerged commits to main, skipping review
-        # entirely. The push trigger already only fires on main; this
-        # guard is what makes workflow_dispatch match.
+    def test_prune_only_runs_on_the_default_branch(self):
+        # ci-prune-reviews.sh lands review state on the default branch
+        # whatever ref is checked out, so a workflow_dispatch on a
+        # feature branch would land it using that branch's unmerged
+        # copy of the script. The workflow is a byte-identical copy of
+        # shakenfist/development's templates/review-tracking/, so the
+        # guard names the default branch by expression, not by name;
+        # scheduled runs only ever run on the default branch.
         with open(os.path.join(WORKFLOW_DIR, 'prune-reviews.yml')) as f:
             parsed = yaml.safe_load(f)
         self.assertIn('workflow_dispatch', parsed[True])
         for name, job in parsed['jobs'].items():
             with self.subTest(job=name):
                 self.assertIn(
-                    "github.ref == 'refs/heads/main'", job.get('if', ''),
-                    '%s pushes to main whatever ref is checked out, so it '
-                    'must refuse to run on any other ref' % name)
+                    "github.ref == format('refs/heads/{0}', "
+                    'github.event.repository.default_branch)',
+                    job.get('if', ''),
+                    '%s lands on the default branch whatever ref is '
+                    'checked out, so it must refuse to run on any other '
+                    'ref' % name)
 
 
 class ReviewScopeTest(unittest.TestCase):

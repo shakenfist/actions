@@ -4,3 +4,12 @@ __pycache__/
 # Ansible's local fact and collection cache, created by running the
 # playbooks in ansible/ from a checkout.
 .ansible/
+
+# weAudit writes a per-session log of which files were opened next to
+# its review state. It is editor telemetry rather than attestation --
+# nothing in scripts/review-tracking.py reads it -- and it churns on
+# every review session. This repository does not ignore .vscode/
+# wholesale, so the day log needs its own entry rather than the
+# un-ignore exceptions a .vscode/*-ignoring repo would add; see
+# shakenfist/development docs/code-review-tracking.md.
+.vscode/.weauditdaylog
