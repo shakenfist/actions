@@ -29,6 +29,14 @@
       "sha": "7782339f38c7d1daa88a7019483318ee8fe34491",
       "date": "2026-09-04"
     },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "9c3f1f15d87a1059efef7a589bdc96a6e8a7b962",
+      "date": "2026-09-29"
+    },
+    ".github/workflows/pr-retest.yml": {
+      "sha": "c20d35f82167ab819a99bc57c5915b927b2c5f03",
+      "date": "2026-09-29"
+    },
     ".github/workflows/proxmox-substrate.yml": {
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
@@ -229,6 +237,10 @@
       "sha": "b93411f389507fd6cc548cd0aecff4165fb3cc93",
       "date": "2026-09-28"
     },
+    "docs/ci.md": {
+      "sha": "61a7a46aedc1fe3ba6fbc9f6cc2b7f0a5f72b98d",
+      "date": "2026-09-29"
+    },
     "docs/consuming.md": {
       "sha": "a0aa60713de2fac7b0c86bcc77cea345a5aff09b",
       "date": "2026-09-27"
@@ -309,6 +321,10 @@
       "sha": "ac07471a9545b9b5eea32873d65d48fab34a1815",
       "date": "2026-09-27"
     },
+    "tests/test_ci_loki_dump.py": {
+      "sha": "d34a8fbed4571db111e1ed1c9820209aa7898426",
+      "date": "2026-09-29"
+    },
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
       "date": "2026-09-09"
@@ -352,6 +368,10 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "cae4fa6bc6f981afef36a10c7459c55159ffdc70",
+      "date": "2026-09-29"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",

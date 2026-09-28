@@ -547,6 +547,30 @@
     {
       "path": "ansible",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_loki_dump.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
