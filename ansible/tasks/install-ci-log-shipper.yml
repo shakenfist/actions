@@ -100,9 +100,9 @@
 # load bearing. The `host` label is derived from constants.hostname,
 # evaluated once when the config is loaded, and it is the only thing that
 # joins these logs to conductor's own `is offline but still holds job`
-# warning for the same runner. Starting before cloud-init has applied the instance name would
-# ship a whole runner's logs under "debian" or "localhost" -- silently,
-# because Alloy would be perfectly healthy.
+# warning for the same runner. Starting before cloud-init has applied
+# the instance name would ship a whole runner's logs under "debian" or
+# "localhost" -- silently, because Alloy would be perfectly healthy.
 #
 # The `sfcbr-*` glob matches both sfcbr-XXXXXXXX and the
 # sfcbr-XXXXXXXX.local that the rocky images end up with, and that is
