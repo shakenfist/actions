@@ -227,7 +227,16 @@ jobs:
               "${setup} cirros /srv/ci/cirros --shared"
 
       - name: Make the traces directory
-        if: inputs.test_kind == 'functional'
+        # Widened for D3 (PLAN-ci-cloud-sizing-phase-06-docs.md): the Ansible
+        # modules job also runs the probe (see the "Start the cluster headroom
+        # probe" step below) and needs a writable /srv/ci/traces first.
+        # /srv/ci itself is created root:root, mode 0660 (the "Make /srv/ci"
+        # task in shakenfist's ansible/ci-topology-*.yml), so an unprivileged
+        # mkdir from ci_headroom_launch.sh cannot create traces/ under it --
+        # only this sudo mkdir plus chown can. Without this step the probe
+        # silently fails to write and the job still exits 0, which is worse
+        # than not probing at all.
+        if: inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules'
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -304,7 +313,9 @@ jobs:
       # would poll a cancelled job's leaked cluster. It caps itself because
       # cancel-in-progress means the stop step below is not guaranteed to run.
       - name: Start the cluster headroom probe
-        if: inputs.test_kind == 'functional'
+        # Widened for D3: this is one of the two probe steps the Ansible
+        # modules job was missing (the other is the collect step below).
+        if: inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules'
         continue-on-error: true
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
@@ -437,7 +448,8 @@ jobs:
       # CI_HEADROOM_GATE. See also D7 in
       # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-05-guardrails.md
       - name: Collect the cluster headroom series, refusal census and capacity waits
-        if: always() && inputs.test_kind == 'functional'
+        # Widened for D3, matching the probe start step above.
+        if: always() && (inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules')
         env:
           CI_HEADROOM_GATE: ${{ inputs.headroom_gate }}
         run: |
