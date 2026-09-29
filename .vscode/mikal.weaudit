@@ -483,6 +483,110 @@
     {
       "path": "ansible/ci-gather-logs-loki.yml",
       "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/ci-runner-alloy.alloy",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary-released.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_log_shipper_unit.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/install-ci-log-shipper.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_mesh_interface.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/networkd-eth1.network",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_loki_dump.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-image.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_dependencies_downloads.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
