@@ -10,11 +10,19 @@
 #   jobs:
 #     smoke:
 #       uses: shakenfist/actions/.github/workflows/smoke-cluster.yml@main
-#       secrets: inherit
 #       with:
 #         component: shakenfist
 #         component_ref: ${{ github.sha }}
 #         tier: smoke
+#
+# Without "secrets: inherit". This workflow reads no secret -- it
+# authenticates to cluster nodes with the on-disk /srv/github/id_ci key
+# -- so inheriting would only hand every secret the caller holds to a
+# workflow in another repository, called at a moving @main. If it ever
+# needs one, declare it under on.workflow_call.secrets and have callers
+# pass it by name. The development repository's
+# reusable-workflow-secrets consistency audit reports a caller that
+# inherits.
 #
 # Component selection: setup-test-environment checks out shakenfist,
 # client-python and agent-python; the checkout of the repository that

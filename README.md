@@ -39,7 +39,6 @@ reviewer) and `export-repo-config.yml` (repository settings drift).
 jobs:
   smoke:
     uses: shakenfist/actions/.github/workflows/smoke-cluster.yml@main
-    secrets: inherit
     with:
       component: your-repo-name
       component_ref: ${{ github.sha }}

@@ -24,12 +24,21 @@ develop and your change is never exercised: use Mode 2 instead.
 jobs:
   smoke:
     uses: shakenfist/actions/.github/workflows/smoke-cluster.yml@main
-    secrets: inherit
     with:
       component: your-repo-name
       component_ref: ${{ github.sha }}
       tier: smoke
 ```
+
+Do **not** add `secrets: inherit`, here or when calling any other
+reusable workflow in this repository. `smoke-cluster.yml` reads no
+secret -- it reaches cluster nodes with the runner's on-disk key -- and
+inheriting hands every secret your repository holds to a workflow called
+at a moving `@main`. A reusable workflow here that needs a secret
+declares it under `on.workflow_call.secrets`, and you pass that one by
+name. The fleet
+[reusable-workflow-secrets audit](https://github.com/shakenfist/development/blob/main/docs/audits/reusable-workflow-secrets.md)
+reports a caller that inherits.
 
 `smoke-cluster.yml` carries its own concurrency group, so callers do not
 need one on the calling job. That group is merge-group aware: the
@@ -214,10 +223,10 @@ jobs:
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
 ```
 
-Do **not** add `secrets: inherit`. Nothing in the reviewer chain reads a
-secret -- it authenticates with `github.token` from the `permissions:`
-block above -- and inheriting hands every secret your repository holds
-to a workflow in another repository for no benefit.
+Keep the `permissions:` block: the reviewer authenticates with
+`github.token`, and that block is what gives the token its scope. As
+with [every reusable workflow here](#adding-shaken-fist-smoke-ci-to-your-repository),
+do not add `secrets: inherit`.
 
 A pull request is reviewed exactly once this way. The reviewer skips a
 pull request the bot has already looked at unless `force` is set, and

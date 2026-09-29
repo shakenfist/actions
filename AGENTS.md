@@ -104,12 +104,14 @@ in this repository shows it. Any job which builds wheels or drives an
 ansible deploy from the runner needs at least `s`. See
 [shakenfist/shakenfist#3696](https://github.com/shakenfist/shakenfist/issues/3696).
 
-**Do not add `secrets: inherit` when calling `pr-auto-review.yml`.**
-Nothing in the reviewer chain reads a secret; both it and
-`review-pr-with-claude` authenticate with `github.token` from the
-caller's `permissions:` block. Inheriting hands every secret the calling
-repository holds to a workflow in another repository, for no benefit.
-Keep the `permissions:` block -- removing *that* does break the reviewer.
+**Reusable workflows here declare the secrets they read; callers never
+use `secrets: inherit`.** Callers run them at `@main`, so an inherit
+hands every secret the calling repository holds to whatever lands here
+next. A workflow that needs a secret declares it under
+`on.workflow_call.secrets` and callers pass it by name; none reads one
+today. Do not write `inherit` into a usage example either -- callers
+copy them. For `pr-auto-review.yml`, keep the `permissions:` block:
+removing *that* does break the reviewer.
 
 **Some `tools/` scripts only ever run on a remote cluster node,** copied
 there and executed over ssh by `tools/run_remote`. They cannot be
