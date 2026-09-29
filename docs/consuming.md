@@ -223,10 +223,10 @@ jobs:
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
 ```
 
-Do **not** add `secrets: inherit`. Nothing in the reviewer chain reads a
-secret -- it authenticates with `github.token` from the `permissions:`
-block above -- and inheriting hands every secret your repository holds
-to a workflow in another repository for no benefit.
+Keep the `permissions:` block: the reviewer authenticates with
+`github.token`, and that block is what gives the token its scope. As
+with [every reusable workflow here](#adding-shaken-fist-smoke-ci-to-your-repository),
+do not add `secrets: inherit`.
 
 A pull request is reviewed exactly once this way. The reviewer skips a
 pull request the bot has already looked at unless `force` is set, and
