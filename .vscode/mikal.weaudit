@@ -69,14 +69,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-slim-primary-released.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-topology-slim-primary.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/kerbside-create-instance.yml",
       "author": "mikal"
     },
@@ -269,22 +261,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/files/ci-runner-alloy.alloy",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/files",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks/install-ci-log-shipper.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ansible-syntax-check.sh",
       "author": "mikal"
     },
@@ -337,10 +313,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-slim-tier.yml",
-      "author": "mikal"
-    },
-    {
       "path": "setup-kerbside-environment/action.yml",
       "author": "mikal"
     },
@@ -382,10 +354,6 @@
     },
     {
       "path": "ansible/tasks/proxmox",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks",
       "author": "mikal"
     },
     {
@@ -497,10 +465,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/export-repo-config.yml",
       "author": "mikal"
     },
@@ -537,15 +501,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-gather-logs-loki.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     }
   ],

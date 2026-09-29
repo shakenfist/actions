@@ -33,10 +33,6 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
-    ".github/workflows/renovate.yml": {
-      "sha": "a148cffbf852edbd93ce9f13dac8c636652961a6",
-      "date": "2026-09-26"
-    },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "c4844831965e276a4804384ce7e0a17e367d94a3",
       "date": "2026-09-28"
@@ -77,10 +73,6 @@
       "sha": "9b09bbf4bf69cd2a56a1f43969cb477b4cd308d1",
       "date": "2026-09-19"
     },
-    "ansible/ci-image.yml": {
-      "sha": "dbdf1030a8c17915f789e6869438c1320f505337",
-      "date": "2026-09-16"
-    },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
@@ -100,22 +92,6 @@
     "ansible/ci-topology-localhost.yml": {
       "sha": "806579a219ff49d862160aecb7d59d7f5348316d",
       "date": "2026-09-07"
-    },
-    "ansible/ci-topology-slim-primary-released.yml": {
-      "sha": "2cc68cb7b0989ccfa549db80267a66ac6e41e942",
-      "date": "2026-09-07"
-    },
-    "ansible/ci-topology-slim-primary.yml": {
-      "sha": "1e2426cd4487ebcf84a4c52a3acbf1e9047d65b6",
-      "date": "2026-09-07"
-    },
-    "ansible/ci-topology-slim-tier.yml": {
-      "sha": "e0f8749863a94249d5e4168e44032ca4d8912899",
-      "date": "2026-09-23"
-    },
-    "ansible/files/ci-runner-alloy.alloy": {
-      "sha": "b4cb1ddd3e403fb8cc8d85aa349a4ebfc1737970",
-      "date": "2026-09-16"
     },
     "ansible/files/netplan-eth1.yaml": {
       "sha": "ee42fcd72bee037f6df556ae1acaeb7f075697c7",
@@ -148,10 +124,6 @@
     "ansible/proxmox-single-node.yml": {
       "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
       "date": "2026-09-25"
-    },
-    "ansible/tasks/install-ci-log-shipper.yml": {
-      "sha": "eede25865b7abbce1abf38cde7cac99804f1620d",
-      "date": "2026-09-16"
     },
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "093197e5ef09e23b2b23ab811aa52b6aa14e63d4",
@@ -224,10 +196,6 @@
     "docs/actions.md": {
       "sha": "3d3f2ab7dc425ac46ce7604c216b55a8a5923aba",
       "date": "2026-09-25"
-    },
-    "docs/ansible.md": {
-      "sha": "b93411f389507fd6cc548cd0aecff4165fb3cc93",
-      "date": "2026-09-28"
     },
     "docs/consuming.md": {
       "sha": "a0aa60713de2fac7b0c86bcc77cea345a5aff09b",
