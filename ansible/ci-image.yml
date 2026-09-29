@@ -582,16 +582,16 @@
       changed_when: false
 
     # The log shipper is checked for being enabled rather than for
-    # running, and the distinction is deliberate. Its unit refuses to
-    # start until the hostname matches sfcbr-*, so that a host which
-    # is not a runner ships nothing rather than shipping mislabelled
-    # logs -- see the retry loop note in
+    # running, and the distinction is deliberate. Its unit does not
+    # exec Alloy until the hostname matches sfcbr-*, so that a host
+    # which is not a runner ships nothing rather than shipping
+    # mislabelled logs -- see the retry loop note in
     # tasks/install-ci-log-shipper.yml. This instance is called
-    # "test", so a correctly built image has Alloy sitting in its
-    # ExecStartPre poll right now, and "is-active" would fail on every
-    # image that is working. What can actually be lost between the
-    # build and the snapshot is the enablement, so that is what is
-    # asserted.
+    # "test", so a correctly built image has the unit sitting in that
+    # hostname poll right now: "is-active" would pass, but only
+    # because the poll is running, not because Alloy is. What can
+    # actually be lost between the build and the snapshot is the
+    # enablement, so that is what is asserted.
     - name: Confirm the runner log shipper survived the snapshot
       command: systemctl is-enabled alloy
       register: ci_alloy_enabled

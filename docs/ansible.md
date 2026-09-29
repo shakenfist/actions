@@ -617,12 +617,12 @@ Three of those are deliberately weaker than they first appear, and all
 three are worth knowing before you tighten them:
 
 * **Alloy is checked for being enabled, not for running.** Its unit
-  refuses to start until the hostname matches `sfcbr-*`, so that a
+  does not exec Alloy until the hostname matches `sfcbr-*`, so that a
   host which is not a runner ships nothing rather than shipping
   mislabelled logs. The test instance is called `test`, so on a
-  correctly built image Alloy is sitting in its `ExecStartPre` poll
-  and `systemctl is-active` would fail on every image that is working
-  properly.
+  correctly built image the unit is sitting in that hostname poll:
+  `systemctl is-active` would pass, but it would be reporting the
+  poll, not Alloy.
 * **libvirt is imported, not connected to.** `virsh version` or
   `libvirt.open()` would also prove the daemon is up, which is both a
   stronger claim and a riskier check: it races socket activation at
@@ -745,6 +745,20 @@ of its own `IMAGE_BUILDS`. The ubuntu and desktop labels exist for
 nested CI clusters to consume rather than for runners to boot, and a
 nested cluster shipping as `job="ci-runner"` would be noise on a stream
 whose value is that every line in it came from a runner.
+
+A runner image is not only booted by runners, though. The multi-node
+smoke topologies build their under-cloud from `ci-images/debian-12` and
+friends, and the image build boots its own test instance from the
+result, so the unit also has to behave on a host that will never be
+called `sfcbr-*`. The rule that follows is that **nothing in this unit
+may make its start job slow**. `multi-user.target` is ordered after
+every unit it wants, and on debian `cloud-final.service` is ordered
+after `multi-user.target`, so a slow start job holds up cloud-init as
+well as the target. The hostname poll therefore lives in `ExecStart`
+ahead of an `exec`, not in `ExecStartPre`: when it was in
+`ExecStartPre`, every non-runner debian host took twenty minutes to
+finish cloud-init and the readiness gate hit its ten minute cap on all
+of them ([#113](https://github.com/shakenfist/actions/issues/113)).
 
 This exists because an ephemeral runner is deleted seconds after its job
 ends -- private-ci's cloud-init runs `run.sh` in the foreground and then
