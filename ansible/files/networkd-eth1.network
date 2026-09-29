@@ -1,0 +1,23 @@
+# Mesh interface for a CI under-cloud node, on images whose networking is
+# managed by systemd-networkd rather than by netplan. The netplan spelling
+# of the same configuration is files/netplan-eth1.yaml; the two are kept in
+# step by hand because they configure the same interface for the same
+# reason and there is no common source to generate them from.
+#
+# Matched on MAC rather than on the name, because the name is what the
+# mesh address is looked up by elsewhere (tools/ci-make-inventory.py keys
+# the mesh NIC as eth1) and matching on it here would make this file agree
+# with that assumption rather than check it.
+#
+# No gateway and no DHCP, deliberately. This interface must never become
+# the default route -- see the comment above the tasks that install this
+# file -- and it has no DHCP server behind it, which is why MTUBytes is
+# set by hand instead of being learned from a lease.
+[Match]
+MACAddress={{ macaddr }}
+
+[Link]
+MTUBytes=8950
+
+[Network]
+Address={{ address }}
