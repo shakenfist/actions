@@ -33,10 +33,6 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "c4844831965e276a4804384ce7e0a17e367d94a3",
-      "date": "2026-09-28"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -45,21 +41,9 @@
       "sha": "0e5b5b30fab247efe17e192313d94ac0db3a3690",
       "date": "2026-09-27"
     },
-    "AGENTS.md": {
-      "sha": "508384790b3a8cc0d67ee92d20191d6feaf4a9bf",
-      "date": "2026-09-25"
-    },
     "ARCHITECTURE.md": {
       "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
       "date": "2026-09-25"
-    },
-    "README.md": {
-      "sha": "7160b8d593cb16ac50d79827f7633192a674a70b",
-      "date": "2026-09-25"
-    },
-    "ansible/ci-dependencies.yml": {
-      "sha": "78cabb295cbf1a2de02c352fc3af7c912acf993e",
-      "date": "2026-09-19"
     },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
@@ -196,10 +180,6 @@
     "docs/actions.md": {
       "sha": "3d3f2ab7dc425ac46ce7604c216b55a8a5923aba",
       "date": "2026-09-25"
-    },
-    "docs/consuming.md": {
-      "sha": "a0aa60713de2fac7b0c86bcc77cea345a5aff09b",
-      "date": "2026-09-27"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
