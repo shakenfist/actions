@@ -15,6 +15,31 @@
     float_builder: false
 
   tasks:
+    # The cache downloads below rely on get_url failing a transfer
+    # which delivers fewer bytes than its Content-Length, and get_url
+    # only does that from ansible-core 2.19.0. Before that a download
+    # cut off part way reports "changed", and the short file is
+    # published to every runner -- see the comment on that task. The
+    # conductor installs an unpinned ansible, so today it gets a
+    # current ansible-core, but only because its Python is new enough:
+    # 2.19 needs Python 3.11, and pip quietly falls back to 2.17 on an
+    # older one. Check here, before an instance exists to clean up,
+    # rather than letting a controller downgrade remove the check
+    # without anything saying so.
+    - name: Require an ansible-core whose get_url checks Content-Length
+      assert:
+        that:
+          - ansible_version.full is version('2.19.0', '>=')
+        fail_msg: >-
+          ansible-core {{ ansible_version.full }} is too old to build the
+          dependencies disk. Its get_url does not check a download
+          against the Content-Length the server advertised, so a
+          truncated image would be published to every CI runner. Use
+          ansible-core 2.19.0 or later, which needs Python 3.11 or later.
+        success_msg: >-
+          ansible-core {{ ansible_version.full }} verifies each cache
+          download against its Content-Length.
+
     - name: Create an instance
       shakenfist.shakenfist.sf_instance:
         name: "rebuild-dependencies"
@@ -156,6 +181,28 @@
         owner: debian
         group: debian
 
+    # Each download is verified against the Content-Length of its own
+    # response by get_url itself, which fails the task on a short read
+    # (the version assert at the top of this playbook is what makes
+    # that true). That is the check that catches a transfer which drops
+    # part way through, and it is stronger than it looks: it compares
+    # against the response that produced the file, so an image rebuilt
+    # upstream in the meantime cannot make a good download look bad, as
+    # a separate HEAD request afterwards could. It needs no per-image
+    # checksum either, which the nightly images would make unworkable.
+    #
+    # Keep this get_url. The uri module also takes a dest, and saves a
+    # truncated body without complaint: against a server advertising
+    # 1000000 bytes and closing after 500000, get_url fails with
+    # "Incomplete read" and uri writes the half file and reports "OK
+    # (1000000 bytes)". tests/test_ci_dependencies_downloads.py holds
+    # this task to get_url and the assert to its version for that
+    # reason.
+    #
+    # What this does not catch is a server that answers 200 with the
+    # wrong content, such as a squid error page -- its Content-Length
+    # is accurate for the page. The size floor near the end of this
+    # playbook is what catches that.
     - name: Cache all minimal images we currently build to reduce network traffic
       get_url:
         url: "{{item.url}}"
