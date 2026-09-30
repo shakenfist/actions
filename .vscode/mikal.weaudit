@@ -181,10 +181,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_headroom_launch.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_log_checks_loki.sh",
       "author": "mikal"
     },
@@ -461,10 +457,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ci_headroom_verdict.py",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_verdict.sh",
       "author": "mikal"
     },
@@ -525,23 +517,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/smoke-cluster.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/renovate.yml",
       "author": "mikal"
     },
     {
       "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci.md",
       "author": "mikal"
     },
     {
@@ -570,10 +550,6 @@
     },
     {
       "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
