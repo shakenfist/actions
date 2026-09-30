@@ -198,7 +198,11 @@ be a local deviation -- dispatching `ci.yml` rather than the template's
 `functional-tests.yml`, which does not exist here and cannot, see
 above -- is now the template's own parameter: this repository sets the
 `RETEST_WORKFLOW` repository variable to `ci.yml`, so the file itself
-needs no local edit.
+needs no local edit. A test cannot read repository settings, so
+`REPOSITORY_VARIABLES` in `tests/test_workflow_references.py` mirrors
+the value: the dispatch-target test resolves the variable through it
+and checks that the named workflow exists and accepts
+`workflow_dispatch`. Change the setting and the mirror together.
 
 `canary.yml` is deliberately not a candidate for either the template's
 default or this repository's variable: it builds a real smoke cluster
