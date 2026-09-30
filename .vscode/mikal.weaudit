@@ -5,10 +5,6 @@
   "treeEntries": [],
   "auditedFiles": [
     {
-      "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-auto-review.yml",
       "author": "mikal"
     },
@@ -493,14 +489,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-retest.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_workflow_references.py",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-topology-slim-primary.yml",
       "author": "mikal"
     },
@@ -509,19 +497,11 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": "AGENTS.md",
       "author": "mikal"
     },
     {
       "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
     {
