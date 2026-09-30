@@ -5,11 +5,14 @@
 A workflow that dispatches a missing file, or invokes a script no longer
 in the tree, fails at the moment somebody is relying on it and not
 before. That is not hypothetical here: the shared template these bot
-workflows came from dispatches `functional-tests.yml`, which this
-repository does not have, and the whole reason they were deployed at all
-is that a missing `pr-re-review.yml` let two pull requests merge with
-their review fixes unreviewed. Nothing else in CI looks at these files
-beyond their YAML syntax.
+workflows came from used to dispatch a literal `functional-tests.yml`,
+which this repository does not have; it now reads the dispatch target
+from the RETEST_WORKFLOW repository variable, which this test cannot
+see, so the check below only covers literal names. The whole reason
+these workflows were deployed at all is that a missing
+`pr-re-review.yml` let two pull requests merge with their review fixes
+unreviewed. Nothing else in CI looks at these files beyond their YAML
+syntax.
 """
 
 import fnmatch
@@ -41,10 +44,22 @@ class DispatchTargetTest(unittest.TestCase):
         # `gh workflow run X` on a name GitHub does not know fails at
         # run time with "could not find any workflows named X", which
         # the caller reports as a dispatch failure rather than a bug.
+        #
+        # pr-retest.yml no longer names a literal file here: it reads
+        # the RETEST_WORKFLOW repository variable (set to `ci.yml` in
+        # this repository's settings, not in its tree), so a dispatch
+        # target that is an expression rather than a literal name is
+        # not something this test can resolve -- the value it names
+        # lives in GitHub, not in this checkout. The workflow's own
+        # confirmation step is the runtime check for that case: it
+        # comments on the pull request and fails the run when the
+        # dispatch itself fails.
         found = False
         for name, text in workflows():
             for target in re.findall(r'gh workflow run\s+(\S+)', text):
                 found = True
+                if '$' in target:
+                    continue
                 with self.subTest(workflow=name, target=target):
                     self.assertTrue(
                         os.path.exists(os.path.join(WORKFLOW_DIR, target)),
