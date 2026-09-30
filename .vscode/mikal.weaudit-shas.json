@@ -29,6 +29,10 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "62b3cb8a8871713310a029c88fca3534dd064865",
+      "date": "2026-10-01"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -205,6 +209,10 @@
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
     },
+    "deploy-kolla-ansible/action.yml": {
+      "sha": "68c2158bebdf8e0bcb7aad165524ee5f867cd7c4",
+      "date": "2026-10-01"
+    },
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
@@ -216,6 +224,10 @@
     "docs/ansible.md": {
       "sha": "205ec8a60d96893b824afa6291df206acc7756b6",
       "date": "2026-09-30"
+    },
+    "docs/consuming.md": {
+      "sha": "a66c3111eb104713c2a1c5d4d5f62db8ce997868",
+      "date": "2026-10-01"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -292,6 +304,10 @@
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "a32f29e8cd3cc98953f8d227b7f5bba2bb25aa13",
       "date": "2026-09-30"
+    },
+    "tests/test_ci_headroom_verdict.py": {
+      "sha": "deb3233c5b8b3f1b0f124a1f63cda4f9dc6d3c3f",
+      "date": "2026-10-01"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",
@@ -380,6 +396,10 @@
     "tools/ci_headroom_collect.sh": {
       "sha": "4a9b1541f33a020fd0b74f9536bea264842f87ee",
       "date": "2026-09-28"
+    },
+    "tools/ci_headroom_launch.sh": {
+      "sha": "0ca6632ec18fe8cdfe64745f6fea41f32f52adb8",
+      "date": "2026-10-01"
     },
     "tools/ci_headroom_verdict.sh": {
       "sha": "42791bf6675388312114c537574c0ccfe5dbb951",
