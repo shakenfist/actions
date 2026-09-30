@@ -81,14 +81,6 @@
       "author": "mikal"
     },
     {
-      "path": "deploy-kolla-ansible/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "deploy-kolla-ansible",
-      "author": "mikal"
-    },
-    {
       "path": "pr-bot-trigger/action.yml",
       "author": "mikal"
     },

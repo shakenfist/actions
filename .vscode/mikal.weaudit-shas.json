@@ -221,10 +221,6 @@
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
     },
-    "deploy-kolla-ansible/action.yml": {
-      "sha": "d8da7e03167c72a6370a3593b50c3d649a23573d",
-      "date": "2026-09-07"
-    },
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
