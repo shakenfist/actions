@@ -233,7 +233,8 @@ unnoticed, from "until somebody opens a pull request downstream" to
 a `canary`-labelled issue, because a broken `actions@main` is the whole
 fleet's problem rather than the author's.
 
-**The canary is not gated on cluster headroom.** The functional job
+**The canary is not gated on cluster headroom.** Every probed job --
+the functional one, and since D3 the ansible-modules one --
 ends in a cluster headroom verdict, and the verdict can fail a job only
 when its caller passes `headroom_gate` truthy -- see
 `tools/ci_headroom_verdict.sh`. The canary passes `false`: the band is
@@ -246,7 +247,10 @@ else.
 
 Arming is opt-in for the same reason everywhere: only the shakenfist
 repository's merge matrix passes `headroom_gate` truthy today, and every
-other caller gets the verdict as information. The response to a
+other caller gets the verdict as information. `test_kind:
+ansible-modules` is information unconditionally -- the workflow ands the
+input with the test kind, because the warn window has only ever measured
+functional runs and that suite commits a very different amount of vCPU. The response to a
 violation is a fleet sizing question -- the cluster the suite ran on was
 too tightly packed to schedule reliably -- and it is answered in
 [PLAN-ci-cloud-sizing.md](https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing.md),

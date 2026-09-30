@@ -88,7 +88,13 @@ on:
         # provisions ansible-core plus the freshly built shakenfist.shakenfist
         # collection on the primary and runs the native-module lifecycle suite
         # (ansiblemoduletests.sh). stestr_config is ignored when this is
-        # 'ansible-modules'.
+        # 'ansible-modules', which is why the headroom label below names the
+        # test kind in its place -- a label reading '<topology> smoke-ci.conf'
+        # would name a suite the run never executed.
+        #
+        # Both kinds run the cluster headroom probe. They are told apart in
+        # the harvest by the bundle they come from, and in this workflow's own
+        # log by that label.
         type: string
         default: functional
       test_concurrency:
@@ -226,16 +232,18 @@ jobs:
               ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
               "${setup} cirros /srv/ci/cirros --shared"
 
+      # Every test kind that runs the headroom probe needs this step, which
+      # is why its condition matches the probe steps below rather than naming
+      # one suite. /srv/ci is a mount point (ansible/ci-topology-*.yml makes
+      # the directory, then mounts /dev/vdc over it), and nothing gives
+      # base_image_user write access to its root, so the sudo mkdir and chown
+      # here are the only thing that makes traces/ writable. The
+      # belt-and-braces mkdir in tools/ci_headroom_launch.sh cannot substitute:
+      # it runs unprivileged, discards its own error, and the script exits 0
+      # regardless -- so narrowing this step again would not fail the job, it
+      # would leave a green run that measured nothing. See D3 in
+      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-06-docs.md
       - name: Make the traces directory
-        # Widened for D3 (PLAN-ci-cloud-sizing-phase-06-docs.md): the Ansible
-        # modules job also runs the probe (see the "Start the cluster headroom
-        # probe" step below) and needs a writable /srv/ci/traces first.
-        # /srv/ci itself is created root:root, mode 0660 (the "Make /srv/ci"
-        # task in shakenfist's ansible/ci-topology-*.yml), so an unprivileged
-        # mkdir from ci_headroom_launch.sh cannot create traces/ under it --
-        # only this sudo mkdir plus chown can. Without this step the probe
-        # silently fails to write and the job still exits 0, which is worse
-        # than not probing at all.
         if: inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules'
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
@@ -290,7 +298,8 @@ jobs:
           fi
           bash "${script}" ${{ inputs.base_image_user }}
 
-      # Sample cluster headroom through the functional test step, so that CI
+      # Sample cluster headroom through the test step -- the functional suite
+      # or the ansible-modules one, both of which are probed -- so that CI
       # cloud sizing is eventually decided from a distribution rather than from
       # the handful of hand-collected data points it was guessed from. The
       # probe itself, and the tool that summarises what it writes, both live in
@@ -305,23 +314,29 @@ jobs:
       # That holds without exception for this step. The collection step below
       # carries one, for the verdict rather than for the instrument.
       #
-      # The cap is derived from test_timeout_minutes rather than hardcoded --
-      # callers pass 45 through 70 -- plus five minutes. The probe starts in
-      # the step immediately before the timed test step, so the only time not
-      # covered by the timeout itself is the step transition; the margin keeps
-      # it sampling through stestr's teardown, while still bounding how long it
-      # would poll a cancelled job's leaked cluster. It caps itself because
-      # cancel-in-progress means the stop step below is not guaranteed to run.
+      # The cap is derived from the timeout of whichever test step will run,
+      # rather than hardcoded, plus five minutes. For 'functional' that is
+      # test_timeout_minutes, which callers pass as 45 through 70. For
+      # 'ansible-modules' the caller has no reason to set that input -- it is
+      # documented as the functional step's budget -- so the cap tracks the
+      # timeout-minutes on "Run ansible module tests" instead. Keep the two in
+      # step if that value changes; a cap below the step's timeout stops the
+      # probe sampling exactly the slow, contended tail it exists to record.
+      #
+      # The probe starts in the step immediately before the timed test step, so
+      # the only time not covered by the timeout itself is the step transition;
+      # the margin keeps it sampling through the suite's teardown, while still
+      # bounding how long it would poll a cancelled job's leaked cluster. It
+      # caps itself because cancel-in-progress means the stop step below is not
+      # guaranteed to run.
       - name: Start the cluster headroom probe
-        # Widened for D3: this is one of the two probe steps the Ansible
-        # modules job was missing (the other is the collect step below).
         if: inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules'
         continue-on-error: true
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}/actions
           tools/ci_headroom_launch.sh "${primary}" "${{ inputs.base_image_user }}" \
-              "$(( ${{ inputs.test_timeout_minutes }} * 60 + 300 ))"
+              "$(( ${{ inputs.test_kind == 'ansible-modules' && 60 || inputs.test_timeout_minutes }} * 60 + 300 ))"
 
       - name: Run functional tests
         id: functional
@@ -447,16 +462,24 @@ jobs:
       # headroom_gate above is the off switch; it reaches the script as
       # CI_HEADROOM_GATE. See also D7 in
       # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-05-guardrails.md
+      #
+      # The gate is anded with the test kind, not passed straight through. The
+      # band is fitted in shakenfist against the job shapes its warn window
+      # measured, and that window has only ever seen 'functional' runs; the
+      # ansible-modules suite commits a very different amount of vCPU, so its
+      # own band cannot be assumed. An armed caller would otherwise start
+      # failing that job the moment this merges -- and because this workflow is
+      # consumed @main with no pin, fleet-wide and untestable beforehand.
+      # Widen this once a warn window has measured the ansible-modules shape.
       - name: Collect the cluster headroom series, refusal census and capacity waits
-        # Widened for D3, matching the probe start step above.
         if: always() && (inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules')
         env:
-          CI_HEADROOM_GATE: ${{ inputs.headroom_gate }}
+          CI_HEADROOM_GATE: ${{ inputs.test_kind == 'functional' && inputs.headroom_gate }}
         run: |
           . ${GITHUB_WORKSPACE}/ci-environment.sh
           cd ${GITHUB_WORKSPACE}/actions
           tools/ci_headroom_collect.sh "${primary}" "${{ inputs.base_image_user }}" \
-              "${{ inputs.topology }} ${{ inputs.stestr_config }}"
+              "${{ inputs.topology }} ${{ inputs.test_kind == 'ansible-modules' && 'ansible-modules' || inputs.stestr_config }}"
 
       # Gated on the functional step rather than on the job. A band violation
       # in the step above is the job's first failure, which would otherwise
