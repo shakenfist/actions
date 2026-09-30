@@ -104,8 +104,9 @@ dependency order.
 
 ### The headroom gate can fail a Mode 1 job
 
-`smoke-cluster.yml` samples the cluster's spare capacity while the
-functional suite runs, and prints a summary afterwards. That instrument
+`smoke-cluster.yml` samples the cluster's spare capacity while the test
+suite runs -- both `test_kind: functional` and `test_kind: ansible-modules`
+are probed -- and prints a summary afterwards. That instrument
 is deliberately unable to fail a build -- a probe which can fail the
 thing it measures is measuring itself -- with one exception.
 
@@ -128,9 +129,14 @@ You will see it before you open the log: a band violation annotates the
 run with "Cluster headroom outside the CI sizing band", which renders at
 the top of the run summary.
 
-The gate is off unless you opt in. Without it the verdict is still
-computed and printed, it just cannot fail your job. Opt in only for a
-job shape a warn window has measured: the band is fitted in the
+The gate is off unless you opt in, and it is ignored entirely for
+`test_kind: ansible-modules`: that shape is probed, but no warn window has
+measured it yet, so `smoke-cluster.yml` ands your `headroom_gate` with the
+test kind rather than trusting a band that was never fitted to it. A
+violation there is printed and annotated, never fatal.
+
+Without the gate the verdict is still computed and printed, it just cannot
+fail your job. Opt in only for a job shape a warn window has measured: the band is fitted in the
 shakenfist repository against the shapes it has harvested, and this
 workflow is consumed at `@main`, so there is no version of it you can
 pin to instead. Opting in is one input:

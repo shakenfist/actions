@@ -3,7 +3,9 @@
 # Copyright 2019 Michael Still and contributors
 #
 # Start the CI headroom probe on the cluster primary, in the background, so it
-# samples cluster resources for the whole of the functional test step.
+# samples cluster resources for the whole of the test step -- the
+# functional suite or the ansible-modules one, whichever the caller asked
+# for, since both are probed.
 #
 # The probe itself (shakenfist's tools/ci_headroom_probe.py) and the tool that
 # summarises what it writes both live in the shakenfist repository, so that the

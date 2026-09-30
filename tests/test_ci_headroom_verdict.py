@@ -172,17 +172,97 @@ class WiringTestCase(unittest.TestCase):
         with open(WORKFLOW) as f:
             self.workflow = f.read()
 
+    def collect_step(self):
+        step = self.workflow[self.workflow.index(
+            '- name: Collect the cluster headroom series'):]
+        return step[:step.index('- name: List failing tests')]
+
     def test_the_collect_script_hands_off_to_the_verdict_script(self):
         self.assertIn('ci_headroom_verdict.sh', self.collect)
         # exec, so nothing sits between the verdict's status and the step's.
         self.assertIn('exec bash "${verdict}"', self.collect)
 
     def test_the_collect_step_does_not_swallow_the_status(self):
-        step = self.workflow[self.workflow.index(
-            '- name: Collect the cluster headroom series'):]
-        step = step[:step.index('- name: List failing tests')]
+        step = self.collect_step()
         self.assertNotIn('continue-on-error', step)
-        self.assertIn('CI_HEADROOM_GATE: ${{ inputs.headroom_gate }}', step)
+        self.assertIn('CI_HEADROOM_GATE:', step)
+        self.assertIn('inputs.headroom_gate', step)
+
+    def test_the_gate_cannot_be_armed_for_an_unmeasured_test_kind(self):
+        # The band is fitted against the shapes shakenfist's warn window
+        # measured, and it has only ever seen functional runs. The
+        # ansible-modules suite is probed but must not be gated on a band
+        # nobody fitted to it, however its caller sets headroom_gate --
+        # this workflow is consumed @main, so an armed caller would go red
+        # fleet-wide with nothing to revert. Asserted on the resolved
+        # expression rather than the literal so that adding a third test
+        # kind has to come past this test.
+        step = self.collect_step()
+        gate = re.search(r'CI_HEADROOM_GATE: (.*)', step).group(1).strip()
+        self.assertEqual(
+            gate,
+            "${{ inputs.test_kind == 'functional' && inputs.headroom_gate }}")
+
+    def test_the_headroom_label_never_names_an_unrun_suite(self):
+        # stestr_config is ignored for test_kind ansible-modules and keeps
+        # its default, so passing it verbatim would label the run with a
+        # suite it never executed. The harvest takes the topology from the
+        # label's first token, so only the second may vary by test kind.
+        step = self.collect_step()
+        label = re.search(r'ci_headroom_collect\.sh.*\n\s*"(.*)"',
+                          step).group(1)
+        self.assertTrue(label.startswith('${{ inputs.topology }} '), label)
+        self.assertIn("inputs.test_kind == 'ansible-modules'", label)
+        self.assertIn('inputs.stestr_config', label)
+
+    def test_the_probe_cap_tracks_the_test_step_that_will_run(self):
+        # The cap is test-step timeout plus five minutes. 'Run ansible
+        # module tests' hardcodes 60, above test_timeout_minutes' default of
+        # 45, so a cap derived from the input alone would stop the probe
+        # before the step it is measuring can time out -- losing exactly the
+        # contended tail the instrument exists to record.
+        step = self.workflow[self.workflow.index(
+            '- name: Start the cluster headroom probe'):]
+        step = step[:step.index('- name: Run functional tests')]
+        self.assertIn("inputs.test_kind == 'ansible-modules' && 60", step)
+        self.assertIn('inputs.test_timeout_minutes', step)
+
+        ansible = self.workflow[self.workflow.index(
+            '- name: Run ansible module tests'):]
+        ansible = ansible[:ansible.index('run: |')]
+        cap = int(re.search(r"&& (\d+) \|\|", step).group(1))
+        timeout = int(re.search(r'timeout-minutes: (\d+)', ansible).group(1))
+        self.assertGreaterEqual(
+            cap, timeout,
+            'the probe cap (%d minutes) is below the ansible-modules step '
+            'timeout (%d minutes), so the probe stops sampling before the '
+            'step it measures can time out' % (cap, timeout))
+
+    def test_every_probed_test_kind_can_write_its_traces(self):
+        # The trap this exists to hold shut: /srv/ci is a mount point whose
+        # root base_image_user cannot write, so "Make the traces directory"
+        # is the only thing that creates a writable traces/. The fallback
+        # mkdir in ci_headroom_launch.sh runs unprivileged, discards its
+        # error, and the script exits 0 -- so narrowing this step to a
+        # subset of the probed kinds produces a green run that measured
+        # nothing, with no failure anywhere to notice. Asserted as an
+        # equality between conditions rather than a literal, so a third
+        # probed test kind cannot be added to one and forgotten in the
+        # other.
+        def condition(name, end):
+            step = self.workflow[self.workflow.index('- name: %s' % name):]
+            step = step[:step.index('- name: %s' % end)]
+            return re.search(r'if: (.*)', step).group(1).strip()
+
+        traces = condition('Make the traces directory',
+                           'Authorise the primary to reach other nodes')
+        probe = condition('Start the cluster headroom probe',
+                          'Run functional tests')
+        self.assertEqual(
+            traces, probe,
+            'the traces directory step runs for "%s" but the probe runs for '
+            '"%s"; any kind in the second and not the first starts a probe '
+            'that cannot write, and still passes' % (traces, probe))
 
     def test_the_probe_start_step_still_swallows_everything(self):
         step = self.workflow[self.workflow.index(
