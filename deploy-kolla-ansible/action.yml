@@ -35,6 +35,10 @@ inputs:
     description: 'Base distro of the container images being deployed (e.g. debian, ubuntu, rocky). Used to align kolla_base_distro so CA bundle paths and other distro-conditional settings match the running containers.'
     required: false
     default: ''
+  deployer:
+    description: 'Which Kolla-Ansible deployer bootstrap installs: venv (default) or launcher, the containerised deployer prototype in kerbside-patches'
+    required: false
+    default: 'venv'
 runs:
   using: "composite"
   steps:
@@ -52,6 +56,10 @@ runs:
 
         if [ -n "${{ inputs.container_distro }}" ]; then
             script="${script} --distro ${{ inputs.container_distro }}"
+        fi
+
+        if [ "${{ inputs.deployer }}" != "venv" ]; then
+            script="${script} --deployer ${{ inputs.deployer }}"
         fi
 
         if [ -n "${{ inputs.registry_token }}" ]; then
