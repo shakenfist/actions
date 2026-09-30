@@ -26,11 +26,19 @@ on:
     # not a required status check here, so a trigger-level filter is
     # safe: there is no gate waiting on a run that never starts.
     paths-ignore:
+      - 'REVIEWS.md'
+      - '.vscode/*.weaudit'
+      - '.vscode/*.weaudit-shas.json'
+      - '.vscode/review-scope.toml'
       - '**.md'
       - 'docs/**'
   pull_request:
     branches: [main]
     paths-ignore:
+      - 'REVIEWS.md'
+      - '.vscode/*.weaudit'
+      - '.vscode/*.weaudit-shas.json'
+      - '.vscode/review-scope.toml'
       - '**.md'
       - 'docs/**'
   schedule:

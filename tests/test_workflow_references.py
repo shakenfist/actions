@@ -5,11 +5,15 @@
 A workflow that dispatches a missing file, or invokes a script no longer
 in the tree, fails at the moment somebody is relying on it and not
 before. That is not hypothetical here: the shared template these bot
-workflows came from dispatches `functional-tests.yml`, which this
-repository does not have, and the whole reason they were deployed at all
-is that a missing `pr-re-review.yml` let two pull requests merge with
-their review fixes unreviewed. Nothing else in CI looks at these files
-beyond their YAML syntax.
+workflows came from used to dispatch a literal `functional-tests.yml`,
+which this repository does not have; it now reads the dispatch target
+from the RETEST_WORKFLOW repository variable, whose value lives in
+the repository's settings; REPOSITORY_VARIABLES below mirrors it so
+the check can still resolve the target. The whole reason
+these workflows were deployed at all is that a missing
+`pr-re-review.yml` let two pull requests merge with their review fixes
+unreviewed. Nothing else in CI looks at these files beyond their YAML
+syntax.
 """
 
 import fnmatch
@@ -27,6 +31,14 @@ from tests.helpers import REPO_ROOT
 
 WORKFLOW_DIR = os.path.join(REPO_ROOT, '.github', 'workflows')
 
+# Repository variables a dispatch target may be read from, with the
+# value set in this repository's settings (see docs/ci.md). A test
+# cannot read GitHub's settings, so this mirrors them: change both
+# together.
+REPOSITORY_VARIABLES = {
+    'RETEST_WORKFLOW': 'ci.yml',
+}
+
 
 def workflows():
     for name in sorted(os.listdir(WORKFLOW_DIR)):
@@ -41,16 +53,47 @@ class DispatchTargetTest(unittest.TestCase):
         # `gh workflow run X` on a name GitHub does not know fails at
         # run time with "could not find any workflows named X", which
         # the caller reports as a dispatch failure rather than a bug.
+        #
+        # pr-retest.yml dispatches "${RETEST_WORKFLOW}", set in the job
+        # env from `vars.RETEST_WORKFLOW || '<default>'`. The variable
+        # is resolved through REPOSITORY_VARIABLES rather than skipped,
+        # so an unknown variable or a target this repository lacks
+        # still fails here.
         found = False
         for name, text in workflows():
             for target in re.findall(r'gh workflow run\s+(\S+)', text):
                 found = True
                 with self.subTest(workflow=name, target=target):
+                    resolved = self._resolve(name, text, target)
+                    path = os.path.join(WORKFLOW_DIR, resolved)
                     self.assertTrue(
-                        os.path.exists(os.path.join(WORKFLOW_DIR, target)),
-                        '%s dispatches %s, which does not exist in '
-                        '.github/workflows/' % (name, target))
+                        os.path.exists(path),
+                        '%s dispatches %s (%s), which does not exist in '
+                        '.github/workflows/' % (name, target, resolved))
+                    with open(path) as f:
+                        triggers = yaml.safe_load(f).get(True, {})
+                    self.assertIn(
+                        'workflow_dispatch', triggers,
+                        '%s dispatches %s, which has no workflow_dispatch '
+                        'trigger' % (name, resolved))
         self.assertTrue(found, 'no gh workflow run calls found to check')
+
+    def _resolve(self, name, text, target):
+        target = target.strip('"\'')
+        m = re.fullmatch(r'\$\{?(\w+)\}?', target)
+        if not m:
+            self.assertNotIn('$', target, '%s dispatches %s, which this test cannot resolve' % (name, target))
+            return target
+        env = m.group(1)
+        source = re.search(r'^\s*%s:\s*\$\{\{\s*vars\.(\w+)\b' % env, text, re.MULTILINE)
+        self.assertIsNotNone(
+            source, '%s dispatches ${%s}, which is not set from a repository variable' % (name, env))
+        variable = source.group(1)
+        self.assertIn(
+            variable, REPOSITORY_VARIABLES,
+            '%s dispatches from repository variable %s, which REPOSITORY_VARIABLES does not '
+            'record' % (name, variable))
+        return REPOSITORY_VARIABLES[variable]
 
 
 class LocalReusableWorkflowTest(unittest.TestCase):

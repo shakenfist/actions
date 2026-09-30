@@ -192,11 +192,22 @@ repository rather than left switched off, because it triggered on
 branch for a feature nobody wanted. See the `ci-review-automation`
 audit in `shakenfist/development` for the fleet-wide version of this.
 
-One deviation from the shared template in
-`shakenfist/development/templates/ci-review-automation/`, recorded in
-the header of the file itself: `pr-retest.yml` dispatches `ci.yml`
-rather than `functional-tests.yml`, which does not exist here and
-cannot -- see above.
+`pr-retest.yml` is copied unmodified from the shared template in
+`shakenfist/development/templates/ci-review-automation/`. What used to
+be a local deviation -- dispatching `ci.yml` rather than the template's
+`functional-tests.yml`, which does not exist here and cannot, see
+above -- is now the template's own parameter: this repository sets the
+`RETEST_WORKFLOW` repository variable to `ci.yml`, so the file itself
+needs no local edit. A test cannot read repository settings, so
+`REPOSITORY_VARIABLES` in `tests/test_workflow_references.py` mirrors
+the value: the dispatch-target test resolves the variable through it
+and checks that the named workflow exists and accepts
+`workflow_dispatch`. Change the setting and the mirror together.
+
+`canary.yml` is deliberately not a candidate for either the template's
+default or this repository's variable: it builds a real smoke cluster
+and is a post-merge check on `main`, not something to re-run against a
+pull request branch.
 
 One convention is knowingly not met. AGENTS.md says not to write more
 than about five lines of shell inline in a workflow step -- put it in a
