@@ -201,10 +201,6 @@
       "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
       "date": "2026-09-25"
     },
-    "build-smoke-cluster/action.yml": {
-      "sha": "eb511b439cff3e8944847ec1e89a4069789d9fca",
-      "date": "2026-09-25"
-    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -215,10 +211,6 @@
     },
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
-      "date": "2026-09-25"
-    },
-    "docs/actions.md": {
-      "sha": "3d3f2ab7dc425ac46ce7604c216b55a8a5923aba",
       "date": "2026-09-25"
     },
     "docs/ansible.md": {

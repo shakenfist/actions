@@ -349,14 +349,6 @@
       "author": "mikal"
     },
     {
-      "path": "build-smoke-cluster/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "build-smoke-cluster",
-      "author": "mikal"
-    },
-    {
       "path": "deploy-proxmox-on-shakenfist/action.yml",
       "author": "mikal"
     },
@@ -386,10 +378,6 @@
     },
     {
       "path": "tools/report-proxmox-substrate-failure.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/actions.md",
       "author": "mikal"
     },
     {
