@@ -209,16 +209,11 @@ libvirt refused every domain definition -- and was fixed in shakenfist on
 2026-09-23.
 
 The guest image the action uploads into the nested cluster is a
-different matter, and its rename is still in flight. The cached disk is
-uploaded twice: once under the release-neutral name `debian`, which is
-where the fleet is going, and once under the older name `debian-12`,
-which is load bearing today -- `shakenfist_ci`'s `CLUSTER_CI_IMAGE` and
-a long tail of individual tests name that string literally, so it is a
-fleet-wide rename rather than a default to change. Consumers move to
-`debian` in their own repositories, and the bookworm upload goes away
-once they have; until then each smoke cluster pays for one extra image
-copy. The `eol-distro` consistency audit does not judge guest images, so
-nothing will remind you that the old name is still there.
+different matter. The cached disk is uploaded once, under the
+release-neutral name `debian` -- `shakenfist_ci`'s `CLUSTER_CI_IMAGE`
+and a long tail of individual tests name that string literally. The
+`eol-distro` consistency audit does not judge guest images, so nothing
+will remind you if this drifts from what those tests actually boot.
 
 ## setup-kerbside-environment
 

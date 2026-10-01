@@ -234,24 +234,14 @@ runs:
 
         exit 1
 
-    # This uploads the cached bookworm disk into the nested cluster under
-    # the artifact name "debian-12", and both halves of that are load
-    # bearing. The name is what every consumer's test suite boots from --
-    # shakenfist_ci's CLUSTER_CI_IMAGE is the literal string
-    # sf://upload/system/debian-12, and dozens of tests spell it out
-    # again -- so renaming it here breaks the fleet rather than this
-    # repository. The contents are a guest image, which the eol-distro
-    # audit deliberately does not judge (see development's
-    # docs/audits/eol-distro.md): moving the smoke suite's guest to
-    # trixie is a change to what those tests exercise, and it lands in
-    # shakenfist alongside the label rename, not here on its own.
-    #
-    # The second upload, "debian", is the release neutral name the fleet is
-    # moving to, and it is deliberately additive: consumers still boot
-    # "debian-12" until their own test suites are updated, and only then is
-    # the old upload removed. While both exist a smoke cluster pays for one
-    # extra image copy, which is the price of letting the two sides of the
-    # rename land in separate merges.
+    # This uploads the cached trixie disk into the nested cluster under the
+    # artifact name "debian", and both halves of that are load bearing. The
+    # name is what every consumer's test suite boots from --
+    # shakenfist_ci's CLUSTER_CI_IMAGE names it, and a long tail of tests
+    # spell it out again -- so renaming it here breaks the fleet rather
+    # than this repository. The contents are a guest image, which the
+    # eol-distro audit deliberately does not judge (see development's
+    # docs/audits/eol-distro.md).
     - name: Import the base test image
       shell: bash
       run: |
@@ -262,9 +252,6 @@ runs:
         setup="${setup} . /etc/sf/sfrc;"
         setup="${setup} export SHAKENFIST_API_URL=http://localhost:13000;"
         setup="${setup} /srv/shakenfist/venv/bin/sf-client artifact upload"
-        ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
-            "${setup} debian-12 /srv/ci/debian:12 --shared --no-checksum"
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_image_user }}@${UPLOAD_TARGET} \
             "${setup} debian /srv/ci/debian:13 --shared --no-checksum"
