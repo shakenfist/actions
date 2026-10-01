@@ -317,17 +317,6 @@
     # touched. A stable name means gnome_release now governs only the
     # label lookup.
     gnome_cached_name: "debian-gnome-agents"
-    # Transitional, and a path shim only: consumers still asking for
-    # the Debian 12 name get a hardlink to the same blob, so their scp
-    # keeps working -- but the blob is whichever release gnome_release
-    # names, so they receive the Debian 13 snapshot under a Debian 12
-    # path. This buys time to edit a path, not time to stay on an old
-    # release. Drop this var and the task that uses it once no consumer
-    # reads it -- kerbside's functional-tests.yml is the only one
-    # known, and it boots the snapshot as a SPICE test target, so it is
-    # where the contents moving actually matters. The eol-distro audit
-    # doc mentions the name without consuming it.
-    gnome_legacy_cached_name: "debian-12-gnome-agents"
   tasks:
     # The debian-gnome snapshot is baked into the cache disk for the
     # nested desktop CI jobs, but the label only exists once that
@@ -391,22 +380,6 @@
               -o UserKnownHostsFile=/dev/null \
               /tmp/{{ gnome_download_name }} \
               debian@{{hostvars['imagerebuild']['ansible_ssh_host']}}:/srv/ci/cached/{{ gnome_cached_name }}
-      when: gnome_label_exists | bool
-
-    # Additive rename, per the AGENTS.md rule that a merge to main is a
-    # fleet deploy with no staging step. A hardlink rather than a
-    # symlink or a second scp: it costs no space and no extra transfer
-    # of a gigabyte-scale file, and it is indistinguishable from a
-    # regular file to a consumer doing scp, which a symlink is not
-    # guaranteed to be. Delete this task with
-    # gnome_legacy_cached_name once every consumer reads the stable
-    # name.
-    - name: Link the legacy cached name for consumers not yet migrated
-      shell: |
-        ssh -i {{ ssh_private_key }} -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              debian@{{hostvars['imagerebuild']['ansible_ssh_host']}} \
-              "ln -f /srv/ci/cached/{{ gnome_cached_name }} /srv/ci/cached/{{ gnome_legacy_cached_name }} && ls -lh /srv/ci/cached/{{ gnome_legacy_cached_name }}"
       when: gnome_label_exists | bool
 
 - hosts: allsf

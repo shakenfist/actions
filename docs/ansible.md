@@ -453,31 +453,11 @@ that snapshot has to be known to work on the new release *before*
 `gnome_release` moves, which is why the required order below ends with
 the consumers rather than starting with them.
 
-While consumers migrate, the playbook also hardlinks the old
-`/srv/ci/cached/debian-12-gnome-agents` to the same blob, which costs
-no space and no second transfer. **That link is a path shim and
-nothing more.** It stops an unmigrated consumer's `scp` failing; it
-does not keep giving that consumer Debian 12. The blob it points at is
-the release `gnome_release` names, so a consumer asking for the
-`debian-12` path today receives the Debian 13 snapshot under it. That
-is deliberate -- the alternative is keeping two desktop snapshots on a
-disk sized for one -- but it is why the link is not a migration
-window in any sense except the spelling of the path.
-
-That task and its `gnome_legacy_cached_name` var are transitional and
-should be deleted once nothing reads the legacy name.
-`shakenfist/kerbside`'s `functional-tests.yml` is the only consumer
-known to read it, and it boots the snapshot as a SPICE test target, so
-it is the one place where the contents moving matters and not just the
-path. The `eol-distro` audit page mentions the name without consuming
-it; its authored copy lives in `shakenfist/development` at
-`docs/audits/eol-distro.md`, not in the published mirror.
-
 **Rolling out a desktop release bump has a required order**, because a
 missing gnome label is skipped here rather than being fatal: a
 `dependencies` rebuild that runs too early publishes a disk with no
-gnome snapshot under either name, and the disk's own verification
-cannot catch it -- a missing cache entry passes on purpose. The order
+gnome snapshot at all, and the disk's own verification cannot catch
+it -- a missing cache entry passes on purpose. The order
 is `shakenfist/images` publishes the base image, then
 `ci-image-desktop.yml` publishes the `ci-images/debian-gnome-<release>`
 label, then the conductor rebuilds `dependencies`, and only then do
