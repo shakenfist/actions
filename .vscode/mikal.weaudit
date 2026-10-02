@@ -489,10 +489,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-topology-slim-tier.yml",
       "author": "mikal"
     },
@@ -509,15 +505,7 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {

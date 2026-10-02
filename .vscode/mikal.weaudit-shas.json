@@ -53,10 +53,6 @@
       "sha": "13dc9157fdc74e61438acbb45b88aee85f4f8deb",
       "date": "2026-09-30"
     },
-    "ansible/ci-dependencies.yml": {
-      "sha": "c079636b6208274f469359de448f6727208051ad",
-      "date": "2026-09-30"
-    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -212,10 +208,6 @@
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
-    },
-    "docs/ansible.md": {
-      "sha": "205ec8a60d96893b824afa6291df206acc7756b6",
-      "date": "2026-09-30"
     },
     "docs/consuming.md": {
       "sha": "a66c3111eb104713c2a1c5d4d5f62db8ce997868",
