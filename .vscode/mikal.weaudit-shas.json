@@ -13,6 +13,10 @@
       "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
       "date": "2026-09-23"
     },
+    ".github/workflows/codeql-analysis.yml": {
+      "sha": "22c9962827b30e9fd4c606a7e3365bb81412761a",
+      "date": "2026-10-03"
+    },
     ".github/workflows/export-repo-config.yml": {
       "sha": "7eca59de2b06750d8558a0116f75e724a1422ed4",
       "date": "2026-09-26"
@@ -52,6 +56,10 @@
     "README.md": {
       "sha": "13dc9157fdc74e61438acbb45b88aee85f4f8deb",
       "date": "2026-09-30"
+    },
+    "ansible/ci-dependencies.yml": {
+      "sha": "e8a7e255e8853a9c57c39199c6a834e2383b5dce",
+      "date": "2026-10-03"
     },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
@@ -197,6 +205,10 @@
       "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
       "date": "2026-09-25"
     },
+    "build-smoke-cluster/action.yml": {
+      "sha": "a973f58cbee3ba79aab774a6ae2e7d83648a0574",
+      "date": "2026-10-03"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -208,6 +220,18 @@
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
+    },
+    "docs/actions.md": {
+      "sha": "f237b5126e1c589773d91aaf66648fc1b23db25b",
+      "date": "2026-10-03"
+    },
+    "docs/ansible.md": {
+      "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
+      "date": "2026-10-03"
+    },
+    "docs/ci.md": {
+      "sha": "8059d9ec04fb60efae45c76848c1eef9c936c83b",
+      "date": "2026-10-03"
     },
     "docs/consuming.md": {
       "sha": "a66c3111eb104713c2a1c5d4d5f62db8ce997868",
@@ -348,6 +372,10 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "cc0aa0ad20ea4680a7821d640a300a8318cfcc90",
+      "date": "2026-10-03"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
