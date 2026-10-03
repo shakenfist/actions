@@ -89,7 +89,7 @@ repos:
   # is code an agent executes against, and it is the material a secret
   # scanner is least likely to be pointed at.
   - repo: https://github.com/stbenjam/skillsaw
-    rev: v0.20.0
+    rev: v0.21.0
     hooks:
       - id: skillsaw
 
