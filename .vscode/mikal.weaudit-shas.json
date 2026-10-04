@@ -29,13 +29,29 @@
       "sha": "7782339f38c7d1daa88a7019483318ee8fe34491",
       "date": "2026-09-04"
     },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "68425cd384443ae15a909832693af1df01414c38",
+      "date": "2026-10-05"
+    },
     ".github/workflows/proxmox-substrate.yml": {
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "ab84e6fb10de106ac0c39124db52fa1ee7ed73a4",
+      "date": "2026-10-05"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "b794554bc93e7781c35c3bb04ff939871399ff36",
+      "date": "2026-10-05"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
+    },
+    ".pre-commit-config.yaml": {
+      "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
+      "date": "2026-10-05"
     },
     "AGENTS.md": {
       "sha": "a5ab99fea69e8b2be7ad8a95f36db62b2e9dfd26",
@@ -49,6 +65,10 @@
       "sha": "13dc9157fdc74e61438acbb45b88aee85f4f8deb",
       "date": "2026-09-30"
     },
+    "ansible/ci-dependencies.yml": {
+      "sha": "590128eb2924946177934466d611c15d90ce5988",
+      "date": "2026-10-05"
+    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -60,6 +80,10 @@
     "ansible/ci-image-desktop.yml": {
       "sha": "9b09bbf4bf69cd2a56a1f43969cb477b4cd308d1",
       "date": "2026-09-19"
+    },
+    "ansible/ci-image.yml": {
+      "sha": "9acaae13af3d934da8a6f3708ad1b9ddbde2d79b",
+      "date": "2026-10-05"
     },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
@@ -217,6 +241,10 @@
       "sha": "8059d9ec04fb60efae45c76848c1eef9c936c83b",
       "date": "2026-10-03"
     },
+    "docs/consuming.md": {
+      "sha": "e5323e7a1a3a03e2f2d437d7935cb690a1de0a2f",
+      "date": "2026-10-05"
+    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -348,6 +376,10 @@
     "tests/test_run_remote.py": {
       "sha": "a0778f7c03c11c37d2472b12fe3ffa6ff7facacf",
       "date": "2026-09-07"
+    },
+    "tests/test_smoke_cluster_inputs.py": {
+      "sha": "2814b5f56b5767b4e9c3bd104315fe679e1a52c4",
+      "date": "2026-10-05"
     },
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
