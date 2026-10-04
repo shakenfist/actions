@@ -33,10 +33,6 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "62b3cb8a8871713310a029c88fca3534dd064865",
-      "date": "2026-10-01"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -228,10 +224,6 @@
     "docs/ci.md": {
       "sha": "8059d9ec04fb60efae45c76848c1eef9c936c83b",
       "date": "2026-10-03"
-    },
-    "docs/consuming.md": {
-      "sha": "a66c3111eb104713c2a1c5d4d5f62db8ce997868",
-      "date": "2026-10-01"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",

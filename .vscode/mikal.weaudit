@@ -509,10 +509,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/smoke-cluster.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_launch.sh",
       "author": "mikal"
     },
@@ -526,10 +522,6 @@
     },
     {
       "path": "tests/test_ci_headroom_verdict.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consuming.md",
       "author": "mikal"
     },
     {
@@ -558,10 +550,6 @@
     },
     {
       "path": "docs/actions.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
