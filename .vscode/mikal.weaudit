@@ -501,10 +501,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_dependencies_downloads.py",
       "author": "mikal"
     },
@@ -534,14 +530,6 @@
     },
     {
       "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {
