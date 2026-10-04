@@ -38,6 +38,119 @@ SENTINEL = 'BAND_VIOLATION_EXIT'
 
 BAND_VIOLATION = 3
 
+WITHHELD = '::warning title=Headroom verdict withheld::'
+CENSUS_MISSING = '::warning title=Refusal census not collected::'
+
+
+class CollectTestCase(unittest.TestCase):
+    """The runner side of ci_headroom_collect.sh, with ssh and scp stubbed.
+
+    The remote half cannot run here, but everything after the copies back
+    to the runner can: scp is replaced by a stub that copies a remote
+    path's basename out of a fixture directory, or fails when there is no
+    such file, which is what a real scp does when the primary never wrote
+    it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+        self.tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tempdir.cleanup)
+        self.root = self.tempdir.name
+
+        self.bin = os.path.join(self.root, 'bin')
+        self.remote = os.path.join(self.root, 'remote')
+        self.workspace = os.path.join(self.root, 'workspace')
+        self.tools = os.path.join(self.root, 'tools')
+        for d in (self.bin, self.remote, self.tools,
+                  os.path.join(self.workspace, 'shakenfist', 'tools'),
+                  os.path.join(self.root, 'tmp')):
+            os.makedirs(d)
+
+        stubs = {
+            'ssh': 'cat > /dev/null\nexit 0\n',
+            'scp': ('src="${@: -2:1}"\n'
+                    'dst="${@: -1}"\n'
+                    'f="%s/${src##*/}"\n'
+                    '[ -f "${f}" ] || exit 1\n'
+                    'cp "${f}" "${dst}"\n' % self.remote),
+        }
+        for name, body in stubs.items():
+            path = os.path.join(self.bin, name)
+            with open(path, 'w') as f:
+                f.write('#!/bin/bash\n' + body)
+            os.chmod(path, 0o755)
+
+        for name in ('ci_headroom_collect.sh', 'ci_headroom_verdict.sh'):
+            with open(os.path.join(REPO_ROOT, 'tools', name)) as src:
+                with open(os.path.join(self.tools, name), 'w') as dst:
+                    dst.write(src.read())
+
+    def write_report(self):
+        path = os.path.join(self.workspace, 'shakenfist', 'tools',
+                            'ci_headroom_report.py')
+        with open(path, 'w') as f:
+            f.write('%s = %d\nprint("summary line")\n'
+                    % (SENTINEL, BAND_VIOLATION))
+
+    def write_remote(self, name, content='{}\n'):
+        with open(os.path.join(self.remote, name), 'w') as f:
+            f.write(content)
+
+    def run_collect(self):
+        environment = dict(os.environ)
+        environment['PATH'] = self.bin + os.pathsep + environment['PATH']
+        environment['GITHUB_WORKSPACE'] = self.workspace
+        environment['TMPDIR'] = os.path.join(self.root, 'tmp')
+        environment['CI_HEADROOM_GATE'] = 'true'
+        return subprocess.run(
+            ['bash', os.path.join(self.tools, 'ci_headroom_collect.sh'),
+             'primary.invalid', 'debian', 'slim-primary smoke-ci.conf'],
+            cwd=self.root, check=False, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, env=environment)
+
+    def test_a_healthy_run_is_not_annotated(self):
+        self.write_report()
+        self.write_remote('headroom.jsonl')
+        self.write_remote('headroom-census.json')
+        result = self.run_collect()
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn('summary line', result.stdout)
+        self.assertNotIn('::warning', result.stdout)
+
+    def test_no_series_is_annotated_as_withheld(self):
+        # The probe having failed, and the case that matters most.
+        self.write_report()
+        result = self.run_collect()
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(WITHHELD + 'No headroom series', result.stdout)
+
+    def test_no_report_is_annotated_as_withheld(self):
+        self.write_remote('headroom.jsonl')
+        result = self.run_collect()
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(WITHHELD + 'ci_headroom_report.py', result.stdout)
+
+    def test_no_census_is_annotated_but_the_verdict_still_runs(self):
+        self.write_report()
+        self.write_remote('headroom.jsonl')
+        result = self.run_collect()
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(CENSUS_MISSING, result.stdout)
+        self.assertNotIn(WITHHELD, result.stdout)
+        self.assertIn('summary line', result.stdout)
+
+    def test_a_missing_verdict_script_is_annotated_as_withheld(self):
+        os.unlink(os.path.join(self.tools, 'ci_headroom_verdict.sh'))
+        self.write_report()
+        self.write_remote('headroom.jsonl')
+        self.write_remote('headroom-census.json')
+        result = self.run_collect()
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(WITHHELD + 'ci_headroom_verdict.sh', result.stdout)
+        self.assertIn('summary line', result.stdout)
+
 
 class VerdictTestCase(unittest.TestCase):
     def write_report(self, exit_code, sentinel=True, message='summary line'):
@@ -104,6 +217,31 @@ class VerdictTestCase(unittest.TestCase):
                 self.assertEqual(result.returncode, 0)
                 self.assertIn('exited %d' % status, result.stdout)
                 self.assertIn('rather than as a statement', result.stdout)
+
+    def test_an_unhappy_report_is_annotated_as_withheld(self):
+        # Otherwise a run whose instrument failed renders exactly like a
+        # healthy one anywhere outside the step log.
+        result = self.run_verdict(self.write_report(1))
+        self.assertIn(WITHHELD, result.stdout)
+        self.assertIn('exited 1', result.stdout.splitlines()[1])
+
+    def test_a_report_without_the_sentinel_is_annotated_as_withheld(self):
+        # The version-skew guard is what a rename of the sentinel looks
+        # like: the gate stops gating, so it must not do so silently.
+        result = self.run_verdict(
+            self.write_report(BAND_VIOLATION, sentinel=False))
+        self.assertIn(WITHHELD, result.stdout)
+
+    def test_only_a_failed_instrument_is_annotated_as_withheld(self):
+        # A clean report, a gated violation and a violation with the gate
+        # off are all verdicts. Annotating them as withheld would teach
+        # readers to ignore the annotation.
+        for status, gate in ((0, 'true'), (BAND_VIOLATION, 'true'),
+                             (BAND_VIOLATION, 'false')):
+            with self.subTest(status=status, gate=gate):
+                result = self.run_verdict(
+                    self.write_report(status), CI_HEADROOM_GATE=gate)
+                self.assertNotIn('Headroom verdict withheld', result.stdout)
 
     def test_a_report_without_the_sentinel_is_never_gated_on(self):
         # Version skew: every ci_headroom_report.py written before the

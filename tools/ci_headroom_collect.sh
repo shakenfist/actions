@@ -242,6 +242,20 @@ scp "${ssh_opts[@]}" \
     "${ssh_user}@${primary}:/srv/ci/traces/instance-waits.jsonl" "${waits}" \
     2>/dev/null || true
 
+# A warning annotation for the paths where the instrument itself failed,
+# as distinct from the cluster being healthy. These print prose to the log
+# like every other path and still exit 0 -- nothing here may fail the job --
+# but prose alone leaves a run that measured nothing indistinguishable from a
+# healthy one anywhere outside this step's log, and the datasets fitted to
+# this instrument would thin without anyone noticing. Kept to those paths on
+# purpose: annotating outcomes that are usually fine, such as no capacity
+# waits, would teach readers to ignore the annotation.
+# tools/ci_headroom_verdict.sh carries the same title for the report's own
+# failures.
+withheld() {
+    echo "::warning title=Headroom verdict withheld::$1"
+}
+
 # Say what is known about the waits file without the report's help. Used on
 # every path where the report will not print the wait summary itself: it is
 # an independent instrument, but ci_headroom_report.py requires --series, so
@@ -268,6 +282,7 @@ describe_waits() {
 
 report="${GITHUB_WORKSPACE:-}/shakenfist/tools/ci_headroom_report.py"
 if [ ! -f "${report}" ]; then
+    withheld "ci_headroom_report.py is not in the shakenfist checkout, so this run has no headroom summary or verdict."
     echo "${report} is not in this checkout, so there is nothing to report"
     echo "with. That is expected on a component ref predating the headroom"
     echo "probe. The raw series and census are still in the bundle."
@@ -276,6 +291,7 @@ if [ ! -f "${report}" ]; then
 fi
 
 if [ ! -s "${series}" ]; then
+    withheld "No headroom series was collected from the primary, so this run measured nothing. The probe did not start or did not write."
     echo "No headroom series was collected from ${primary}, so there is"
     echo "nothing to summarise."
     # A run whose probe never started can still have waited out refusals, and
@@ -300,6 +316,11 @@ if [ -s "${census}" ]; then
 else
     # Deliberately not passed as an empty census: a report that printed zero
     # refusals when log shipping was simply broken is the dangerous reading.
+    # The query returns JSON whenever Loki answers at all, even with no
+    # matches, so an absent census is always the census failing.
+    # Not withheld(): the verdict is computed from the series and still
+    # stands, so this is titled for what is actually missing.
+    echo "::warning title=Refusal census not collected::The summary has no refusal counts. The census query or its copy back to the runner failed, and the log above says which."
     echo "No refusal census was collected; the summary will say so."
 fi
 # Guarded like --census-limit above, and for the same reason: the report
@@ -333,6 +354,7 @@ echo "=== Headroom summary ==="
 # find itself.
 verdict="$(dirname "$0")/ci_headroom_verdict.sh"
 if [ ! -f "${verdict}" ]; then
+    withheld "ci_headroom_verdict.sh is not beside ci_headroom_collect.sh, so the summary is printed without a verdict."
     echo "${verdict} is not in this checkout, so the headroom summary is"
     echo "being printed without a verdict. Nothing can fail this job."
     python3 "${report}" "${report_args[@]}" || true

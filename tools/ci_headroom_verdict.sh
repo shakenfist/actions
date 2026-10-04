@@ -71,7 +71,18 @@ if [ "${status}" -eq 0 ]; then
     exit 0
 fi
 
+# Every path below that declines to gate because the report failed is the
+# instrument failing rather than the cloud being healthy, so it gets a
+# warning annotation as well as the log prose. Without one, a run whose
+# verdict was withheld renders exactly like a run whose verdict was clean,
+# and a gate that has quietly stopped gating -- the version-skew guard below
+# firing on every run after a rename, say -- has nowhere to show up but
+# inside step logs nobody opens on a green job. The off switch further down
+# deliberately has no annotation of its own: the report already annotates
+# every band violation, armed or not, and an unarmed gate is the normal state
+# for most callers rather than anything having gone wrong.
 not_the_cloud() {
+    echo "::warning title=Headroom verdict withheld::$1 The instrument failed rather than measured, so this run has no headroom verdict. See this step's log."
     echo
     echo "$1"
     echo "It is being read as the report failing rather than as a statement"

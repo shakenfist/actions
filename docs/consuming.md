@@ -135,6 +135,14 @@ You will see it before you open the log: a band violation annotates the
 run with "Cluster headroom outside the CI sizing band", which renders at
 the top of the run summary.
 
+The opposite case is annotated too. When the instrument itself fails --
+no series was collected, the report or the verdict script is missing,
+or the report exited for a reason other than the band -- the run carries
+a "Headroom verdict withheld" warning, and a missing refusal census
+carries "Refusal census not collected". Neither can fail your job. They
+are there so that a run which measured nothing does not look like a
+healthy one, and the step log says which failure it was.
+
 The gate is off unless you opt in, and it is ignored entirely for
 `test_kind: ansible-modules`: that shape is probed, but no warn window has
 measured it yet, so `smoke-cluster.yml` ands your `headroom_gate` with the
