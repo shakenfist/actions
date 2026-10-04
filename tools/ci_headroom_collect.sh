@@ -193,6 +193,15 @@ census_match="${census_match}|placement recorded despite exceeding capacity guar
 # already describe accurately. curl's stderr and Loki's body are printed
 # first, because the reason Loki gave is the one thing a reader of the
 # bundle cannot reconstruct afterwards.
+#
+# Text this script did not write goes through quote() on its way to the log.
+# Everything printed here reaches the runner step's stdout, where GitHub reads
+# any line beginning with "::" as a workflow command -- after trimming leading
+# whitespace, so an indent alone would not stop it. A "| " in front of each
+# line does, and also tells the forwarded text apart from this script's prose.
+quote() {
+    sed 's/^/    | /'
+}
 census=/srv/ci/traces/headroom-census.json
 census_err=/srv/ci/traces/headroom-census.err
 if ! curl -sS --fail-with-body -G http://localhost:3100/loki/api/v1/query_range \
@@ -204,10 +213,10 @@ if ! curl -sS --fail-with-body -G http://localhost:3100/loki/api/v1/query_range 
         > "${census}" 2> "${census_err}"; then
     echo "The refusal census query failed, so no census is being kept."
     echo "curl said:"
-    cat "${census_err}" 2>/dev/null || true
+    quote 2>/dev/null < "${census_err}" || true
     if [ -s "${census}" ]; then
         echo "Loki said:"
-        head -c 4096 "${census}" 2>/dev/null || true
+        head -c 4096 "${census}" 2>/dev/null | quote || true
         echo
     fi
     rm -f "${census}" 2>/dev/null || true
@@ -233,7 +242,7 @@ if [ -f /srv/ci/traces/headroom.jsonl ]; then
 fi
 if [ -s /srv/ci/traces/headroom-probe.log ]; then
     echo "Last lines of the probe log:"
-    tail -n 20 /srv/ci/traces/headroom-probe.log 2>/dev/null || true
+    tail -n 20 /srv/ci/traces/headroom-probe.log 2>/dev/null | quote || true
 fi
 REMOTE_EOF
 
@@ -304,16 +313,30 @@ describe_waits() {
 
 report="${GITHUB_WORKSPACE:-}/shakenfist/tools/ci_headroom_report.py"
 if [ ! -f "${report}" ]; then
-    withheld "ci_headroom_report.py is not in the shakenfist checkout, so this run has no headroom summary or verdict."
-    echo "${report} is not in this checkout, so there is nothing to report"
-    echo "with. That is expected on a component ref predating the headroom"
-    echo "probe. The raw series and census are still in the bundle."
+    # The probe and the report arrived in shakenfist in the same commit, so a
+    # checkout with neither is a component ref predating the instrument: a
+    # known absence, which ci_headroom_launch.sh also treats as an expected
+    # skip, and which an annotation on every run could not make actionable.
+    # A checkout with the probe but not the report is the instrument broken
+    # -- a rename, say, or a partial revert -- and is withheld like any other
+    # failure.
+    if [ -f "$(dirname "${report}")/ci_headroom_probe.py" ]; then
+        withheld "ci_headroom_report.py is not in the shakenfist checkout, although the probe is, so this run has no headroom summary or verdict."
+        echo "${report} is not in this checkout, although the probe beside"
+        echo "it is, so there is nothing to report with on a ref that should"
+        echo "have it."
+    else
+        echo "Neither ${report} nor the probe is in this checkout, so there is"
+        echo "nothing to report with. That is expected on a component ref"
+        echo "predating the headroom probe."
+    fi
+    echo "The raw series and census are still in the bundle."
     describe_waits
     exit 0
 fi
 
 if [ ! -s "${series}" ]; then
-    withheld "No headroom series was collected from the primary, so this run measured nothing. The probe did not start or did not write."
+    withheld "No headroom series was collected from the primary, so this run measured nothing. The probe did not start or did not write. On a run that failed before its tests, that is a consequence of the failure rather than a cause."
     echo "No headroom series was collected from ${primary}, so there is"
     echo "nothing to summarise."
     # A run whose probe never started can still have waited out refusals, and
