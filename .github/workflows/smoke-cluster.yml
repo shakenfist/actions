@@ -197,6 +197,27 @@ jobs:
           echo "base_image: ${{ inputs.base_image }}"
           echo "base_image_user: ${{ inputs.base_image_user }}"
           echo "stestr_config: ${{ inputs.stestr_config }}"
+          echo "headroom_gate: ${{ inputs.headroom_gate }}"
+
+      # workflow_call does not validate string inputs, and every step that
+      # depends on test_kind is gated on equality with a known value. A
+      # value matching none of them -- a typo, or a kind this workflow has
+      # not learned yet -- would skip every test and probe step after a full
+      # deploy and leave a green job that tested nothing. Refuse it here,
+      # before the deploy. test_kind is logged here rather than above, and
+      # reaches the shell through env, because a value this step exists to
+      # catch should not be interpolated into shell source first.
+      # tests/test_smoke_cluster_inputs.py holds this list equal to the kinds
+      # the gates below name.
+      - name: Validate inputs
+        env:
+          TEST_KIND: ${{ inputs.test_kind }}
+        run: |
+          echo "test_kind: ${TEST_KIND}"
+          case "${TEST_KIND}" in
+              functional|ansible-modules) ;;
+              *) echo "::error title=Unknown test_kind::'${TEST_KIND}' is neither functional nor ansible-modules, so no tests would run."; exit 1 ;;
+          esac
 
       - name: Setup test environment
         uses: shakenfist/actions/setup-test-environment@main

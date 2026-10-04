@@ -30,6 +30,12 @@ jobs:
       tier: smoke
 ```
 
+`test_kind` chooses the suite: `functional` (the default) or
+`ansible-modules`. Any other value fails the job in its first steps,
+before the deploy, with an "Unknown test_kind" annotation. Before that
+check existed, a typo here deployed a full cluster, skipped every test,
+and still passed.
+
 Do **not** add `secrets: inherit`, here or when calling any other
 reusable workflow in this repository. `smoke-cluster.yml` reads no
 secret -- it reaches cluster nodes with the runner's on-disk key -- and
