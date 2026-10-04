@@ -151,6 +151,21 @@ class CollectTestCase(unittest.TestCase):
         self.assertIn(WITHHELD + 'ci_headroom_verdict.sh', result.stdout)
         self.assertIn('summary line', result.stdout)
 
+    def test_a_refused_census_query_is_not_kept(self):
+        # The remote half cannot run here, so this holds the shape of the
+        # one curl that matters: a refused query must fail rather than
+        # write Loki's error body out as a census, and its error must
+        # reach the log rather than /dev/null.
+        with open(COLLECT) as f:
+            collect = f.read()
+        call = collect[collect.index('curl -sS'):]
+        call = call[:call.index('; then')]
+        self.assertIn('--fail-with-body', call)
+        self.assertNotIn('/dev/null', call)
+        block = collect[collect.index('curl -sS'):]
+        block = block[:block.index('\nfi\n')]
+        self.assertIn('rm -f "${census}"', block)
+
 
 class VerdictTestCase(unittest.TestCase):
     def write_report(self, exit_code, sentinel=True, message='summary line'):

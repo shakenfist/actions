@@ -184,13 +184,35 @@ census_match="${census_match}|instance placement denied"
 census_match="${census_match}|placement admitted over namespace capacity claim"
 census_match="${census_match}|placement recorded despite exceeding capacity guard"
 
-curl -sS -G http://localhost:3100/loki/api/v1/query_range \
-    --data-urlencode "query={job=\"shakenfist\"} |~ \"${census_match}\"" \
-    --data-urlencode "start=${start_ns}" \
-    --data-urlencode "end=${end_ns}" \
-    --data-urlencode "limit=${census_limit}" \
-    --data-urlencode "direction=forward" \
-    > /srv/ci/traces/headroom-census.json 2>/dev/null || true
+# A census Loki refused is removed rather than kept. Without --fail-with-body
+# a 4xx or 5xx body -- most likely the 400 for exceeding
+# max_entries_limit_per_query, which census_limit is chosen to stay under --
+# would be written here as if it were a census, pass the runner's non-empty
+# test and reach the report, which could only call it unparseable. Removed,
+# it is "no census was collected", which the runner side and the report
+# already describe accurately. curl's stderr and Loki's body are printed
+# first, because the reason Loki gave is the one thing a reader of the
+# bundle cannot reconstruct afterwards.
+census=/srv/ci/traces/headroom-census.json
+census_err=/srv/ci/traces/headroom-census.err
+if ! curl -sS --fail-with-body -G http://localhost:3100/loki/api/v1/query_range \
+        --data-urlencode "query={job=\"shakenfist\"} |~ \"${census_match}\"" \
+        --data-urlencode "start=${start_ns}" \
+        --data-urlencode "end=${end_ns}" \
+        --data-urlencode "limit=${census_limit}" \
+        --data-urlencode "direction=forward" \
+        > "${census}" 2> "${census_err}"; then
+    echo "The refusal census query failed, so no census is being kept."
+    echo "curl said:"
+    cat "${census_err}" 2>/dev/null || true
+    if [ -s "${census}" ]; then
+        echo "Loki said:"
+        head -c 4096 "${census}" 2>/dev/null || true
+        echo
+    fi
+    rm -f "${census}" 2>/dev/null || true
+fi
+rm -f "${census_err}" 2>/dev/null || true
 
 # The label the runner passed us (topology plus stestr config) is not written
 # anywhere on the primary today, so a later harvest over the bundle has to
