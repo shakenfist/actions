@@ -433,15 +433,7 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_headroom_verdict.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_loki_dump.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
     },
     {
@@ -517,10 +509,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ci_headroom_verdict.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_workflow_references.py",
       "author": "mikal"
     },
@@ -574,14 +562,6 @@
     },
     {
       "path": "ansible",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {

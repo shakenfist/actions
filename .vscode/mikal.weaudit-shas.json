@@ -241,10 +241,6 @@
       "sha": "8059d9ec04fb60efae45c76848c1eef9c936c83b",
       "date": "2026-10-03"
     },
-    "docs/consuming.md": {
-      "sha": "e5323e7a1a3a03e2f2d437d7935cb690a1de0a2f",
-      "date": "2026-10-05"
-    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -320,10 +316,6 @@
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "a32f29e8cd3cc98953f8d227b7f5bba2bb25aa13",
       "date": "2026-09-30"
-    },
-    "tests/test_ci_headroom_verdict.py": {
-      "sha": "deb3233c5b8b3f1b0f124a1f63cda4f9dc6d3c3f",
-      "date": "2026-10-01"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",
@@ -417,17 +409,9 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
-    "tools/ci_headroom_collect.sh": {
-      "sha": "4a9b1541f33a020fd0b74f9536bea264842f87ee",
-      "date": "2026-09-28"
-    },
     "tools/ci_headroom_launch.sh": {
       "sha": "0ca6632ec18fe8cdfe64745f6fea41f32f52adb8",
       "date": "2026-10-01"
-    },
-    "tools/ci_headroom_verdict.sh": {
-      "sha": "42791bf6675388312114c537574c0ccfe5dbb951",
-      "date": "2026-09-27"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
