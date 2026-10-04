@@ -36,19 +36,13 @@
       debug:
         msg: "{{imagerebuild_instance}}"
 
-    - name: Add to ansible (force python3)
-      add_host:
-        hostname: imagerebuild
-        ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
-        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-        ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
-        ansible_python_interpreter: "/usr/bin/python3"
-        sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
-        sf_interface_uuid: "{{imagerebuild_instance['meta']['interfaces'][0]['uuid']}}"
-      when: base_image == "debian:11"
-
-    - name: Add to ansible (detect system python)
+    # IMAGE_BUILDS was the only caller that could request the retired
+    # bullseye base image, and that entry is gone, so nothing will pass
+    # it again. A python-interpreter branch that exists for a base
+    # image this playbook can no longer receive is still something the
+    # next reader has to rule out, so it is gone rather than left
+    # dormant.
+    - name: Add to ansible
       add_host:
         hostname: imagerebuild
         ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
@@ -57,7 +51,6 @@
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
         sf_interface_uuid: "{{imagerebuild_instance['meta']['interfaces'][0]['uuid']}}"
-      when: base_image != "debian:11"
 
     - name: Log instance
       debug:
@@ -442,19 +435,13 @@
         await_timeout: 600
       register: imagetest_instance
 
-    - name: Add to ansible (force python3)
-      add_host:
-        hostname: imagetest
-        ansible_ssh_host: "{{ imagetest_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagetest_instance['meta']['interfaces'][0]['ipv4'] }}"
-        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-        ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
-        ansible_python_interpreter: /usr/bin/python3
-        sf_instance_uuid: "{{imagetest_instance['meta']['uuid']}}"
-        sf_interface_uuid: "{{imagetest_instance['meta']['interfaces'][0]['uuid']}}"
-      when: base_image == "debian:11"
-
-    - name: Add to ansible (detect system python)
+    # IMAGE_BUILDS was the only caller that could request the retired
+    # bullseye base image, and that entry is gone, so nothing will pass
+    # it again. A python-interpreter branch that exists for a base
+    # image this playbook can no longer receive is still something the
+    # next reader has to rule out, so it is gone rather than left
+    # dormant.
+    - name: Add to ansible
       add_host:
         hostname: imagetest
         ansible_ssh_host: "{{ imagetest_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagetest_instance['meta']['interfaces'][0]['ipv4'] }}"
@@ -463,7 +450,6 @@
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagetest_instance['meta']['uuid']}}"
         sf_interface_uuid: "{{imagetest_instance['meta']['interfaces'][0]['uuid']}}"
-      when: base_image != "debian:11"
 
     - name: Log instance
       debug:

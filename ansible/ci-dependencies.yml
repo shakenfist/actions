@@ -217,6 +217,13 @@
             url: "https://images.shakenfist.com/ubuntu:18.04/latest.qcow2",
             name: "ubuntu:18.04",
           }
+        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
+        # Nothing currently boots this image from this cache --
+        # build-smoke-cluster uploads only one cached image and no
+        # topology playbook sets a mirror -- so keeping it costs one
+        # download per nightly build. Remove it once nothing boots it
+        # any more, or once the cache starts actually serving reads so
+        # that keeping it stops being free.
         - {
             url: "https://images.shakenfist.com/ubuntu:20.04/latest.qcow2",
             name: "ubuntu:20.04",
@@ -229,10 +236,25 @@
             url: "https://images.shakenfist.com/ubuntu:24.04/latest.qcow2",
             name: "ubuntu:24.04",
           }
+        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
+        # Not unreferenced: shakenfist#3669's regression coverage boots
+        # this image (ansible_module_ci/005.yml), but over the internet
+        # rather than from this cache, which is the defect finding 6
+        # points at rather than an argument for deleting the entry.
+        # Remove it once nothing boots it any more, or once the cache
+        # starts actually serving reads so that keeping it stops being
+        # free.
         - {
             url: "https://images.shakenfist.com/debian:11/latest.qcow2",
             name: "debian:11",
           }
+        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
+        # Nothing currently boots this image from this cache --
+        # build-smoke-cluster uploads only one cached image and no
+        # topology playbook sets a mirror -- so keeping it costs one
+        # download per nightly build. Remove it once nothing boots it
+        # any more, or once the cache starts actually serving reads so
+        # that keeping it stops being free.
         - {
             url: "https://images.shakenfist.com/debian:12/latest.qcow2",
             name: "debian:12",
@@ -245,6 +267,13 @@
             url: "https://images.shakenfist.com/centos:9-stream/latest.qcow2",
             name: "centos:9-stream",
           }
+        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
+        # Nothing currently boots this image from this cache --
+        # build-smoke-cluster uploads only one cached image and no
+        # topology playbook sets a mirror -- so keeping it costs one
+        # download per nightly build. Remove it once nothing boots it
+        # any more, or once the cache starts actually serving reads so
+        # that keeping it stops being free.
         - {
             url: "https://images.shakenfist.com/fedora:40/latest.qcow2",
             name: "fedora:40",
