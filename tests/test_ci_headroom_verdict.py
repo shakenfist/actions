@@ -38,6 +38,8 @@ SENTINEL = 'BAND_VIOLATION_EXIT'
 
 BAND_VIOLATION = 3
 
+WITHHELD = '::warning title=Headroom verdict withheld::'
+
 
 class VerdictTestCase(unittest.TestCase):
     def write_report(self, exit_code, sentinel=True, message='summary line'):
@@ -104,6 +106,33 @@ class VerdictTestCase(unittest.TestCase):
                 self.assertEqual(result.returncode, 0)
                 self.assertIn('exited %d' % status, result.stdout)
                 self.assertIn('rather than as a statement', result.stdout)
+
+    def test_an_unhappy_report_is_annotated_as_withheld(self):
+        # Otherwise a run whose instrument failed renders exactly like a
+        # healthy one anywhere outside the step log.
+        result = self.run_verdict(self.write_report(1))
+        annotations = [line for line in result.stdout.splitlines()
+                       if line.startswith(WITHHELD)]
+        self.assertEqual(len(annotations), 1, result.stdout)
+        self.assertIn('exited 1', annotations[0])
+
+    def test_a_report_without_the_sentinel_is_annotated_as_withheld(self):
+        # The version-skew guard is what a rename of the sentinel looks
+        # like: the gate stops gating, so it must not do so silently.
+        result = self.run_verdict(
+            self.write_report(BAND_VIOLATION, sentinel=False))
+        self.assertIn(WITHHELD, result.stdout)
+
+    def test_only_a_failed_instrument_is_annotated_as_withheld(self):
+        # A clean report, a gated violation and a violation with the gate
+        # off are all verdicts. Annotating them as withheld would teach
+        # readers to ignore the annotation.
+        for status, gate in ((0, 'true'), (BAND_VIOLATION, 'true'),
+                             (BAND_VIOLATION, 'false')):
+            with self.subTest(status=status, gate=gate):
+                result = self.run_verdict(
+                    self.write_report(status), CI_HEADROOM_GATE=gate)
+                self.assertNotIn('Headroom verdict withheld', result.stdout)
 
     def test_a_report_without_the_sentinel_is_never_gated_on(self):
         # Version skew: every ci_headroom_report.py written before the
