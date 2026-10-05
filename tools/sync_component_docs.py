@@ -37,6 +37,12 @@ Per-directory `order.yml`:
     every `.md` file is navigable, sorted alphabetically by title, and
     every subdirectory containing markdown is recursed into.
 
+    A subdirectory's nav section is labelled with its directory name,
+    title-cased. To choose the label instead, write that directory's
+    `order.yml` as a mapping with a `title` and the usual list under
+    `pages`. The root section is named by `component.yml`, so a `title`
+    in the root `order.yml` is ignored.
+
 Template substitution:
     Use --template and --output to substitute placeholders in a template file.
     The placeholder %%<component_name>%% will be replaced with the nav snippet.
@@ -58,13 +64,31 @@ import yaml
 def parse_order_file(order_path: Path) -> list[tuple[str, str]] | None:
     """Parse an order.yml file to get ordered list of files and titles.
 
+    Returns a list of (filename, title) tuples, or None if the file doesn't
+    exist or can't be parsed. See load_order_file for the format.
+    """
+    order = load_order_file(order_path)
+    if order is None:
+        return None
+    return order['pages']
+
+
+def load_order_file(order_path: Path) -> dict | None:
+    """Parse an order.yml file into its section title and ordered pages.
+
     The order.yml format is a list of single-key dictionaries:
         - filename.md: Title
         - another.md: Another Title
         # - commented.md: This is skipped
 
-    Returns a list of (filename, title) tuples, or None if the file doesn't
-    exist or can't be parsed.
+    or, to also name the directory's nav section, a mapping holding
+    that list under `pages`:
+        title: SPICE protocol
+        pages:
+          - filename.md: Title
+
+    Returns {'title': str | None, 'pages': [(filename, title), ...]}, or
+    None if the file doesn't exist or can't be parsed.
     """
     if not order_path.exists():
         return None
@@ -81,6 +105,13 @@ def parse_order_file(order_path: Path) -> list[tuple[str, str]] | None:
         filtered_content = '\n'.join(lines)
 
         data = yaml.safe_load(filtered_content)
+        section_title = None
+        if isinstance(data, dict):
+            section_title = data.get('title')
+            if section_title is not None and not isinstance(section_title, str):
+                print(f'Warning: order.yml title is not a string, ignoring: {section_title}')
+                section_title = None
+            data = data.get('pages')
         if not isinstance(data, list):
             print('Warning: order.yml is not a list, ignoring')
             return None
@@ -93,7 +124,7 @@ def parse_order_file(order_path: Path) -> list[tuple[str, str]] | None:
             else:
                 print(f'Warning: Invalid entry in order.yml: {item}')
 
-        return result
+        return {'title': section_title, 'pages': result}
     except yaml.YAMLError as e:
         print(f'Warning: Failed to parse order.yml: {e}')
         return None
@@ -241,6 +272,7 @@ def build_nav_tree(
 
     Returns a dict shaped:
         {
+            'title': str | None,                 # section label from order.yml
             'index': (filename, title) | None,  # basename of dir-local index
             'files': [(filename, title), ...],   # basenames in this dir
             'subdirs': {dirname: <nav_tree>, ...},
@@ -249,7 +281,12 @@ def build_nav_tree(
     if current_rel is None:
         current_rel = Path('.')
     abs_dir = source_dir / current_rel
-    order_entries = parse_order_file(abs_dir / 'order.yml')
+    order = load_order_file(abs_dir / 'order.yml')
+    order_entries = order['pages'] if order is not None else None
+    section_title = order['title'] if order is not None else None
+    if section_title is not None and current_rel == Path('.'):
+        print('Warning: title in the root order.yml is ignored, set it in component.yml instead')
+        section_title = None
 
     index_entry: tuple[str, str] | None = None
     files: list[tuple[str, str]] = []
@@ -294,6 +331,7 @@ def build_nav_tree(
         )
 
     return {
+        'title': section_title,
         'index': index_entry,
         'files': files,
         'subdirs': subdirs,
@@ -334,7 +372,8 @@ def generate_nav_snippet(
 
     The root section header uses display_name_override (e.g. from
     `component.yml`) or the title-cased component name. Subdirectory
-    headers are derived from the directory name. Per-directory ordering
+    headers come from the `title` in that directory's `order.yml`, or
+    else from the directory name. Per-directory ordering
     and visibility come from the nav_tree built by build_nav_tree.
     """
     display_name = display_name_override or component_name.title()
@@ -383,7 +422,10 @@ def _emit_dir(
         )
 
     for subdir_name, subtree in tree['subdirs'].items():
-        display = subdir_name.replace('_', ' ').replace('-', ' ').title()
+        if subtree['title'] is not None:
+            display = yaml_quote_title(subtree['title'])
+        else:
+            display = subdir_name.replace('_', ' ').replace('-', ' ').title()
         lines.append(f'{spaces}- {display}:')
         _emit_dir(
             lines, subtree, indent + 4, base_path,

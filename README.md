@@ -58,6 +58,7 @@ comment workflow, see
 | [docs/actions.md](https://github.com/shakenfist/actions/blob/main/docs/actions.md) | Inputs, outputs and usage for every composite action |
 | [docs/ci.md](https://github.com/shakenfist/actions/blob/main/docs/ci.md) | This repository's own CI, and why so little of it can be tested before merge |
 | [docs/ansible.md](https://github.com/shakenfist/actions/blob/main/docs/ansible.md) | The CI playbooks and the local package caches they configure |
+| [docs/component-docs.md](https://github.com/shakenfist/actions/blob/main/docs/component-docs.md) | How a component's `docs/` is published on the main documentation site |
 | [ARCHITECTURE.md](https://github.com/shakenfist/actions/blob/main/ARCHITECTURE.md) | What the components are and how a run flows through them |
 | [AGENTS.md](https://github.com/shakenfist/actions/blob/main/AGENTS.md) | Conventions and traps, for humans and coding agents alike |
 
