@@ -53,10 +53,6 @@
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
     },
-    "AGENTS.md": {
-      "sha": "a5ab99fea69e8b2be7ad8a95f36db62b2e9dfd26",
-      "date": "2026-09-30"
-    },
     "ARCHITECTURE.md": {
       "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
       "date": "2026-09-25"
@@ -227,10 +223,6 @@
     },
     "docs/ansible.md": {
       "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
-      "date": "2026-10-03"
-    },
-    "docs/ci.md": {
-      "sha": "8059d9ec04fb60efae45c76848c1eef9c936c83b",
       "date": "2026-10-03"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {

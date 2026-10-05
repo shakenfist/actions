@@ -465,10 +465,6 @@
       "author": "mikal"
     },
     {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-topology-slim-tier.yml",
       "author": "mikal"
     },
@@ -506,10 +502,6 @@
     },
     {
       "path": ".github/workflows/codeql-analysis.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci.md",
       "author": "mikal"
     },
     {
