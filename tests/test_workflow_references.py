@@ -333,7 +333,23 @@ class ConfirmedOutputTest(unittest.TestCase):
         tell = [s for s in steps if "steps.confirm.outcome == 'failure'" in str(s.get('if', ''))]
         self.assertEqual(len(tell), 1)
         self.assertIn('gh pr comment', tell[0]['run'])
-        self.assertIs(steps[-1], tell[0], 'the report must come after the confirm step')
+        self.assertIs(steps[steps.index(self.confirm) + 1], tell[0],
+                      'the report must come straight after the confirm step')
+        # When triggered cannot be determined there may be no request to
+        # answer, and a caller that does not filter on the phrase would
+        # get the notice on every comment.
+        self.assertIn("steps.check_trigger.outputs.triggered == 'true'", tell[0]['if'],
+                      'the report must only fire for a comment that was a request')
+
+    def test_nothing_says_starting_before_the_verdict(self):
+        """A requester must not be told a request is starting and then that it is not."""
+        steps = self.parsed['runs']['steps']
+        starting = [s for s in steps if 'inputs.starting-message' in str(s.get('env', {}))]
+        self.assertEqual(len(starting), 1, 'cannot find the step posting the starting message')
+        self.assertGreater(steps.index(starting[0]), steps.index(self.confirm),
+                           'the starting message is posted before the confirm step')
+        self.assertIn("steps.confirm.outputs.confirmed == 'true'", starting[0]['if'],
+                      'the starting message must wait for the verdict')
 
 
 class ToolScriptReferenceTest(unittest.TestCase):

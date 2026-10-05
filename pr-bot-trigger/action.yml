@@ -61,9 +61,11 @@ outputs:
       Whether the action vouches for this request proceeding (true/false).
       True only when every output above that a caller acts on was
       determined: triggered and authorized are both 'true', same-repo is
-      'true', and pr-ref is set. When the action acknowledged a request
-      but cannot vouch for those, it fails and says so on the pull request
-      itself, so a caller gating on this output needs no check of its own.
+      'true', and pr-ref is set. When a request was made but the action
+      cannot vouch for those, it fails and says so on the pull request
+      itself. Gating on this replaces a caller's checks of the outputs
+      above; passing it on through the caller's own job outputs is still
+      the caller's to get right.
     value: ${{ steps.confirm.outputs.confirmed }}
 
 runs:
@@ -248,26 +250,6 @@ runs:
         echo "pr_ref=${PR_REF}" >> $GITHUB_OUTPUT
         echo "PR branch: ${PR_REF}"
 
-    - name: Post starting message
-      if: >
-        steps.check_trigger.outputs.triggered == 'true' &&
-        steps.gate.outputs.authorized == 'true' &&
-        inputs.starting-message != ''
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-        MESSAGE_TEMPLATE: ${{ inputs.starting-message }}
-        PR_REF: ${{ steps.pr_details.outputs.pr_ref }}
-        RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-      run: |
-        message="${MESSAGE_TEMPLATE}"
-        message="${message//\{pr_ref\}/${PR_REF}}"
-        message="${message//\{run_url\}/${RUN_URL}}"
-
-        gh pr comment "${{ github.event.issue.number }}" \
-          --repo "${{ github.repository }}" \
-          --body "${message}"
-
     # Callers used to open-code this: each bot workflow re-read
     # triggered, authorized and same-repo, failed when one was neither
     # 'true' nor 'false', and told the requester. The copies drifted
@@ -325,19 +307,46 @@ runs:
     # is not somewhere they will look. Gated on the step above rather
     # than on any failure: an earlier step failing is an API or input
     # error with its own message in the log, not this action and its
-    # callers disagreeing. The body is fixed text: nothing from the
-    # comment reaches it.
+    # callers disagreeing. Gated on triggered too: when that cannot be
+    # determined there may be no request to answer -- a caller need not
+    # filter comments on the phrase before running this action -- so the
+    # action fails red and says nothing on the pull request. The body is
+    # fixed text: nothing from the comment reaches it.
     - name: Tell the requester the request will not run
-      if: failure() && steps.confirm.outcome == 'failure'
+      if: >
+        failure() &&
+        steps.confirm.outcome == 'failure' &&
+        steps.check_trigger.outputs.triggered == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
-        body="This request was acknowledged but will not run: pr-bot-trigger"
-        body="${body} could not confirm what it reports about the pull request,"
-        body="${body} which is a defect in the workflow rather than in the pull"
-        body="${body} request. The [run log](${RUN_URL}) has the detail."
+        body="This request will not run: pr-bot-trigger could not confirm what"
+        body="${body} it reports about the pull request, which is a defect in the"
+        body="${body} workflow rather than in the pull request. The"
+        body="${body} [run log](${RUN_URL}) has the detail."
         gh pr comment "${{ github.event.issue.number }}" \
           --repo "${{ github.repository }}" \
           --body "${body}"
+
+    # Gated on the verdict rather than on authorized, so the requester is
+    # never told the request is starting and then that it will not run.
+    - name: Post starting message
+      if: >
+        steps.confirm.outputs.confirmed == 'true' &&
+        inputs.starting-message != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        MESSAGE_TEMPLATE: ${{ inputs.starting-message }}
+        PR_REF: ${{ steps.pr_details.outputs.pr_ref }}
+        RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      run: |
+        message="${MESSAGE_TEMPLATE}"
+        message="${message//\{pr_ref\}/${PR_REF}}"
+        message="${message//\{run_url\}/${RUN_URL}}"
+
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "${message}"

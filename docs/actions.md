@@ -75,11 +75,18 @@ reaction and then nothing happened. So the action's last step re-reads
 `triggered`, `authorized`, `same-repo` and `pr-ref` exactly as callers
 receive them. It sets `confirmed=false` for a request that was not
 triggered or was refused, and `confirmed=true` only when all four are
-determined and agree. Anything else fails the action and posts a comment
-on the pull request saying the request will not run. Callers used to
-carry a copy of that check, and the copies drifted
-([#126](https://github.com/shakenfist/actions/issues/126)); a caller
-gating on `confirmed` needs none of its own.
+determined and agree. Anything else fails the action and, when the
+comment was a request, posts a comment on the pull request saying it
+will not run. The starting message is gated on `confirmed` too, so a
+requester is never told a request is starting and then that it is not.
+
+Callers used to carry a copy of that check, and the copies drifted
+([#126](https://github.com/shakenfist/actions/issues/126)). Gating on
+`confirmed` replaces a caller's checks of the action's outputs, but not
+of its own wiring: a job that passes `confirmed` on through
+`jobs.<job>.outputs` and misspells the mapping still receives an empty
+value and is skipped quietly. One output is much easier to wire
+correctly than four, which is the improvement.
 
 ## review-pr-with-claude
 
