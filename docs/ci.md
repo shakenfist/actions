@@ -229,6 +229,13 @@ write-scoped token -- and the trigger job fails loudly if the action
 stops reporting either output, rather than reacting with a rocket and
 then doing nothing.
 
+Their "Confirm pr-bot-trigger reported the pull request's origin" step
+and the requester notice after it are now redundant: `pr-bot-trigger`
+checks its own outputs and exports the verdict as `confirmed` (see
+[actions.md](actions.md#pr-bot-trigger)). They stay until the
+`ci-review-automation` templates in `shakenfist/development` drop them,
+for the same byte-identical reason as above.
+
 ### Post-merge lane -- `canary.yml`
 
 `canary.yml` calls `smoke-cluster.yml` by relative path on every push to

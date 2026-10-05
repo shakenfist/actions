@@ -248,6 +248,110 @@ class ForkGuardTest(unittest.TestCase):
         self.assertIn('Post fork-not-supported message', names)
 
 
+class ConfirmedOutputTest(unittest.TestCase):
+    """pr-bot-trigger vouches for its own outputs.
+
+    Bot workflows used to re-read triggered, authorized and same-repo
+    and fail when one was neither 'true' nor 'false', each in its own
+    copy (shakenfist/actions#126). The action now does that check itself
+    in its confirm step and exports the verdict as `confirmed`. The check
+    is only worth having if it reads what callers receive, so the step's
+    inputs must be the exact expressions the outputs block exports.
+    """
+
+    ACTION = os.path.join(REPO_ROOT, 'pr-bot-trigger', 'action.yml')
+
+    # The confirm step's environment variable for each output it vouches
+    # for.
+    CHECKED = {
+        'triggered': 'TRIGGERED',
+        'authorized': 'AUTHORIZED',
+        'same-repo': 'SAME_REPO',
+        'pr-ref': 'PR_REF',
+    }
+
+    def setUp(self):
+        with open(self.ACTION) as f:
+            self.parsed = yaml.safe_load(f)
+        self.confirm = {s.get('id'): s for s in self.parsed['runs']['steps']}['confirm']
+
+    def test_confirm_reads_what_the_outputs_export(self):
+        outputs = self.parsed['outputs']
+        for output, variable in self.CHECKED.items():
+            with self.subTest(output=output):
+                self.assertEqual(
+                    self.confirm['env'][variable].strip(), outputs[output]['value'].strip(),
+                    'the confirm step reads %s from something other than what the %r output '
+                    'exports, so it can pass while callers receive nothing' % (variable, output))
+
+    def test_confirmed_is_the_confirm_steps_verdict(self):
+        self.assertEqual(
+            self.parsed['outputs']['confirmed']['value'].strip(),
+            '${{ steps.confirm.outputs.confirmed }}')
+
+    def run_confirm(self, triggered, authorized, same_repo, pr_ref):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = os.path.join(tmp, 'gh-output')
+            open(output, 'w').close()
+            env = dict(os.environ, TRIGGERED=triggered, AUTHORIZED=authorized,
+                       SAME_REPO=same_repo, PR_REF=pr_ref, GITHUB_OUTPUT=output)
+            result = subprocess.run(
+                ['bash', '-c', self.confirm['run']], env=env, check=False,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            with open(output) as f:
+                return result.returncode, f.read()
+
+    def test_the_verdict_over_the_truth_table(self):
+        """Run the shipped confirm script; None means the step must fail."""
+        expected = {
+            # Not triggered: nothing else was computed, and that is fine.
+            ('false', '', '', ''): 'false',
+            # Refused, for permission or for a fork.
+            ('true', 'false', 'true', ''): 'false',
+            ('true', 'false', 'false', ''): 'false',
+            ('true', 'true', 'true', 'feature'): 'true',
+            # An empty value is what a renamed or dropped output yields.
+            ('', '', '', ''): None,
+            ('true', '', '', ''): None,
+            ('true', 'true', '', 'feature'): None,
+            ('true', 'true', 'false', 'feature'): None,
+            ('true', 'true', 'true', ''): None,
+            ('TRUE', 'true', 'true', 'feature'): None,
+        }
+        for inputs, want in expected.items():
+            with self.subTest(inputs=inputs):
+                returncode, written = self.run_confirm(*inputs)
+                if want is None:
+                    self.assertNotEqual(returncode, 0, 'should have failed')
+                    self.assertNotIn('confirmed=true', written)
+                else:
+                    self.assertEqual(returncode, 0)
+                    self.assertEqual(written, 'confirmed=%s\n' % want)
+
+    def test_a_failed_confirmation_is_reported_on_the_pull_request(self):
+        steps = self.parsed['runs']['steps']
+        tell = [s for s in steps if "steps.confirm.outcome == 'failure'" in str(s.get('if', ''))]
+        self.assertEqual(len(tell), 1)
+        self.assertIn('gh pr comment', tell[0]['run'])
+        self.assertIs(steps[steps.index(self.confirm) + 1], tell[0],
+                      'the report must come straight after the confirm step')
+        # When triggered cannot be determined there may be no request to
+        # answer, and a caller that does not filter on the phrase would
+        # get the notice on every comment.
+        self.assertIn("steps.check_trigger.outputs.triggered == 'true'", tell[0]['if'],
+                      'the report must only fire for a comment that was a request')
+
+    def test_nothing_says_starting_before_the_verdict(self):
+        """A requester must not be told a request is starting and then that it is not."""
+        steps = self.parsed['runs']['steps']
+        starting = [s for s in steps if 'inputs.starting-message' in str(s.get('env', {}))]
+        self.assertEqual(len(starting), 1, 'cannot find the step posting the starting message')
+        self.assertGreater(steps.index(starting[0]), steps.index(self.confirm),
+                           'the starting message is posted before the confirm step')
+        self.assertIn("steps.confirm.outputs.confirmed == 'true'", starting[0]['if'],
+                      'the starting message must wait for the verdict')
+
+
 class ToolScriptReferenceTest(unittest.TestCase):
     """A `run:` step naming a script under tools/ must find it there.
 
