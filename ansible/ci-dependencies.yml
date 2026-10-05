@@ -213,17 +213,19 @@
             url: "https://download.cirros-cloud.net/0.5.2/cirros-0.5.2-x86_64-disk.img",
             name: "cirros",
           }
-        - {
-            url: "https://images.shakenfist.com/ubuntu:18.04/latest.qcow2",
-            name: "ubuntu:18.04",
-          }
-        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
-        # Nothing currently boots this image from this cache --
-        # build-smoke-cluster uploads only one cached image and no
-        # topology playbook sets a mirror -- so keeping it costs one
-        # download per nightly build. Remove it once nothing boots it
-        # any more, or once the cache starts actually serving reads so
-        # that keeping it stops being free.
+        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain,
+        # and the one frozen entry with a live reader rather than only a
+        # download cost. The guest CI lane in
+        # .github/workflows/smoke-cluster.yml uploads /srv/ci/ubuntu:20.04
+        # into the nested cluster under the artifact name "ubuntu-2004",
+        # and shakenfist's guest, smoke and cluster suites boot that name.
+        # /srv/ci is where ansible/ci-topology-*.yml mounts this disk on a
+        # cluster node, so that path is this entry: removing it breaks
+        # those tests rather than saving a download, which is the opposite
+        # of the entries below. The image is no longer rebuilt either --
+        # images/build.sh retired it on 2026-09-12 -- so what is cached is
+        # a frozen artifact, and the condition for removing the entry is
+        # that the upload goes, not that the release aged.
         - {
             url: "https://images.shakenfist.com/ubuntu:20.04/latest.qcow2",
             name: "ubuntu:20.04",
