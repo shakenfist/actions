@@ -57,6 +57,10 @@
       "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
       "date": "2026-09-25"
     },
+    "ansible/ci-dependencies.yml": {
+      "sha": "430945c4a7cbb6fb22698328bce72a238b04c283",
+      "date": "2026-10-06"
+    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -221,6 +225,10 @@
       "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
       "date": "2026-10-03"
     },
+    "docs/consuming.md": {
+      "sha": "a5de5890fe600b38f68842420a3d142815613f31",
+      "date": "2026-10-06"
+    },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
@@ -292,6 +300,14 @@
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "a32f29e8cd3cc98953f8d227b7f5bba2bb25aa13",
       "date": "2026-09-30"
+    },
+    "tests/test_ci_headroom_collect.py": {
+      "sha": "4b9da3038d9bd593720faba0a2cb3d274b24abad",
+      "date": "2026-10-06"
+    },
+    "tests/test_ci_headroom_verdict.py": {
+      "sha": "f16ea142f6c71226a37d1430588f9070afca360d",
+      "date": "2026-10-06"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",
@@ -381,9 +397,17 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "dc436c77533ad507bef2b7e87520f235bc1b7520",
+      "date": "2026-10-06"
+    },
     "tools/ci_headroom_launch.sh": {
       "sha": "0ca6632ec18fe8cdfe64745f6fea41f32f52adb8",
       "date": "2026-10-01"
+    },
+    "tools/ci_headroom_verdict.sh": {
+      "sha": "ebe3675b0c9e8f6822ace2badbbc6176f32b4a0c",
+      "date": "2026-10-06"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",

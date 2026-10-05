@@ -527,6 +527,34 @@
     {
       "path": ".github/workflows/renovate.yml",
       "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_verdict.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_headroom_collect.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_headroom_verdict.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
