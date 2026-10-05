@@ -46,6 +46,11 @@ What you can do:
   skillsaw and hygiene hooks. Run this before proposing a commit.
 * `python3 -m unittest discover -s tests -t .` -- the Python helpers.
 * `tools/gitleaks-scan.sh` -- needs `gitleaks` and a full clone.
+* [PUSH-AUDIT.md](PUSH-AUDIT.md) -- the pre-push audit, which wraps
+  the three above and adds the judgement checks a lint cannot make.
+  Run it before pushing any change to an action, a workflow or a
+  script, and run it for a plan's push-audit phase when the phase
+  landed here.
 
 What catches the rest: `canary.yml` runs a real smoke cluster on every
 push to `main` and files a `canary`-labelled issue when it fails. If you
@@ -183,6 +188,7 @@ correctly on GitHub and 404s there.
 | What are the components and how does a run flow? | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | How do I consume these actions from my repository? | [docs/consuming.md](docs/consuming.md) |
 | What inputs and outputs does an action have? | [docs/actions.md](docs/actions.md) |
+| What do I check before pushing? | [PUSH-AUDIT.md](PUSH-AUDIT.md) |
 | What shape must a review JSON take? | `review-pr-with-claude/review-schema.json` |
 
 Fleet-wide conventions, and the consistency audits that check them, live

@@ -575,6 +575,14 @@ scanner does not report both, before scanning for real. A detector that
 reports nothing is otherwise indistinguishable from a broken one -- that
 control caught a malformed `.gitleaks.toml` the first time it ran.
 
+These commands are wave 1 of the pre-push audit,
+[`PUSH-AUDIT.md`](https://github.com/shakenfist/actions/blob/main/PUSH-AUDIT.md),
+which adds grep-level checks on the diff and four judgement reviews:
+code quality, tests, documentation and security. It is the gate
+before a push, because a merge here cannot be integration-tested
+first, and it is also how a plan in another repository audits a phase
+that landed here.
+
 ## Linters deliberately not enabled yet
 
 Two are absent, and are tracked here rather than silently dropped:
