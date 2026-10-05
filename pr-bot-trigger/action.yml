@@ -56,6 +56,15 @@ outputs:
   triggered:
     description: 'Whether the trigger phrase matched (true/false)'
     value: ${{ steps.check_trigger.outputs.triggered }}
+  confirmed:
+    description: >
+      Whether the action vouches for this request proceeding (true/false).
+      True only when every output above that a caller acts on was
+      determined: triggered and authorized are both 'true', same-repo is
+      'true', and pr-ref is set. When the action acknowledged a request
+      but cannot vouch for those, it fails and says so on the pull request
+      itself, so a caller gating on this output needs no check of its own.
+    value: ${{ steps.confirm.outputs.confirmed }}
 
 runs:
   using: "composite"
@@ -258,3 +267,77 @@ runs:
         gh pr comment "${{ github.event.issue.number }}" \
           --repo "${{ github.repository }}" \
           --body "${message}"
+
+    # Callers used to open-code this: each bot workflow re-read
+    # triggered, authorized and same-repo, failed when one was neither
+    # 'true' nor 'false', and told the requester. The copies drifted
+    # (shakenfist/actions#126), and the property they check belongs to
+    # this action, so it is checked here once.
+    #
+    # The env below must read exactly the expressions the outputs block
+    # above exports -- that is what makes this a check of what callers
+    # receive rather than of what the earlier steps meant to write.
+    # tests/test_workflow_references.py holds the two lists together.
+    #
+    # The failure that matters is the quiet one: a request acknowledged
+    # with a reaction whose downstream job is then skipped on an empty
+    # output. Failing here makes it visible, and the step after this
+    # one says so on the pull request.
+    - name: Confirm what this action reports
+      id: confirm
+      shell: bash
+      env:
+        TRIGGERED: ${{ steps.check_trigger.outputs.triggered }}
+        AUTHORIZED: ${{ steps.gate.outputs.authorized }}
+        SAME_REPO: ${{ steps.check_origin.outputs.same_repo }}
+        PR_REF: ${{ steps.pr_details.outputs.pr_ref }}
+      run: |
+        fail() {
+          echo "$1"
+          echo "pr-bot-trigger cannot vouch for this request, so it will not run."
+          exit 1
+        }
+        case "${TRIGGERED}" in
+          false)
+            echo "confirmed=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+            ;;
+          true) ;;
+          *) fail "triggered is '${TRIGGERED}', not true or false." ;;
+        esac
+        case "${AUTHORIZED}" in
+          false)
+            echo "confirmed=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+            ;;
+          true) ;;
+          *) fail "authorized is '${AUTHORIZED}', not true or false." ;;
+        esac
+        if [ "${SAME_REPO}" != "true" ]; then
+          fail "authorized is true but same-repo is '${SAME_REPO}'."
+        fi
+        if [ -z "${PR_REF}" ]; then
+          fail "authorized is true but pr-ref is empty."
+        fi
+        echo "confirmed=true" >> "${GITHUB_OUTPUT}"
+
+    # The requester has usually had the reaction by now, and the run log
+    # is not somewhere they will look. Gated on the step above rather
+    # than on any failure: an earlier step failing is an API or input
+    # error with its own message in the log, not this action and its
+    # callers disagreeing. The body is fixed text: nothing from the
+    # comment reaches it.
+    - name: Tell the requester the request will not run
+      if: failure() && steps.confirm.outcome == 'failure'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        body="This request was acknowledged but will not run: pr-bot-trigger"
+        body="${body} could not confirm what it reports about the pull request,"
+        body="${body} which is a defect in the workflow rather than in the pull"
+        body="${body} request. The [run log](${RUN_URL}) has the detail."
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "${body}"
