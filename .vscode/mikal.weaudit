@@ -241,10 +241,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/sync_component_docs.py",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ansible-syntax-check.sh",
       "author": "mikal"
     },
@@ -438,10 +434,6 @@
     },
     {
       "path": "ansible/ci-gather-logs-loki.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "README.md",
       "author": "mikal"
     },
     {

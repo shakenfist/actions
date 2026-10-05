@@ -61,10 +61,6 @@
       "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
       "date": "2026-09-25"
     },
-    "README.md": {
-      "sha": "13dc9157fdc74e61438acbb45b88aee85f4f8deb",
-      "date": "2026-09-30"
-    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -503,10 +499,6 @@
     },
     "tools/start-test-target.py": {
       "sha": "cda05255a0848a4c554941fd662a7c6e1a9e4bc1",
-      "date": "2026-09-10"
-    },
-    "tools/sync_component_docs.py": {
-      "sha": "627e2680577a31ff72f21d056af3e0f74f8947be",
       "date": "2026-09-10"
     }
   }
