@@ -553,15 +553,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {

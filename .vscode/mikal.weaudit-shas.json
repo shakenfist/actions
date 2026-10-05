@@ -65,10 +65,6 @@
       "sha": "13dc9157fdc74e61438acbb45b88aee85f4f8deb",
       "date": "2026-09-30"
     },
-    "ansible/ci-dependencies.yml": {
-      "sha": "590128eb2924946177934466d611c15d90ce5988",
-      "date": "2026-10-05"
-    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
