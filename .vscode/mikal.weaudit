@@ -77,14 +77,6 @@
       "author": "mikal"
     },
     {
-      "path": "pr-bot-trigger/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "pr-bot-trigger",
-      "author": "mikal"
-    },
-    {
       "path": "review-pr-with-claude/action.yml",
       "author": "mikal"
     },
@@ -497,19 +489,11 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_workflow_references.py",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/codeql-analysis.yml",
       "author": "mikal"
     },
     {
       "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/actions.md",
       "author": "mikal"
     },
     {

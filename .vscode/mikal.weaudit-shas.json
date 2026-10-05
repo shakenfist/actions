@@ -217,10 +217,6 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
-    "docs/actions.md": {
-      "sha": "f237b5126e1c589773d91aaf66648fc1b23db25b",
-      "date": "2026-10-03"
-    },
     "docs/ansible.md": {
       "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
       "date": "2026-10-03"
@@ -235,10 +231,6 @@
     },
     "etc/ovirt-45-rocky-9-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
-      "date": "2026-09-07"
-    },
-    "pr-bot-trigger/action.yml": {
-      "sha": "6b3f06297218784b0f1f69e67bb9f180f6409d6b",
       "date": "2026-09-07"
     },
     "renovate.json": {
@@ -360,10 +352,6 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
-    },
-    "tests/test_workflow_references.py": {
-      "sha": "cc0aa0ad20ea4680a7821d640a300a8318cfcc90",
-      "date": "2026-10-03"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
