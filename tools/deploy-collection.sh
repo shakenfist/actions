@@ -21,6 +21,12 @@ set -e
 #                      MariaDB is installed only on the primary and every
 #                      database-tier node's sf-database must reach it (127.0.0.1
 #                      would point a second database node at an absent MariaDB).
+#   $7  extra_vars_file Optional. A deploy profile's extra-vars file (written
+#                      by ci-apply-deploy-profile.py), passed as a second
+#                      --extra-vars @file after the fixed string below, so its
+#                      keys override the fixed ones. When it is absent or empty
+#                      the ansible-playbook command line is exactly what it was
+#                      before this argument existed.
 #
 # The caller (workflow step) is responsible for exporting the proxy / pip
 # environment (http_proxy / https_proxy / PIP_INDEX_URL) before invoking this,
@@ -33,6 +39,14 @@ AUTH_SECRET="${3:?auth secret required}"
 SYSTEM_KEY="${4:?system key required}"
 LOKI_BASE_URL="${5:?loki base url required}"
 MARIADB_HOST="${6:?mariadb host required}"
+EXTRA_VARS_FILE="${7:-}"
+
+# The file holds credentials, so it is named on the command line only by
+# path, and nothing here traces the command.
+extra_vars_file_args=()
+if [ -n "${EXTRA_VARS_FILE}" ]; then
+    extra_vars_file_args=(--extra-vars "@${EXTRA_VARS_FILE}")
+fi
 
 cd "${GITHUB_WORKSPACE}/shakenfist"
 
@@ -78,4 +92,5 @@ ansible-playbook -i "${INVENTORY}" examples/_shared/site.yml \
         dns_server=8.8.8.8 \
         floating_network_ipblock=192.168.230.0/24 \
         http_proxy= \
-        extra_config=[]"
+        extra_config=[]" \
+    "${extra_vars_file_args[@]}"

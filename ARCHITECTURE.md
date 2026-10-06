@@ -111,6 +111,7 @@ caller repository (e.g. shakenfist/shakenfist)
         │     ├── ansible/ci-topology-<t>.yml     create under-cloud instances
         │     ├── MariaDB and Loki onto primary
         │     ├── tools/ci-make-inventory.py      topology facts -> inventory
+        │     ├── tools/ci-apply-deploy-profile.py  optional caller profile -> inventory, vars, SQL
         │     ├── collection site.yml             deploy Shaken Fist
         │     └── wait schedulable, import base image, export coordinates
         ├── stestr suite (or the ansible-modules suite)

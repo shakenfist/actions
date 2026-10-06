@@ -39,6 +39,14 @@ inputs:
   system_key:
     description: System namespace key for the CI cluster.
     default: ci-system-key-do-not-use-in-production-ci-system-key
+  deploy_profile:
+    description: >-
+      Optional. A Jinja2 deploy profile in the caller's checkout, as a path
+      relative to GITHUB_WORKSPACE, which adds inventory groups, extra vars
+      and MariaDB SQL to the deploy. Empty (the default) changes nothing.
+      The schema is in docs/consuming.md and
+      tools/ci-apply-deploy-profile.py.
+    default: ''
 
 outputs:
   primary:
@@ -164,6 +172,27 @@ runs:
         echo "====="
         cat /srv/github/ci-inventory.yaml
 
+    # A profile's extra vars and SQL hold credentials: the script writes them
+    # to 0600 files beside the inventory and logs only their names, and the
+    # SQL reaches the primary's MariaDB on stdin, never on a command line.
+    # Nothing here may run under set -x. The input reaches the shell through
+    # the environment, for the same reason the deploy step's inputs do.
+    - name: Apply the deploy profile
+      if: inputs.deploy_profile != ''
+      shell: bash
+      env:
+        DEPLOY_PROFILE: ${{ inputs.deploy_profile }}
+        BASE_IMAGE_USER: ${{ inputs.base_image_user }}
+      run: |
+        set -e
+        . ${GITHUB_WORKSPACE}/ci-environment.sh
+        python3 ${GITHUB_WORKSPACE}/actions/tools/ci-apply-deploy-profile.py --profile "${DEPLOY_PROFILE}" \
+            --facts-file /srv/github/ci-topology-facts.json --inventory /srv/github/ci-inventory.yaml
+        if [ -s /srv/github/ci-deploy-profile.sql ]; then
+          ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              "${BASE_IMAGE_USER}@${primary}" 'sudo mariadb' < /srv/github/ci-deploy-profile.sql
+        fi
+
     - name: Deploy Shaken Fist via the collection
       shell: bash
       env:
@@ -173,6 +202,7 @@ runs:
         MARIADB_PASSWORD: ${{ inputs.mariadb_password }}
         AUTH_SECRET: ${{ inputs.auth_secret }}
         SYSTEM_KEY: ${{ inputs.system_key }}
+        DEPLOY_PROFILE: ${{ inputs.deploy_profile }}
         # GitHub Actions env keys are case-insensitive, so we only set the
         # lowercase proxy variables (the uppercase forms would collide). Most
         # tooling (pip, apt, requests, ansible) reads the lowercase names.
@@ -200,13 +230,21 @@ runs:
           loki_url="http://${primary_mesh}:3100"
         fi
 
+        # Without a profile the array is empty and expands to no argument at
+        # all, so the deploy command is exactly what it was before profiles.
+        profile_args=()
+        if [ -n "${DEPLOY_PROFILE}" ]; then
+          profile_args=(/srv/github/ci-deploy-profile-extra-vars.json)
+        fi
+
         ${GITHUB_WORKSPACE}/actions/tools/deploy-collection.sh \
             /srv/github/ci-inventory.yaml \
             "${MARIADB_PASSWORD}" \
             "${AUTH_SECRET}" \
             "${SYSTEM_KEY}" \
             "${loki_url}" \
-            "${mariadb_host}"
+            "${mariadb_host}" \
+            "${profile_args[@]}"
 
     - name: Wait for the cluster to become schedulable
       shell: bash

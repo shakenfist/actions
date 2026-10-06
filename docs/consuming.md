@@ -184,6 +184,64 @@ live in
 [PLAN-ci-cloud-sizing.md](https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing.md)
 in the shakenfist repository, along with the report tool itself.
 
+### Deploy profiles
+
+A deploy profile changes what the cluster deploys without any of the
+change living here. It is a Jinja2 template in your checkout, named by
+the `deploy_profile` input of `smoke-cluster.yml` (or
+`build-smoke-cluster`, in Mode 2) as a path relative to
+`GITHUB_WORKSPACE`:
+
+```yaml
+    with:
+      component: shakenfist
+      component_ref: ${{ github.sha }}
+      topology: slim-tier
+      deploy_profile: shakenfist/tools/ci-deploy-profiles/kerbside-slim-tier.yml.j2
+```
+
+The input is empty by default, and an empty input changes nothing: the
+deploy command is the one it was before profiles existed.
+
+The template renders against the topology facts the run wrote, never
+against ansible, and an undefined name is an error rather than an empty
+string. `nodes` maps each topology host name to its `name`,
+`egress_ip`, `mesh_ip`, `is_hypervisor`, `is_network_node` and
+`is_database_node`, so the primary's mesh address is
+`{{ nodes.primary.mesh_ip }}`; `workspace` is the absolute
+`GITHUB_WORKSPACE`. Host names come from the topology: `slim-tier` has
+`primary`, `sf1` and `sf2`.
+
+It must render to YAML with only these keys, all optional:
+
+```yaml
+groups:              # new inventory groups, by host name, with group vars
+  kerbside:
+    hosts: [sf2]
+    vars:
+      api_url: http://{{ nodes.primary.mesh_ip }}:13000
+extra_vars:          # passed to site.yml after the fixed extra vars, so they win
+  kerbside_url: http://{{ nodes.sf2.mesh_ip }}:13002
+mariadb_sql: |       # run once with sudo mariadb on the primary, before the deploy
+  CREATE DATABASE IF NOT EXISTS kerbside;
+redeploy_check:      # deploy a second time; no matching unit may restart
+  units: ['sf-*.service', 'kerbside-*.service']
+test_env:            # exported into the functional test run; values are strings
+  SF_CI_EXPECT_VDI_CONSOLE_PROXY: '1'
+```
+
+Anything else fails the deploy before it starts, with a "Deploy profile
+rejected" annotation: an unknown key at any level, a host the topology
+does not have, a group that already exists, or a name the facts do not
+define. A profile may add groups but not change the ones the inventory
+already has.
+
+Extra vars and SQL usually carry credentials, even throwaway CI ones, so
+they are written to `0600` files on the runner, the SQL reaches MariaDB
+on stdin, and the log names variables but never shows their values.
+`tools/ci-apply-deploy-profile.py`'s docstring is the full reference,
+including the files it writes for later steps.
+
 ## Adding a bot-triggered workflow
 
 `pr-bot-trigger` turns an `@shakenfist-bot` pull request comment into a

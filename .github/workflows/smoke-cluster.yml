@@ -117,6 +117,15 @@ on:
         # dashes.
         type: string
         default: ''
+      deploy_profile:
+        # Optional. A Jinja2 deploy profile in the caller's checkout, as a
+        # path relative to GITHUB_WORKSPACE (for example
+        # shakenfist/tools/ci-deploy-profiles/<name>.yml.j2), which adds
+        # inventory groups, extra vars and MariaDB SQL to the deploy. Empty
+        # changes nothing. The schema is in docs/consuming.md ("Deploy
+        # profiles") and tools/ci-apply-deploy-profile.py.
+        type: string
+        default: ''
 
 # The workflow checks out repositories and uploads a log bundle, and
 # neither it nor the composite actions it calls make an authenticated
@@ -189,6 +198,8 @@ jobs:
 
     steps:
       - name: Log input details
+        env:
+          DEPLOY_PROFILE: ${{ inputs.deploy_profile }}
         run: |
           echo "component: ${{ inputs.component }}"
           echo "component_ref: ${{ inputs.component_ref }}"
@@ -198,6 +209,7 @@ jobs:
           echo "base_image_user: ${{ inputs.base_image_user }}"
           echo "stestr_config: ${{ inputs.stestr_config }}"
           echo "headroom_gate: ${{ inputs.headroom_gate }}"
+          echo "deploy_profile: ${DEPLOY_PROFILE}"
 
       # workflow_call does not validate string inputs, and every step that
       # depends on test_kind is gated on equality with a known value. A
@@ -230,6 +242,7 @@ jobs:
           topology: ${{ inputs.topology }}
           base_image: ${{ inputs.base_image }}
           base_image_user: ${{ inputs.base_image_user }}
+          deploy_profile: ${{ inputs.deploy_profile }}
 
       # Additional images used only by guest CI. The base test image import
       # is part of the build-smoke-cluster action; these extras are a detail
