@@ -43,7 +43,8 @@ inputs:
     description: >-
       Optional. A Jinja2 deploy profile in the caller's checkout, as a path
       relative to GITHUB_WORKSPACE, which adds inventory groups, extra vars
-      and MariaDB SQL to the deploy. Empty (the default) changes nothing.
+      and MariaDB SQL to the deploy, and may ask for a second deploy that
+      restarts nothing. Empty (the default) changes nothing.
       The schema is in docs/consuming.md and
       tools/ci-apply-deploy-profile.py.
     default: ''
@@ -193,6 +194,10 @@ runs:
               "${BASE_IMAGE_USER}@${primary}" 'sudo mariadb' < /srv/github/ci-deploy-profile.sql
         fi
 
+    # The deploy, and the second deploy a profile's redeploy_check asks for,
+    # are tools/ci-deploy-cluster.sh: both run one deploy-collection.sh
+    # command line, and the script's header says why the second belongs here
+    # rather than anywhere later in the job.
     - name: Deploy Shaken Fist via the collection
       shell: bash
       env:
@@ -203,6 +208,7 @@ runs:
         AUTH_SECRET: ${{ inputs.auth_secret }}
         SYSTEM_KEY: ${{ inputs.system_key }}
         DEPLOY_PROFILE: ${{ inputs.deploy_profile }}
+        TOPOLOGY: ${{ inputs.topology }}
         # GitHub Actions env keys are case-insensitive, so we only set the
         # lowercase proxy variables (the uppercase forms would collide). Most
         # tooling (pip, apt, requests, ansible) reads the lowercase names.
@@ -213,38 +219,7 @@ runs:
       run: |
         set -e
         . ${GITHUB_WORKSPACE}/ci-environment.sh
-        cd ${GITHUB_WORKSPACE}/shakenfist
-
-        # MariaDB is installed only on the primary, and the daemons ship logs
-        # to the Loki on the primary. Single-node smoke reaches both on
-        # 127.0.0.1; multi-node clusters must use the primary's mesh IP (read
-        # from the topology facts), since 127.0.0.1 would point every node at
-        # its own (absent) MariaDB / Loki -- in particular a second database
-        # node's sf-database would have no MariaDB to reach.
-        if [ "${{ inputs.topology }}" == "localhost" ]; then
-          mariadb_host="127.0.0.1"
-          loki_url="http://127.0.0.1:3100"
-        else
-          primary_mesh=$(python3 -c "import json; d = json.load(open('/srv/github/ci-topology-facts.json')); print([n['mesh_ip'] for n in d['nodes'] if n['name'] == 'primary'][0])")
-          mariadb_host="${primary_mesh}"
-          loki_url="http://${primary_mesh}:3100"
-        fi
-
-        # Without a profile the array is empty and expands to no argument at
-        # all, so the deploy command is exactly what it was before profiles.
-        profile_args=()
-        if [ -n "${DEPLOY_PROFILE}" ]; then
-          profile_args=(/srv/github/ci-deploy-profile-extra-vars.json)
-        fi
-
-        ${GITHUB_WORKSPACE}/actions/tools/deploy-collection.sh \
-            /srv/github/ci-inventory.yaml \
-            "${MARIADB_PASSWORD}" \
-            "${AUTH_SECRET}" \
-            "${SYSTEM_KEY}" \
-            "${loki_url}" \
-            "${mariadb_host}" \
-            "${profile_args[@]}"
+        ${GITHUB_WORKSPACE}/actions/tools/ci-deploy-cluster.sh "${TOPOLOGY}"
 
     - name: Wait for the cluster to become schedulable
       shell: bash

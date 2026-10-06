@@ -407,11 +407,16 @@ class WiringTest(unittest.TestCase):
         self.assertIn("'sudo mariadb' < /srv/github/%s" % profiles.SQL_FILE, step['run'])
 
     def test_the_deploy_passes_the_extra_vars_file_only_with_a_profile(self):
+        # The step runs tools/ci-deploy-cluster.sh. Its deploy-collection.sh
+        # arguments, with and without a profile, are run with stubs in
+        # tests/test_ci_redeploy_check.py.
         step = self.steps['Deploy Shaken Fist via the collection']
         self.assertEqual(step['env']['DEPLOY_PROFILE'], '${{ inputs.deploy_profile }}')
-        self.assertIn('profile_args=(/srv/github/%s)' % profiles.EXTRA_VARS_FILE, step['run'])
-        self.assertIn('"${profile_args[@]}"', step['run'])
-        self.assertNotIn('set -x', step['run'])
+        self.assertIn('tools/ci-deploy-cluster.sh', step['run'])
+        with open(os.path.join(REPO_ROOT, 'tools', 'ci-deploy-cluster.sh')) as f:
+            wrapper = f.read()
+        self.assertIn('EXTRA_VARS_FILE="${STATE_DIR}/%s"' % profiles.EXTRA_VARS_FILE, wrapper)
+        self.assertNotIn('set -x', step['run'] + wrapper)
 
 
 if __name__ == '__main__':

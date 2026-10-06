@@ -226,9 +226,35 @@ mariadb_sql: |       # run once with sudo mariadb on the primary, before the dep
   CREATE DATABASE IF NOT EXISTS kerbside;
 redeploy_check:      # deploy a second time; no matching unit may restart
   units: ['sf-*.service', 'kerbside-*.service']
-test_env:            # exported into the functional test run; values are strings
+test_env:            # exported into the test run; values are strings
   SF_CI_EXPECT_VDI_CONSOLE_PROXY: '1'
 ```
+
+`redeploy_check` runs the deploy a second time, with the same command
+line, inside `build-smoke-cluster`'s deploy step, and fails that step if
+any matching unit restarted. Before the second deploy,
+`tools/ci-redeploy-check.py` records the systemd `InvocationID` of every
+loaded unit matching a glob on every inventory host; afterwards it reads
+them again and prints each unit as unchanged, new, restarted or
+vanished. A restarted or vanished unit fails the step with an annotation
+naming the unit and its host, and a new one is reported but allowed.
+`InvocationID` changes on every start, including one systemd's own
+`Restart=` made, so a crash-looping daemon cannot pass. A glob that
+matches no unit on any host fails the check before the second deploy
+rather than passing vacuously. A host that does not answer the first
+time is skipped with a warning (slim-primary deliberately lists one that
+never exists); one that answered then and not afterwards has vanished
+units. The check runs straight after the first
+deploy because later steps restart `sf-api` on purpose (the JWKS CA and
+drain steps). The log shows each deploy's elapsed seconds; the second
+costs roughly as long as the first, so check the build step's
+`timeout-minutes` (90 in `smoke-cluster.yml`) has room.
+
+`test_env` is copied to the primary as a `0600` file and sourced after
+`/etc/sf/sfrc` in the remote command that runs the suite, for both the
+`functional` and `ansible-modules` test kinds, so a variable there wins
+over one sfrc sets. Without a profile, or with no `test_env`, the remote
+command is unchanged.
 
 Anything else fails the deploy before it starts, with a "Deploy profile
 rejected" annotation: an unknown key at any level, a host the topology
@@ -240,7 +266,8 @@ Extra vars and SQL usually carry credentials, even throwaway CI ones, so
 they are written to `0600` files on the runner, the SQL reaches MariaDB
 on stdin, and the log names variables but never shows their values.
 `tools/ci-apply-deploy-profile.py`'s docstring is the full reference,
-including the files it writes for later steps.
+including the files it writes for later steps;
+`tools/ci-redeploy-check.py`'s documents the restart check.
 
 ## Adding a bot-triggered workflow
 

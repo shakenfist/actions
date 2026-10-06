@@ -121,9 +121,11 @@ on:
         # Optional. A Jinja2 deploy profile in the caller's checkout, as a
         # path relative to GITHUB_WORKSPACE (for example
         # shakenfist/tools/ci-deploy-profiles/<name>.yml.j2), which adds
-        # inventory groups, extra vars and MariaDB SQL to the deploy. Empty
-        # changes nothing. The schema is in docs/consuming.md ("Deploy
-        # profiles") and tools/ci-apply-deploy-profile.py.
+        # inventory groups, extra vars and MariaDB SQL to the deploy, and may
+        # ask for a second deploy that restarts nothing and for variables in
+        # the test environment. Empty changes nothing. The schema is in
+        # docs/consuming.md ("Deploy profiles") and
+        # tools/ci-apply-deploy-profile.py.
         type: string
         default: ''
 
@@ -372,10 +374,17 @@ jobs:
           tools/ci_headroom_launch.sh "${primary}" "${{ inputs.base_image_user }}" \
               "$(( ${{ inputs.test_kind == 'ansible-modules' && 60 || inputs.test_timeout_minutes }} * 60 + 300 ))"
 
+      # A deploy profile's test_env reaches the suite through
+      # tools/ci-ship-test-env.sh, which copies the variables to the primary
+      # and prints the fragment that sources them after sfrc. Without a
+      # profile it prints nothing, and the remote command is unchanged. The
+      # ansible module tests below do the same.
       - name: Run functional tests
         id: functional
         if: inputs.test_kind == 'functional'
         timeout-minutes: ${{ inputs.test_timeout_minutes }}
+        env:
+          DEPLOY_PROFILE: ${{ inputs.deploy_profile }}
         run: |
           set -e
           . ${GITHUB_WORKSPACE}/ci-environment.sh
@@ -390,6 +399,7 @@ jobs:
 
           script="cd shakenfist/;"
           script="${script} . /etc/sf/sfrc;"
+          script="${script} $(${GITHUB_WORKSPACE}/actions/tools/ci-ship-test-env.sh ${{ inputs.base_image_user }} ${primary})"
 
           script="${script} python3 -mvenv /tmp/functests;"
           script="${script} . /tmp/functests/bin/activate;"
@@ -413,6 +423,8 @@ jobs:
       - name: Run ansible module tests
         if: inputs.test_kind == 'ansible-modules'
         timeout-minutes: 60
+        env:
+          DEPLOY_PROFILE: ${{ inputs.deploy_profile }}
         run: |
           set -e
           . ${GITHUB_WORKSPACE}/ci-environment.sh
@@ -445,6 +457,7 @@ jobs:
           script="${script} pip3 install ~/client-python;"
           script="${script} ansible-galaxy collection install ~/shakenfist/dist-collection/*.tar.gz --force;"
           script="${script} . /etc/sf/sfrc;"
+          script="${script} $(${GITHUB_WORKSPACE}/actions/tools/ci-ship-test-env.sh ${{ inputs.base_image_user }} ${primary})"
           script="${script} export ANSIBLE_PYTHON_INTERPRETER=/tmp/moduletests/bin/python3;"
           script="${script} cd ~/shakenfist/shakenfist/deploy;"
           script="${script} bash ansiblemoduletests.sh;"

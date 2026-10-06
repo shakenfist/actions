@@ -215,7 +215,9 @@ to have run first. Outputs the cluster coordinates (`primary`,
 
 The optional `deploy_profile` input names a Jinja2 profile in the
 caller's checkout that adds inventory groups, extra vars and MariaDB SQL
-to the deploy; see "Deploy profiles" in [consuming.md](consuming.md).
+to the deploy, and can ask for a second deploy that must restart no
+matching systemd unit; see "Deploy profiles" in
+[consuming.md](consuming.md).
 
 The calling job must request at least an `s` runner
 (`runs-on: [self-hosted, vm, <image>, s]`). A composite action runs on
