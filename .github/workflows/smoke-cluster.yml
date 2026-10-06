@@ -157,7 +157,7 @@ jobs:
     # on xl all generate downsize recommendations, and they all say s.
     #
     # One size covers all three topologies because the biggest deploy is
-    # not the one it looks like. slim-tier is two nodes, slim-primary is
+    # not the one it looks like. slim-tier is three nodes, slim-primary is
     # five, so slim-primary is the wide one, and the measurements agree --
     # the slim-primary jobs peak at 2678-2714 MB while slim-tier sits at
     # 2618 MB, below even some single-node runs. The ceiling among the

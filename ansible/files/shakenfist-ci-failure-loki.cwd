@@ -25,6 +25,9 @@
 #             "sf-*.service"` shell job. The sf.target journal job is kept.
 #             This journal is the full local log at every level, including
 #             the DEBUG that is never shipped to Loki at all.
+#   ADDED:    a `journalctl -u "kerbside-*.service"` shell job, for clusters
+#             deployed with the kerbside profile. The Kerbside config files
+#             are NOT collected (no redaction mechanism exists; see below).
 #   DROPPED:  the `journalctl -u etcd` shell job -- etcd is gone.
 #
 # Everything else (the sf-* unit-file emitter, /run/sf pid/abort files,
@@ -146,6 +149,17 @@
   type: shell
   command: journalctl -u "sf-*.service" --no-pager
   destination: _commands/journalctl-sf-units
+
+- name: Kerbside systemd unit logs (the full local log)
+  type: shell
+  command: journalctl -u "kerbside-*.service" --no-pager
+  destination: _commands/journalctl-kerbside-units
+
+# /etc/kerbside/kerbside.ini (sql_url with a password, auth_secret_seed) and
+# /etc/kerbside/sources.yaml (the SF system key as `password:`) are
+# deliberately NOT collected: nothing in this bundle can redact them. The
+# /etc/sf directory job above copies verbatim, and is safe only because CI
+# secrets there are throwaway. The journal job above is the debugging aid.
 
 - name: Loki service logs (CI Loki receiving the shipped logs)
   type: shell
