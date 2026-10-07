@@ -547,15 +547,18 @@ pre-commit install          # optional, to run on every commit
 pre-commit run --all-files
 ```
 
-The unit tests run standalone too, and need PyYAML:
+The unit tests run standalone too, and need PyYAML and Jinja2:
 
 ```bash
-sudo apt-get install -y python3-yaml
+sudo apt-get install -y python3-yaml python3-jinja2
 python3 -m unittest discover -s tests -t . --verbose
 ```
 
-PyYAML is the suite's only dependency, and it is a hard requirement
-rather than an optional one on purpose. The inventory test that parses
+PyYAML and Jinja2 are the suite's only dependencies. Jinja2 is there
+for `tools/ci-apply-deploy-profile.py`, which renders deploy profiles on
+the runner with the system `python3`; the runner images carry both as
+dependencies of the apt `ansible` package. Both are hard requirements
+rather than optional ones on purpose. The inventory test that parses
 the generated YAML and checks its group structure used to skip itself
 when the import failed; every other assertion in that file is substring
 matching against hand-rendered text and would pass on malformed output.
@@ -620,6 +623,8 @@ one.
 | Script | Why it is tested |
 |--------|------------------|
 | `tools/ci-make-inventory.py` | Writes the ansible inventory every CI cluster deploy is driven from. A mistake produces a valid inventory with a node in the wrong group, and the deploy then fails much further along |
+| `tools/ci-apply-deploy-profile.py` | Merges another repository's deploy profile into that inventory and writes its credentials to disk. The tests pin the refusals (unknown keys, hosts and names), the `0600` modes, and that `deploy-collection.sh` runs the same command as before when no profile is given |
+| `tools/ci-redeploy-check.py` | Decides whether a second deploy restarted a daemon. The tests pin that a changed or vanished `InvocationID` fails, that a check matching no unit is refused rather than passed, and (with `tools/ci-deploy-cluster.sh` and `tools/ci-ship-test-env.sh` run against stubs) that a run without a profile deploys once and sources no test environment |
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that makes that comment the review's durable machine-readable copy |
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
 | `review-pr-with-claude/extract-review-json.py` | Decides whether a review survives a truncated or malformed response. It rebuilds JSON the model did not finish writing, and repairs quotes the model left unescaped, so the boundary between "recovered the completed findings" and "invented a review" is worth pinning |

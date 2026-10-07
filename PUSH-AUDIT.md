@@ -86,7 +86,8 @@ pre-commit run --all-files
 
 # The unit tests on their own, verbosely. pre-commit runs them too,
 # but only prints them on failure; this is the run whose count of
-# tests you can read. Needs PyYAML (python3-yaml)
+# tests you can read. Needs PyYAML and Jinja2 (python3-yaml,
+# python3-jinja2)
 python3 -m unittest discover -s tests -t . --verbose
 
 # Secret scan over history reachable from HEAD, with a positive
@@ -266,8 +267,8 @@ had:
 - **Python is run in place.** The helpers are executed directly
   by workflow steps, on the runner or on a cluster node, with no
   install step. A new third-party import is a new dependency on
-  every machine that runs the script; PyYAML is the only one the
-  tests assume.
+  every machine that runs the script; PyYAML and Jinja2 are the
+  only ones the tests assume.
 
 <!-- shared-block: comment-proportion v1 -->
 Comment proportion (shared block; do not edit -- the canonical

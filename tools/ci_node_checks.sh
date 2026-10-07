@@ -49,6 +49,14 @@ set -euo pipefail
 # run. systemd records those unit-state messages under the unit's journal,
 # so `journalctl -u sf-*.service` still catches a genuine sf-database crash
 # while ignoring dnsmasq and friends.
+#
+# `kerbside-*.service` (the Kerbside SPICE proxy, deployed by the "kerbside"
+# deploy profile) is checked alongside `sf-*.service` in all three places: the
+# failed-unit list, the journal patterns, and the restart count below. Kerbside
+# logs through Python logging to the journal, and its normal startup lines
+# contain none of the patterns above, so the same patterns apply unchanged. A
+# host with no Kerbside units has nothing for those globs to match and is
+# unaffected.
 
 # shellcheck disable=SC2034  # BRANCH is intentionally unused; see the header
 # -- it exists only to match ci_log_checks.sh's argument shape.
@@ -89,15 +97,43 @@ echo
 if [ "${relax_unit_exits}" -eq 1 ]; then
     echo "    Skipping failed sf-*.service unit check (node-killing job)."
 else
-    echo "    Check for failed sf-*.service systemd units."
+    echo "    Check for failed sf-*.service and kerbside-*.service systemd units."
     # systemctl exits non-zero when there are failed units; we want to inspect
     # the output ourselves, so guard against set -e with `|| true`.
-    failed_units=$(systemctl list-units --failed 'sf-*.service' --no-legend --plain 2>/dev/null || true)
+    failed_units=$(systemctl list-units --failed 'sf-*.service' 'kerbside-*.service' \
+        --no-legend --plain 2>/dev/null || true)
     if [ -n "${failed_units}" ]; then
-        echo "FAILURE: systemd reports failed sf-*.service units on $(hostname):"
+        echo "FAILURE: systemd reports failed sf-*/kerbside-* service units on $(hostname):"
         echo "${failed_units}" | head -n "${MAX_MATCHES}"
         failures=$(( failures + 1 ))
     fi
+fi
+
+# ---------------------------------------------------------------------------
+# (a2) Kerbside restart counts. kerbside-api.service has Restart=always, so a
+#      crash loop never shows up as a FAILED unit (systemd keeps restarting
+#      it), and Kerbside exits 0 on a malformed config (kerbside#313), which
+#      defeats Restart=on-failure as well. A healthy CI deploy never restarts
+#      a Kerbside unit, so any non-zero NRestarts on a loaded kerbside-*
+#      unit is a failure. Units that are not loaded (not-found) are ignored,
+#      and a host with no Kerbside units has nothing to check.
+# ---------------------------------------------------------------------------
+if [ "${relax_unit_exits}" -eq 1 ]; then
+    echo "    Skipping kerbside-*.service restart count check (node-killing job)."
+else
+    echo "    Check for restarted kerbside-*.service systemd units."
+    kerbside_units=$(systemctl list-units --all 'kerbside-*.service' --no-legend --plain 2>/dev/null \
+        | awk '$2 == "loaded" { print $1 }' || true)
+    for unit in ${kerbside_units}; do
+        restarts=$(systemctl show -p NRestarts --value "${unit}" 2>/dev/null || true)
+        if [ -z "${restarts}" ]; then
+            restarts=0
+        fi
+        if [ "${restarts}" -gt 0 ]; then
+            echo "FAILURE: ${unit} has been restarted ${restarts} times on $(hostname) (NRestarts=${restarts})."
+            failures=$(( failures + 1 ))
+        fi
+    done
 fi
 
 # ---------------------------------------------------------------------------
@@ -111,7 +147,7 @@ fi
 #     `|| true` so set -e does not abort before we have inspected it.
 # ---------------------------------------------------------------------------
 boot_journal=$(journalctl --no-pager -b 2>/dev/null || true)
-sf_journal=$(journalctl --no-pager -b -u 'sf-*.service' 2>/dev/null || true)
+sf_journal=$(journalctl --no-pager -b -u 'sf-*.service' -u 'kerbside-*.service' 2>/dev/null || true)
 
 # check_patterns <journal-text> <scope-label> <pattern>...
 # Greps the given journal text for each fixed-string pattern, printing and
@@ -143,7 +179,7 @@ check_patterns "${boot_journal}" "this boot's journal" \
 
 # Process-fatal pattern (abseil/gRPC C++ fatal on a daemon's stderr). Always
 # checked: a crash like this is a real fault regardless of the job.
-check_patterns "${sf_journal}" "the sf-*.service journal" \
+check_patterns "${sf_journal}" "the sf-*/kerbside-* service journal" \
     '*** Check failure stack trace: ***'
 
 # systemd unit-exit patterns: matched only against the sf-*.service journal,
@@ -153,7 +189,7 @@ check_patterns "${sf_journal}" "the sf-*.service journal" \
 if [ "${relax_unit_exits}" -eq 1 ]; then
     echo "    Skipping systemd unit-exit checks (node-killing job)."
 else
-    check_patterns "${sf_journal}" "the sf-*.service journal" \
+    check_patterns "${sf_journal}" "the sf-*/kerbside-* service journal" \
         "State 'stop-sigterm' timed out. Killing." \
         'Main process exited, code=exited' \
         "Failed with result 'exit-code'."
