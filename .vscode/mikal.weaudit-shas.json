@@ -9,10 +9,6 @@
       "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
       "date": "2026-09-27"
     },
-    ".github/workflows/ci.yml": {
-      "sha": "45b0ea06989e59b79b6ec50a5aa9607ebb25eb0a",
-      "date": "2026-09-23"
-    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "22c9962827b30e9fd4c606a7e3365bb81412761a",
       "date": "2026-10-03"
@@ -41,10 +37,6 @@
       "sha": "ab84e6fb10de106ac0c39124db52fa1ee7ed73a4",
       "date": "2026-10-05"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "b794554bc93e7781c35c3bb04ff939871399ff36",
-      "date": "2026-10-05"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -52,10 +44,6 @@
     ".pre-commit-config.yaml": {
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "f2234d8c162a1bf6d534746e5f122bde3a23157a",
-      "date": "2026-09-25"
     },
     "ansible/ci-dependencies.yml": {
       "sha": "430945c4a7cbb6fb22698328bce72a238b04c283",
@@ -120,10 +108,6 @@
     "ansible/files/networkd-eth1.network": {
       "sha": "6eecda292c8d3312cf899a57c364d72e7a1b5cce",
       "date": "2026-09-30"
-    },
-    "ansible/files/shakenfist-ci-failure-loki.cwd": {
-      "sha": "57b4d1a88dd8e4835699e616d67652a987950fad",
-      "date": "2026-09-09"
     },
     "ansible/files/user-data": {
       "sha": "128382120d350596a21a95a7ec14031cc6856e8d",
@@ -205,10 +189,6 @@
       "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
       "date": "2026-09-25"
     },
-    "build-smoke-cluster/action.yml": {
-      "sha": "a973f58cbee3ba79aab774a6ae2e7d83648a0574",
-      "date": "2026-10-03"
-    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -224,10 +204,6 @@
     "docs/ansible.md": {
       "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
       "date": "2026-10-03"
-    },
-    "docs/consuming.md": {
-      "sha": "a5de5890fe600b38f68842420a3d142815613f31",
-      "date": "2026-10-06"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -421,20 +397,12 @@
       "sha": "da0c391434cab5219ece4bccd37ed44a117b6684",
       "date": "2026-09-28"
     },
-    "tools/ci_node_checks.sh": {
-      "sha": "9af141aea39f45ae3d9638a468a73d69f07988f0",
-      "date": "2026-09-10"
-    },
     "tools/ci_sync_docs.sh": {
       "sha": "70c3e4991523188a348ff5a0e718abf61deb3efa",
       "date": "2026-09-10"
     },
     "tools/clone_with_depends.py": {
       "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
-      "date": "2026-09-10"
-    },
-    "tools/deploy-collection.sh": {
-      "sha": "6d8fa3b6f3b368f343e1c5b1bb05e41980e25b90",
       "date": "2026-09-10"
     },
     "tools/event_statistics.py": {

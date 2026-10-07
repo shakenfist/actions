@@ -141,10 +141,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-node-checks.yml",
       "author": "mikal"
     },
@@ -169,10 +165,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_node_checks.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_sync_docs.sh",
       "author": "mikal"
     },
@@ -182,10 +174,6 @@
     },
     {
       "path": "tools/clone_with_depends.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/deploy-collection.sh",
       "author": "mikal"
     },
     {
@@ -262,10 +250,6 @@
     },
     {
       "path": "tests/test_vip_reservation.py",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/ci.yml",
       "author": "mikal"
     },
     {
@@ -409,10 +393,6 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/export-repo-config.yml",
       "author": "mikal"
     },
@@ -465,10 +445,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/files",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_loki_dump.py",
       "author": "mikal"
     },
@@ -497,14 +473,6 @@
       "author": "mikal"
     },
     {
-      "path": "build-smoke-cluster/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "build-smoke-cluster",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
@@ -514,10 +482,6 @@
     },
     {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/smoke-cluster.yml",
       "author": "mikal"
     },
     {
@@ -541,19 +505,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
     },
     {
       "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     }
   ],
