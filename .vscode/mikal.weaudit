@@ -489,10 +489,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_verdict.sh",
       "author": "mikal"
     },

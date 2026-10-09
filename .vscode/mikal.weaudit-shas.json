@@ -33,10 +33,6 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
-    ".github/workflows/renovate.yml": {
-      "sha": "ab84e6fb10de106ac0c39124db52fa1ee7ed73a4",
-      "date": "2026-10-05"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
