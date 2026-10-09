@@ -499,6 +499,134 @@
     {
       "path": "ansible/ci-dependencies.yml",
       "author": "mikal"
+    },
+    {
+      "path": "tools/ci-apply-deploy-profile.py",
+      "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_apply_deploy_profile.py",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-ship-test-env.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_node_checks.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_sync_component_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_node_checks.py",
+      "author": "mikal"
+    },
+    {
+      "path": "AGENTS.md",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-deploy-cluster.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/sync_component_docs.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/deploy-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/component-docs.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_redeploy_check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-redeploy-check.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

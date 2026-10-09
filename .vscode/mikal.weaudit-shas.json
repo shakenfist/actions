@@ -9,6 +9,10 @@
       "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
       "date": "2026-09-27"
     },
+    ".github/workflows/ci.yml": {
+      "sha": "88d12c3f55d0f4e5d35355950ae8f851a683d4dc",
+      "date": "2026-10-10"
+    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "22c9962827b30e9fd4c606a7e3365bb81412761a",
       "date": "2026-10-03"
@@ -33,6 +37,10 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "a2642e74c440f3edf806f5abb542607e4939970f",
+      "date": "2026-10-10"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -40,6 +48,22 @@
     ".pre-commit-config.yaml": {
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
+    },
+    "AGENTS.md": {
+      "sha": "0d6d9b1a69112f07283de7e12b9ead075a28455b",
+      "date": "2026-10-10"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "ecc33cc61b40996532ab7b93fbfe6156530d6dd9",
+      "date": "2026-10-10"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "f749600bfd0e76413cfdc248c13b608ad9a4a49e",
+      "date": "2026-10-10"
+    },
+    "README.md": {
+      "sha": "5651306409a869d5f3f27b4571b4562520eb0f78",
+      "date": "2026-10-10"
     },
     "ansible/ci-dependencies.yml": {
       "sha": "430945c4a7cbb6fb22698328bce72a238b04c283",
@@ -104,6 +128,10 @@
     "ansible/files/networkd-eth1.network": {
       "sha": "6eecda292c8d3312cf899a57c364d72e7a1b5cce",
       "date": "2026-09-30"
+    },
+    "ansible/files/shakenfist-ci-failure-loki.cwd": {
+      "sha": "146c7b8bf4e3d1466bf28546a181ab7beded1f7d",
+      "date": "2026-10-10"
     },
     "ansible/files/user-data": {
       "sha": "128382120d350596a21a95a7ec14031cc6856e8d",
@@ -185,6 +213,10 @@
       "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
       "date": "2026-09-25"
     },
+    "build-smoke-cluster/action.yml": {
+      "sha": "a6a486f3742c5b1efa0e12752210b237fa736946",
+      "date": "2026-10-10"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
@@ -197,9 +229,25 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
+    "docs/actions.md": {
+      "sha": "6bd32ed7b965c6abbfcfb88783e32784c1b9931a",
+      "date": "2026-10-10"
+    },
     "docs/ansible.md": {
       "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
       "date": "2026-10-03"
+    },
+    "docs/ci.md": {
+      "sha": "d4bd2b7eb4698e3183714047780d357eb0ca9efd",
+      "date": "2026-10-10"
+    },
+    "docs/component-docs.md": {
+      "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
+      "date": "2026-10-10"
+    },
+    "docs/consuming.md": {
+      "sha": "fcf5b14b7b8a93f14c760ef5b41044b72852f6f9",
+      "date": "2026-10-10"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -212,6 +260,10 @@
     "etc/ovirt-45-rocky-9-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
+    },
+    "pr-bot-trigger/action.yml": {
+      "sha": "040e5916d71db87da6da30ef9ce677ff1704f0f6",
+      "date": "2026-10-10"
     },
     "renovate.json": {
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
@@ -245,6 +297,10 @@
       "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
       "date": "2026-09-07"
     },
+    "setup-kerbside-environment/action.yml": {
+      "sha": "8cb3b36dccfb1924ec15b5635bbce759e924acd6",
+      "date": "2026-10-10"
+    },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",
       "date": "2026-09-07"
@@ -264,6 +320,10 @@
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
+    },
+    "tests/test_ci_apply_deploy_profile.py": {
+      "sha": "67b042cf42ba5ee50152dfe27f649d55ddfe5a85",
+      "date": "2026-10-10"
     },
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "a32f29e8cd3cc98953f8d227b7f5bba2bb25aa13",
@@ -288,6 +348,14 @@
     "tests/test_ci_make_inventory.py": {
       "sha": "4596b013378338481cfa604fa6786aefe091a725",
       "date": "2026-09-09"
+    },
+    "tests/test_ci_node_checks.py": {
+      "sha": "c2832dbe5ed7aa8e0b653ca507170295ba756feb",
+      "date": "2026-10-10"
+    },
+    "tests/test_ci_redeploy_check.py": {
+      "sha": "a8ac5d22512f67f9c4602cfa5d42b224d777f17d",
+      "date": "2026-10-10"
     },
     "tests/test_create_review_issues.py": {
       "sha": "f09bf2f1fdb6d67e00b6b988904d1987d443222e",
@@ -333,9 +401,17 @@
       "sha": "2814b5f56b5767b4e9c3bd104315fe679e1a52c4",
       "date": "2026-10-05"
     },
+    "tests/test_sync_component_docs.py": {
+      "sha": "2fe5e44f2309aca3927cc7d033867e21a086b774",
+      "date": "2026-10-10"
+    },
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "a1b0bb0ec816bd64763c1da9839f12f66a237376",
+      "date": "2026-10-10"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
@@ -349,9 +425,25 @@
       "sha": "e485107a0b9494221469b15da0a2657def658416",
       "date": "2026-09-10"
     },
+    "tools/ci-apply-deploy-profile.py": {
+      "sha": "30ee4682c397f383d643fb3f3424b1c47af1a33c",
+      "date": "2026-10-10"
+    },
+    "tools/ci-deploy-cluster.sh": {
+      "sha": "6365e56f99bfa21bb5cbd5c5f3fe1a101cdc69f2",
+      "date": "2026-10-10"
+    },
     "tools/ci-make-inventory.py": {
       "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
       "date": "2026-09-10"
+    },
+    "tools/ci-redeploy-check.py": {
+      "sha": "d0d1ddea382935bbdf95e25a0d0e9d63bd333d5f",
+      "date": "2026-10-10"
+    },
+    "tools/ci-ship-test-env.sh": {
+      "sha": "79fb00501a9655860e5d96fdbe513461346b348a",
+      "date": "2026-10-10"
     },
     "tools/ci_code_formatting.sh": {
       "sha": "ecda63158795fe4dd7462db66e5e2333182e1d78",
@@ -389,6 +481,10 @@
       "sha": "da0c391434cab5219ece4bccd37ed44a117b6684",
       "date": "2026-09-28"
     },
+    "tools/ci_node_checks.sh": {
+      "sha": "3bcad1457330a23921317d011b59e91f37340f19",
+      "date": "2026-10-10"
+    },
     "tools/ci_sync_docs.sh": {
       "sha": "70c3e4991523188a348ff5a0e718abf61deb3efa",
       "date": "2026-09-10"
@@ -396,6 +492,10 @@
     "tools/clone_with_depends.py": {
       "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
       "date": "2026-09-10"
+    },
+    "tools/deploy-collection.sh": {
+      "sha": "d0f159480bb1a647f8cd171d6a705421fb0976b4",
+      "date": "2026-10-10"
     },
     "tools/event_statistics.py": {
       "sha": "4e22166ac4d4cbaf9bc4593b2a78fc68dc538a4e",
@@ -464,6 +564,10 @@
     "tools/start-test-target.py": {
       "sha": "cda05255a0848a4c554941fd662a7c6e1a9e4bc1",
       "date": "2026-09-10"
+    },
+    "tools/sync_component_docs.py": {
+      "sha": "1333849ce1ba2e587172b9317bbf3424c1507106",
+      "date": "2026-10-10"
     }
   }
 }
