@@ -265,14 +265,6 @@
       "author": "mikal"
     },
     {
-      "path": "setup-kerbside-environment/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "setup-kerbside-environment",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/proxmox-substrate.yml",
       "author": "mikal"
     },
