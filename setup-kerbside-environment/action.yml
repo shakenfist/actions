@@ -21,6 +21,10 @@ inputs:
     description: 'The address the deployment brings up as its own VIP. Reserved in Shaken Fist before anything else is allocated, so that IPAM never hands it to an interface. Must match kolla_internal_vip_address in the globals file being deployed.'
     required: false
     default: '10.0.2.3'
+  install_docker:
+    description: 'Whether to install Docker on the target before Kolla-Ansible runs. kerbside-patches sets this to false for its containerised deployer entries, which must start from a host with no container engine. Needs a kerbside-patches tree whose _build/install-build-dependencies.sh accepts --no-docker.'
+    required: false
+    default: 'true'
 runs:
   using: "composite"
   steps:
@@ -152,10 +156,14 @@ runs:
       shell: bash
       run: |
         . $GITHUB_ENV
+        deps_args=""
+        if [ "${{ inputs.install_docker }}" != "true" ]; then
+            deps_args="--no-docker"
+        fi
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_user }}@10.0.2.2 \
-            'cd /srv/shakenfist/kerbside-patches; ./_build/install-build-dependencies.sh'
+            "cd /srv/shakenfist/kerbside-patches; ./_build/install-build-dependencies.sh ${deps_args}"
 
     - name: Setup the CI registry
       shell: bash
