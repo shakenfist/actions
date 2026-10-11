@@ -156,7 +156,7 @@ jobs:
     # own answer rather than a guess: the same suites' accidental landings
     # on xl all generate downsize recommendations, and they all say s.
     #
-    # One size covers all three topologies because the biggest deploy is
+    # One footprint covers all three topologies because the biggest deploy is
     # not the one it looks like. slim-tier is three nodes, slim-primary is
     # five, so slim-primary is the wide one, and the measurements agree --
     # the slim-primary jobs peak at 2678-2714 MB while slim-tier sits at
@@ -174,7 +174,8 @@ jobs:
     # lint runner's capacity claim. s-cloud is a cloud on one node (the
     # localhost topology) and s-cluster is a multi-node cluster (slim-tier,
     # slim-primary); an unknown future topology lands on s-cluster, which
-    # over-claims rather than refuses. See shakenfist/private-ci
+    # over-claims rather than refuses. See "Runner sizes for jobs that
+    # build a cloud" in docs/consuming.md, and shakenfist/private-ci
     # docs/capacity-claims.md, "Cloud-building jobs".
     #
     # audit-ok: vm-runner-size -- the size is derived from the topology input

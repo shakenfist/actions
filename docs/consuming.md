@@ -75,7 +75,7 @@ repositories:
 ```yaml
 jobs:
   smoke:
-    runs-on: [self-hosted, vm, debian-13, s]
+    runs-on: [self-hosted, vm, debian-13, s-cluster]
     steps:
       - name: Setup test environment
         uses: shakenfist/actions/setup-test-environment@main
@@ -101,6 +101,23 @@ falls back to the first entry in its size table -- `xs`, one vCPU and
 2048 MB -- which is too small to drive the deploy. Mode 1 consumers
 inherit the size from the reusable workflow, but in Mode 2 the job is
 yours and so is the size.
+
+### Runner sizes for jobs that build a cloud
+
+A job that builds a cloud names `s-cloud` (a cloud on one node, such as
+the `localhost` topology) or `s-cluster` (a multi-node cluster, such as
+`slim-tier` or `slim-primary`) instead of `s`. Both have exactly the
+footprint of `s` -- two vCPU and 4096 MB, enough for the runner to drive
+the deploy -- because the cluster itself is built as separate instances.
+What the token changes is where the job waits. The conductor reserves
+capacity for each runner it starts at the largest demand of any job
+waiting with the same image and size, because it cannot choose which of
+those jobs the runner picks up. A cloud-building job waiting under plain
+`s` therefore makes every lint runner on `s` reserve a whole cluster's
+capacity, and the cluster jobs wait behind lint runners for capacity
+they never use. Use the token in place of `s`, never alongside it, and
+write it in lower case. `smoke-cluster.yml` picks the token from its
+`topology` input, so Mode 1 consumers get it automatically.
 
 The cluster's lifetime is the job: nothing tears it down explicitly, the
 under-cloud reaper collects the test instances afterwards. The deploy
