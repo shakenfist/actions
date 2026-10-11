@@ -117,7 +117,10 @@ those jobs the runner picks up. A cloud-building job waiting under plain
 capacity, and the cluster jobs wait behind lint runners for capacity
 they never use. Use the token in place of `s`, never alongside it, and
 write it in lower case. `smoke-cluster.yml` picks the token from its
-`topology` input, so Mode 1 consumers get it automatically.
+`topology` input, so Mode 1 consumers get it automatically. The tokens
+exist only at `s`'s footprint: a cloud-building job whose runner needs
+more than `s`, such as `proxmox-substrate.yml` on `m`, keeps its plain
+size.
 
 The cluster's lifetime is the job: nothing tears it down explicitly, the
 under-cloud reaper collects the test instances afterwards. The deploy

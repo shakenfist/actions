@@ -369,13 +369,15 @@ always gets them from the same ref as the `action.yml` it resolved; see
     # about 30 seconds from the mint.
 ```
 
-The calling job needs at least an `s` runner, named `s-cloud` or
-`s-cluster` since it builds a cloud (`runs-on: [self-hosted, vm, <image>,
-s-cloud]`; see "Runner sizes for jobs that build a cloud" in
-[consuming.md](consuming.md)): the deploy drives an
+The calling job needs at least an `s` runner: the deploy drives an
 Ansible run from the runner itself, the same reason `build-smoke-cluster`
 gives for its own minimum, and a sizeless `vm` job silently falls back
-to `xs` (see `AGENTS.md`, *A `vm` runs-on must also name a size*).
+to `xs` (see `AGENTS.md`, *A `vm` runs-on must also name a size*). A
+caller that fits `s` names `s-cloud` in its place, since the job builds
+a cloud (`runs-on: [self-hosted, vm, <image>, s-cloud]`); one that needs
+more keeps its plain size, as `proxmox-substrate.yml` does with `m`. See
+"Runner sizes for jobs that build a cloud" in
+[consuming.md](consuming.md).
 
 **Inputs:**
 
