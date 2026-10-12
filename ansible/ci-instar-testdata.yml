@@ -1,0 +1,435 @@
+# Builds the `instar-testdata` disk: a depth-1 clone of the private
+# instar-testdata repository with its git-lfs content materialised, which
+# CI runners whose job asks for the `instar` label mount at
+# /srv/ci/cached/instar-testdata. It is modelled play by play on
+# ci-dependencies.yml, and where a comment here is short, the reasoning is
+# in the matching place there. The design is in private-ci's
+# docs/plans/PLAN-instar-testdata-disk.md.
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+  vars:
+    identifier: unknown
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
+    base_image: "debian:13"
+    base_image_user: "debian"
+    # When this playbook runs on a CI runner, the runner shares the
+    # builder instance's virtual network and can ssh to its inner
+    # address. When conductor runs it directly on maui, only floating
+    # IPs are routable, so float_builder=true gives the builder
+    # instance a floating IP and sshs to that instead.
+    float_builder: false
+    gitlab_testdata_token: ""
+
+  tasks:
+    # ci-dependencies.yml skips its imago-testdata clone when the token
+    # is empty, because that disk has other content worth publishing.
+    # This disk has nothing else, so an empty token is not a degraded
+    # image, it is an empty one. Check here, before an instance exists to
+    # clean up. The message must never interpolate the token.
+    - name: Require a GitLab token for the instar-testdata clone
+      assert:
+        that:
+          - gitlab_testdata_token | length > 0
+        fail_msg: >-
+          The GitLab token is empty, so there is nothing to clone and
+          the instar-testdata disk would be published empty. Every
+          instar job would then find a cache with no test data in it.
+          Pass the token as an extra var.
+        success_msg: A GitLab token was supplied.
+
+    - name: Create an instance
+      shakenfist.shakenfist.sf_instance:
+        name: "rebuild-instar-testdata"
+        cpu: 4
+        ram: 4096
+        disks:
+          - "100@{{base_image}}"
+          - "40"
+        networkspecs:
+          - "network_uuid={{identifier}}{% if float_builder | bool %},float=true{% endif %}"
+        ssh_key: "{{ lookup('file', sshkey) }}"
+        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
+        namespace: "{{identifier}}"
+        state: present
+        await: true
+        await_timeout: 600
+      register: imagerebuild_instance
+
+    - name: Log instance
+      debug:
+        msg: "{{imagerebuild_instance}}"
+
+    # As in ci-dependencies.yml, there is no python-interpreter branch
+    # here: the base image is debian:13 and nothing else is supported.
+    - name: Add to ansible
+      add_host:
+        hostname: imagerebuild
+        ansible_ssh_host: "{{ imagerebuild_instance['meta']['interfaces'][0]['floating'] if float_builder | bool else imagerebuild_instance['meta']['interfaces'][0]['ipv4'] }}"
+        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
+        ansible_ssh_user: "{{base_image_user}}"
+        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
+        sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
+        groups: allsf
+
+    - name: Log instance
+      debug:
+        msg: "{{hostvars['imagerebuild']}}"
+
+    # Cheap early gate: a banner means sshd is listening, which is not the
+    # same as the guest being ready -- see tasks/wait-for-cloud-init.yml,
+    # imported by the readiness play below, for what this does not prove.
+    # Keep it anyway as a fast failure for a guest that never booted.
+    - name: Wait for instance to present an "OpenSSH" prompt
+      wait_for:
+        port: 22
+        host: "{{hostvars['imagerebuild']['ansible_ssh_host']}}"
+        search_regex: OpenSSH
+        delay: 10
+
+# Readiness gate -- see tasks/wait-for-cloud-init.yml for why the banner
+# wait above is not enough on its own. Here it also keeps the package
+# operations below from fighting cloud-init for the dpkg lock.
+- name: Wait for the instance to finish cloud-init
+  hosts: allsf
+  gather_facts: false
+  tasks:
+    - import_tasks: tasks/wait-for-cloud-init.yml
+
+- hosts: allsf
+  gather_facts: yes
+  become: true
+  environment:
+    http_proxy: http://192.168.1.15:3128
+    https_proxy: http://192.168.1.15:3128
+    HTTP_PROXY: http://192.168.1.15:3128
+    HTTPS_PROXY: http://192.168.1.15:3128
+    no_proxy: localhost,127.0.0.1,10.0.0.0/8
+    NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
+  vars:
+    gitlab_testdata_token: ""
+
+  tasks:
+    # The ansible git module knows nothing about git-lfs, so the clone
+    # below is a command task, and the base debian:13 image does not ship
+    # the git-lfs extension.
+    - name: Install git-lfs
+      apt:
+        name: git-lfs
+        state: present
+        update_cache: true
+
+    - name: Make a directory for cached images
+      file:
+        path: /srv/ci/cached
+        state: directory
+        mode: "0755"
+
+    # The feature list is exactly the one ci-dependencies.yml uses, and
+    # the long comment on its "Make a filesystem on the dependencies disk"
+    # task explains why it is named in full rather than left to the
+    # builder's mke2fs.conf. Runners mount this disk on the same span of
+    # kernels, so it must not drift from that one;
+    # tests/test_ci_instar_testdata.py compares the two lists.
+    #
+    # The label is what a runner mounts by (LABEL=instar-testdata), which
+    # unlike a position such as /dev/vdd cannot be fooled by the disks
+    # being reordered.
+    - name: Make a filesystem on the instar-testdata disk
+      shell: >-
+        mkfs.ext4 -O none,has_journal,ext_attr,resize_inode,dir_index,filetype,extent,64bit,flex_bg,metadata_csum_seed,sparse_super,large_file,huge_file,dir_nlink,extra_isize,metadata_csum
+        -L instar-testdata
+        /dev/vdc
+
+    - name: Make the mount point for the instar-testdata disk
+      file:
+        path: /srv/ci/cached/instar-testdata
+        state: directory
+        mode: "0755"
+
+    - name: Mount the instar-testdata disk
+      mount:
+        path: /srv/ci/cached/instar-testdata
+        src: /dev/vdc
+        fstype: ext4
+        state: mounted
+
+    # git clone refuses a directory that is not empty, and mkfs.ext4
+    # always leaves a lost+found at the root of the new filesystem.
+    # Nothing is in it, and fsck recreates it if it is ever wanted.
+    - name: Remove the empty lost+found so the clone has an empty directory
+      file:
+        path: /srv/ci/cached/instar-testdata/lost+found
+        state: absent
+
+    # The clone and the LFS pull below run as debian, so the tree of
+    # about 770,000 files is created with that owner. A recursive chown
+    # afterwards would be minutes of metadata writes on every build, and
+    # the runner's own boot-time chown of /srv/ is done before this disk
+    # is mounted, so it never touches it. The mount point itself must be
+    # debian's for that clone to be allowed into it.
+    - name: Set ownership of instar-testdata disk mount
+      file:
+        path: /srv/ci/cached/instar-testdata
+        owner: debian
+        group: debian
+
+    # no_log on every task that carries the token: a failed command would
+    # otherwise print its arguments, token included, into the build log.
+    - name: Clone instar-testdata from GitLab
+      command: >-
+        git clone --depth 1
+        https://oauth2:{{ gitlab_testdata_token }}@gitlab.home.stillhq.com/private/instar-testdata.git
+        /srv/ci/cached/instar-testdata
+      become_user: debian
+      no_log: true
+
+    # The pull authenticates with the credential in the remote URL, so
+    # its output and failures are kept out of the log too.
+    - name: Enable git-lfs in the instar-testdata clone
+      command: git lfs install --local
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+      become_user: debian
+      no_log: true
+
+    # The LFS objects stay in .git/lfs/objects as well as the working
+    # tree, which is what makes a runner's own `git lfs pull` a no-op
+    # except for objects added since this build.
+    - name: Fetch the git-lfs content for instar-testdata
+      command: git lfs pull
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+      become_user: debian
+      no_log: true
+
+    # This mirrors the "Resparsify test images" step in instar's
+    # .github/workflows/functional-tests.yml, deliberately only under
+    # downloaded/ and only these extensions: resparsifying the custom/
+    # fixtures could change files a test asserts about. instar plans to
+    # lift that step into tools/ci/resparsify-testdata.sh; when that
+    # lands, this should fetch and run it instead of keeping a copy.
+    # It runs as debian so that the rewritten files keep their owner.
+    - name: Resparsify instar-testdata images
+      shell: |
+        cd /srv/ci/cached/instar-testdata
+        find downloaded/ -type f \( \
+          -name "*.qcow2" -o \
+          -name "*.vmdk" -o \
+          -name "*.vhd" -o \
+          -name "*.vhdx" -o \
+          -name "*.img" \
+        \) -print0 | while IFS= read -r -d '' file; do
+          cp --sparse=always "$file" "$file.sparse"
+          mv "$file.sparse" "$file"
+        done
+      args:
+        executable: /bin/bash
+      become_user: debian
+
+    # Scrub the credential. This disk is attached to runners that run
+    # pull request code, so a token left on it is a token handed to
+    # whoever can open a pull request. The clone put it in the origin
+    # URL, and git-lfs records an [lfs "<url>"] section, with the token
+    # in the section name, for the endpoint it authenticated against.
+    - name: Remove the credential from the instar-testdata remote
+      command: git remote set-url origin https://gitlab.home.stillhq.com/private/instar-testdata.git
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+      become_user: debian
+
+    # A key from --get-regexp is section.subsection.name, and the
+    # subsection here is a URL which itself contains dots, so the section
+    # to remove is everything before the LAST dot, never a split on the
+    # first. The sections are matched on containing oauth2:, and the
+    # grep check below is what proves none was missed. git exits 1 when
+    # nothing matches, which is fine.
+    - name: Remove the credential from the instar-testdata lfs config
+      shell: |
+        set -eu
+        git config --local --name-only --get-regexp '^lfs\.' | while IFS= read -r key; do
+          section="${key%.*}"
+          case "$section" in
+            *oauth2:*) git config --local --remove-section "$section" ;;
+          esac
+        done || true
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+        executable: /bin/bash
+      become_user: debian
+
+    # Checks. Each one is about what publishing a bad disk would cost,
+    # because the label is attached to every runner that asks for it.
+    - name: Look at the first bytes of the canary files
+      shell: |
+        set -eu
+        test -f "{{ item }}"
+        if head -c 256 "{{ item }}" | grep -aq 'git-lfs.github.com/spec'; then
+          echo pointer
+        else
+          echo content
+        fi
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+        executable: /bin/bash
+      loop:
+        - custom/security/qcow2-backing-textfile.qcow2
+        - custom/raw/zeros-1mb.raw
+      register: canaries
+      changed_when: false
+
+    - name: Confirm the canary files are real content, not LFS pointers
+      assert:
+        that:
+          - item.stdout == 'content'
+        fail_msg: >-
+          {{ item.item }} is still an LFS pointer, so git lfs pull did not
+          fetch the content. Publishing this disk would give every instar
+          job a cache whose test images are text files.
+        success_msg: "{{ item.item }} is real content."
+      loop: "{{ canaries.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Search the git metadata for the credential
+      shell: grep -rl --exclude-dir=objects oauth2 .git || true
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+        executable: /bin/bash
+      register: credential_search
+      changed_when: false
+
+    - name: Confirm no credential is left on the instar-testdata disk
+      assert:
+        that:
+          - credential_search.stdout == ''
+        fail_msg: >-
+          The GitLab token is still present in
+          {{ credential_search.stdout_lines | join(', ') }}. Publishing this
+          disk would hand it to every runner that mounts it, including ones
+          running pull request code.
+        success_msg: No credential found in the git metadata.
+
+    - name: Count the git-lfs objects
+      shell: ls -A .git/lfs/objects | wc -l
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+      register: lfs_object_count
+      changed_when: false
+
+    - name: Confirm the git-lfs object store was kept
+      assert:
+        that:
+          - lfs_object_count.stdout | trim | int > 0
+        fail_msg: >-
+          .git/lfs/objects is empty, so a runner's git lfs pull would have
+          to download every object again. Publishing this disk would
+          defeat its purpose.
+        success_msg: .git/lfs/objects holds objects.
+
+    - name: Check who owns the instar-testdata clone
+      command: stat -c %U /srv/ci/cached/instar-testdata
+      register: clone_owner
+      changed_when: false
+
+    - name: Confirm the clone is owned by debian
+      assert:
+        that:
+          - clone_owner.stdout | trim == 'debian'
+        fail_msg: >-
+          /srv/ci/cached/instar-testdata is owned by
+          {{ clone_owner.stdout | trim }}, not debian. git refuses to work
+          in a repository owned by another user, so every instar job
+          would fail in prepare-testdata.sh.
+        success_msg: The clone is owned by debian.
+
+    # Same reasoning as the dependencies disk's check, which sets out why
+    # the floor is two gigabytes: it catches a filled disk without
+    # failing builds over ordinary growth. If the tree grows to where the
+    # finished disk nears this, the disk wants to be bigger.
+    - name: Measure free space on the instar-testdata disk
+      command: df --output=avail --block-size=1M /srv/ci/cached/instar-testdata
+      register: testdata_free
+      changed_when: false
+
+    - name: Confirm the instar-testdata disk did not fill up
+      assert:
+        that:
+          - testdata_free.stdout_lines[-1] | trim | int >= 2048
+        fail_msg: >-
+          /srv/ci/cached/instar-testdata has only
+          {{ testdata_free.stdout_lines[-1] | trim }}MB free, so the 40GB
+          disk filled while the clone or the resparsify was running.
+          Publishing this disk would give every instar job test images
+          that are truncated.
+        success_msg: >-
+          /srv/ci/cached/instar-testdata has
+          {{ testdata_free.stdout_lines[-1] | trim }}MB free.
+
+    - name: Unmount the instar-testdata disk
+      mount:
+        path: /srv/ci/cached/instar-testdata
+        state: unmounted
+
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+  vars:
+    identifier: cron
+    sshkey: '/srv/github/id_ci.pub'
+    ssh_private_key: '/srv/github/id_ci'
+    base_image_user: "ubuntu"
+    label: "ci-images/instar-testdata-scratch"
+
+  tasks:
+    - name: Snapshot the instance
+      shakenfist.shakenfist.sf_snapshot:
+        instance_uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
+        all: true
+        state: present
+      register: cisnapshot
+
+    - name: Log snapshot details
+      debug:
+        msg: "{{cisnapshot}}"
+
+    - name: Record the snapshot uuid
+      set_fact:
+        snapshot_uuid: "{{cisnapshot['meta']['vdc']['blob_uuid']}}"
+
+    - name: Log snapshot uuid
+      debug:
+        msg: "{{hostvars['localhost']['snapshot_uuid']}}"
+
+- hosts: localhost
+  gather_facts: no
+  connection: ssh
+  vars:
+    identifier: cron
+    label: "ci-images/instar-testdata-scratch"
+
+  tasks:
+    - name: Add the snapshot to the label
+      shell: |
+        sf-client label update "{{label}}" "{{hostvars['localhost']['snapshot_uuid']}}"
+
+    - name: Log the snapshot update
+      debug:
+        msg: "Set label {{label}} to blob uuid {{hostvars['localhost']['snapshot_uuid']}}"
+
+    - name: Delete the vda snapshot
+      shakenfist.shakenfist.sf_snapshot:
+        uuid: "{{cisnapshot['meta']['vda']['artifact_uuid']}}"
+        state: absent
+
+    - name: Delete the vdc snapshot (its a label now if it passed)
+      shakenfist.shakenfist.sf_snapshot:
+        uuid: "{{cisnapshot['meta']['vdc']['artifact_uuid']}}"
+        state: absent
+
+    - name: Delete build instance
+      shakenfist.shakenfist.sf_instance:
+        uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
+        namespace: "{{identifier}}"
+        state: absent
