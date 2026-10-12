@@ -125,6 +125,14 @@ today. Do not write `inherit` into a usage example either -- callers
 copy them. For `pr-auto-review.yml`, keep the `permissions:` block:
 removing *that* does break the reviewer.
 
+**Never print a whole `hostvars` entry.** `hostvars['host']` includes
+every extra var, so `debug: msg: "{{hostvars['imagerebuild']}}"` prints
+any secret the conductor passed in (the GitLab testdata token, for one)
+into a build log whose tail the conductor files as a public issue when
+the build fails. Name the fields you want instead.
+`tests/test_ansible_log_hygiene.py` checks every `debug`, `fail` and
+`assert` under `ansible/`.
+
 **Some `tools/` scripts only ever run on a remote cluster node,** copied
 there and executed over ssh by `tools/run_remote`. They cannot be
 exercised locally or in CI, so changes to them are effectively untested
