@@ -77,9 +77,14 @@
         sf_namespace: "{{identifier}}"
         groups: allsf
 
-    - name: Log instance
+    # Name the fields rather than dumping hostvars['imagerebuild']:
+    # hostvars include every extra var, gitlab_testdata_token among
+    # them, so a dump prints the token into the build log.
+    - name: Log the build host
       debug:
-        msg: "{{hostvars['imagerebuild']}}"
+        msg: >-
+          imagerebuild is {{hostvars['imagerebuild']['sf_instance_uuid']}}
+          at {{hostvars['imagerebuild']['ansible_ssh_host']}}
 
     # Cheap early gate: a banner means sshd is listening, which is not the
     # same as the guest being ready -- see tasks/wait-for-cloud-init.yml,
@@ -263,7 +268,8 @@
     # first. The sections are matched on containing oauth2:, and the
     # grep check below is what proves none was missed. git exits 1 when
     # nothing matches, which is fine; any other failure, here or in a
-    # --remove-section, fails the task.
+    # --remove-section, fails the task. no_log because the section names
+    # this reads hold the token, and a failing git config prints them.
     - name: Remove the credential from the instar-testdata lfs config
       shell: |
         set -euo pipefail
@@ -278,6 +284,7 @@
         chdir: /srv/ci/cached/instar-testdata
         executable: /bin/bash
       become_user: debian
+      no_log: true
 
     # Checks. Each one is about what publishing a bad disk would cost,
     # because the label is attached to every runner that asks for it.

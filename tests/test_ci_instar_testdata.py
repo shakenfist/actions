@@ -24,6 +24,9 @@ from tests.helpers import REPO_ROOT
 PLAYBOOK = os.path.join(REPO_ROOT, 'ansible', 'ci-instar-testdata.yml')
 DEPENDENCIES = os.path.join(REPO_ROOT, 'ansible', 'ci-dependencies.yml')
 TOKEN = 'gitlab_testdata_token'
+CREDENTIAL_FORM = 'oauth2'
+# {{hostvars['x']}} or {{ hostvars }}, but not {{hostvars['x']['field']}}.
+WHOLE_HOSTVARS = re.compile(r"\{\{\s*hostvars\s*(\[[^\]]*\]\s*)?\}\}")
 TOKEN_ASSERT = 'Require a GitLab token for the instar-testdata clone'
 CREATE_TASK = 'Create an instance'
 UNMOUNT_TASK = 'Unmount the instar-testdata disk'
@@ -114,17 +117,32 @@ class InstarTestdataTests(unittest.TestCase):
         for key in ('fail_msg', 'success_msg'):
             self.assertNotIn(TOKEN, task['assert'].get(key, ''))
 
-    def test_every_task_naming_the_token_has_no_log(self):
+    def test_every_task_handling_the_credential_has_no_log(self):
+        # A task carries the token if it names the variable, or if it
+        # works on the oauth2: URL form the clone writes to disk: the lfs
+        # scrub reads section names that hold the token without ever
+        # naming the variable, and a failing git config prints them.
         checked = 0
         for task in all_tasks(self.plays):
             if task.get('name') == TOKEN_ASSERT:
                 continue
-            if TOKEN in yaml.safe_dump(task):
+            body = yaml.safe_dump(task)
+            if TOKEN in body or CREDENTIAL_FORM in body:
                 checked += 1
                 self.assertIs(
                     True, task.get('no_log'),
-                    '%r names the token but does not set no_log: true' % task.get('name'))
-        self.assertGreater(checked, 0, 'no task names the token; the detection is vacuous')
+                    '%r handles the credential but does not set no_log: true' % task.get('name'))
+        self.assertGreaterEqual(
+            checked, 3, 'fewer credential tasks than the clone, scrub and search; the detection is broken')
+
+    def test_hostvars_are_never_dumped_whole(self):
+        # hostvars include every extra var, the token among them, so
+        # printing a host's whole hostvars prints the token into the log.
+        for task in all_tasks(self.plays):
+            body = yaml.safe_dump(task, width=1000)
+            self.assertIsNone(
+                WHOLE_HOSTVARS.search(body),
+                '%r renders a whole hostvars entry, which includes the token' % task.get('name'))
 
     def test_credential_is_scrubbed_before_unmount(self):
         unmount = find_task(self.plays, UNMOUNT_TASK)
