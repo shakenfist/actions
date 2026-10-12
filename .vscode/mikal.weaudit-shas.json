@@ -1,10 +1,6 @@
 {
   "version": 1,
   "files": {
-    ".github/actionlint.yaml": {
-      "sha": "2ead7a428865133dc5bd10bf0651d9411e1cd615",
-      "date": "2026-09-23"
-    },
     ".github/workflows/canary.yml": {
       "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
       "date": "2026-09-27"
@@ -37,10 +33,6 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "a2642e74c440f3edf806f5abb542607e4939970f",
-      "date": "2026-10-10"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -48,10 +40,6 @@
     ".pre-commit-config.yaml": {
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
-    },
-    "AGENTS.md": {
-      "sha": "0d6d9b1a69112f07283de7e12b9ead075a28455b",
-      "date": "2026-10-10"
     },
     "ARCHITECTURE.md": {
       "sha": "ecc33cc61b40996532ab7b93fbfe6156530d6dd9",
@@ -229,10 +217,6 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
-    "docs/actions.md": {
-      "sha": "6bd32ed7b965c6abbfcfb88783e32784c1b9931a",
-      "date": "2026-10-10"
-    },
     "docs/ansible.md": {
       "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
       "date": "2026-10-03"
@@ -243,10 +227,6 @@
     },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
-      "date": "2026-10-10"
-    },
-    "docs/consuming.md": {
-      "sha": "fcf5b14b7b8a93f14c760ef5b41044b72852f6f9",
       "date": "2026-10-10"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {

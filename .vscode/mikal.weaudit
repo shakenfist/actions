@@ -253,10 +253,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/actionlint.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/tasks/install-kolla-prerequisites.yml",
       "author": "mikal"
     },
@@ -561,10 +557,6 @@
       "author": "mikal"
     },
     {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-deploy-cluster.sh",
       "author": "mikal"
     },
@@ -574,10 +566,6 @@
     },
     {
       "path": "tools/deploy-collection.sh",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/smoke-cluster.yml",
       "author": "mikal"
     },
     {
@@ -606,18 +594,6 @@
     },
     {
       "path": "pr-bot-trigger",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/actions.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
