@@ -99,7 +99,8 @@ actionlint fails the lint job. Static runners are `[self-hosted, static]`
 *exactly* -- adding a size or an OS label there asks for a runner that
 does not exist, and the job waits forever without being scheduled.
 
-**A `vm` runs-on must also name a size** (`xs`/`s`/`m`/`l`/`xl`). This is
+**A `vm` runs-on must also name a size** (`xs`/`s`/`m`/`l`/`xl`, or
+`s-cloud`/`s-cluster`). This is
 the opposite rule to the static one above, and the failure is quieter: the
 conductor matches the size out of the labels, and when it finds none it
 falls back to the first entry in `CI_SIZES` -- `xs`, one vCPU and 2048 MB
@@ -108,6 +109,12 @@ a silent downgrade to the smallest runner, not a free choice, and nothing
 in this repository shows it. Any job which builds wheels or drives an
 ansible deploy from the runner needs at least `s`. See
 [shakenfist/shakenfist#3696](https://github.com/shakenfist/shakenfist/issues/3696).
+A job that builds a cloud on `s` names `s-cloud` (one node) or `s-cluster`
+(several) in place of `s`, never alongside it and always in lower case; see
+"Runner sizes for jobs that build a cloud" in
+[docs/consuming.md](docs/consuming.md). A new size token goes into the
+conductor's `CI_SIZES` (shakenfist/private-ci, deployed first) and into
+`.github/actionlint.yaml` before any workflow here uses it.
 
 **Reusable workflows here declare the secrets they read; callers never
 use `secrets: inherit`.** Callers run them at `@main`, so an inherit

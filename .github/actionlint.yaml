@@ -13,6 +13,8 @@ self-hosted-runner:
     - vm
     - xs
     - s
+    - s-cloud
+    - s-cluster
     - m
     - l
     - xl

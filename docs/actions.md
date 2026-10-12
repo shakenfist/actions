@@ -219,12 +219,14 @@ to the deploy, and can ask for a second deploy that must restart no
 matching systemd unit; see "Deploy profiles" in
 [consuming.md](consuming.md).
 
-The calling job must request at least an `s` runner
-(`runs-on: [self-hosted, vm, <image>, s]`). A composite action runs on
-whatever runner its caller asked for, so the size is the consumer's to
-get right, and the wheel builds and the ansible deploy both run on the
-runner itself -- measured demand is roughly 2.7 GB, against the 2048 MB
-a sizeless runs-on silently falls back to.
+The calling job must request at least an `s` runner, and since it
+builds a cloud, names `s-cloud` or `s-cluster` rather than plain `s`
+(`runs-on: [self-hosted, vm, <image>, s-cluster]`; see "Runner sizes for
+jobs that build a cloud" in [consuming.md](consuming.md)). A composite
+action runs on whatever runner its caller asked for, so the size is the
+consumer's to get right, and the wheel builds and the ansible deploy both
+run on the runner itself -- measured demand is roughly 2.7 GB, against
+the 2048 MB a sizeless runs-on silently falls back to.
 
 The under-cloud is now trixie: `base_image` defaults to
 `sf://label/ci-images/debian-13`. It was held on bookworm for a while
@@ -367,11 +369,15 @@ always gets them from the same ref as the `action.yml` it resolved; see
     # about 30 seconds from the mint.
 ```
 
-The calling job needs at least an `s` runner
-(`runs-on: [self-hosted, vm, <image>, s]`): the deploy drives an
+The calling job needs at least an `s` runner: the deploy drives an
 Ansible run from the runner itself, the same reason `build-smoke-cluster`
 gives for its own minimum, and a sizeless `vm` job silently falls back
-to `xs` (see `AGENTS.md`, *A `vm` runs-on must also name a size*).
+to `xs` (see `AGENTS.md`, *A `vm` runs-on must also name a size*). A
+caller that fits `s` names `s-cloud` in its place, since the job builds
+a cloud (`runs-on: [self-hosted, vm, <image>, s-cloud]`); one that needs
+more keeps its plain size, as `proxmox-substrate.yml` does with `m`. See
+"Runner sizes for jobs that build a cloud" in
+[consuming.md](consuming.md).
 
 **Inputs:**
 
