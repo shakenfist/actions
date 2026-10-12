@@ -71,6 +71,10 @@
         ansible_ssh_user: "{{base_image_user}}"
         ansible_ssh_private_key_file: "{{ ssh_private_key }}"
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
+        # Carried with the uuid so the delete at the end uses the
+        # namespace the instance was made in, whatever the final plays'
+        # own defaults would say on a hand run.
+        sf_namespace: "{{identifier}}"
         groups: allsf
 
     - name: Log instance
@@ -185,18 +189,22 @@
       become_user: debian
       no_log: true
 
-    # The pull authenticates with the credential in the remote URL, so
-    # its output and failures are kept out of the log too.
     - name: Enable git-lfs in the instar-testdata clone
       command: git lfs install --local
       args:
         chdir: /srv/ci/cached/instar-testdata
       become_user: debian
-      no_log: true
 
     # The LFS objects stay in .git/lfs/objects as well as the working
     # tree, which is what makes a runner's own `git lfs pull` a no-op
     # except for objects added since this build.
+    #
+    # The pull authenticates with the credential in the remote URL, so
+    # its output and failures are kept out of the log too. That costs
+    # diagnosis: a failed clone or pull shows only as censored, and
+    # finding out why (an expired token, the proxy, LFS quota) means a
+    # hand run. That is the right side of the trade for a nightly build
+    # whose log is not where a token should ever be.
     - name: Fetch the git-lfs content for instar-testdata
       command: git lfs pull
       args:
@@ -211,8 +219,18 @@
     # lift that step into tools/ci/resparsify-testdata.sh; when that
     # lands, this should fetch and run it instead of keeping a copy.
     # It runs as debian so that the rewritten files keep their owner.
+    #
+    # A failed cp must fail the build rather than be moved over the
+    # original: this loop rewrites most of the disk's payload, a disk
+    # filling mid-copy leaves a truncated .sparse file, and the
+    # free-space check below cannot see that once the mv has given the
+    # space back. errexit stops the loop at the cp, and pipefail carries
+    # that out of the pipeline. Do not chain the two with &&: errexit
+    # ignores a failure on the left of &&, so only a failure on the last
+    # file would be seen.
     - name: Resparsify instar-testdata images
       shell: |
+        set -euo pipefail
         cd /srv/ci/cached/instar-testdata
         find downloaded/ -type f \( \
           -name "*.qcow2" -o \
@@ -244,16 +262,18 @@
     # to remove is everything before the LAST dot, never a split on the
     # first. The sections are matched on containing oauth2:, and the
     # grep check below is what proves none was missed. git exits 1 when
-    # nothing matches, which is fine.
+    # nothing matches, which is fine; any other failure, here or in a
+    # --remove-section, fails the task.
     - name: Remove the credential from the instar-testdata lfs config
       shell: |
-        set -eu
-        git config --local --name-only --get-regexp '^lfs\.' | while IFS= read -r key; do
+        set -euo pipefail
+        keys=$(git config --local --name-only --get-regexp '^lfs\.') || [ "$?" -eq 1 ]
+        while IFS= read -r key; do
           section="${key%.*}"
           case "$section" in
             *oauth2:*) git config --local --remove-section "$section" ;;
           esac
-        done || true
+        done <<< "$keys"
       args:
         chdir: /srv/ci/cached/instar-testdata
         executable: /bin/bash
@@ -261,11 +281,14 @@
 
     # Checks. Each one is about what publishing a bad disk would cost,
     # because the label is attached to every runner that asks for it.
+    # The head is a process substitution rather than a pipe so that,
+    # under pipefail, a SIGPIPE to head when grep -q exits early cannot
+    # turn a pointer into "content".
     - name: Look at the first bytes of the canary files
       shell: |
-        set -eu
+        set -euo pipefail
         test -f "{{ item }}"
-        if head -c 256 "{{ item }}" | grep -aq 'git-lfs.github.com/spec'; then
+        if grep -aq 'git-lfs.github.com/spec' <(head -c 256 "{{ item }}"); then
           echo pointer
         else
           echo content
@@ -292,13 +315,26 @@
       loop_control:
         label: "{{ item.item }}"
 
+    # Two searches: oauth2 for every place the URL form was left, and the
+    # token itself for anywhere it was stored bare. The token comes in
+    # through the environment so it is never on a command line, and the
+    # output is only file names, which the assert below prints. grep
+    # exits 1 for no match; 2 is an error, which would otherwise look
+    # like a clean result.
     - name: Search the git metadata for the credential
-      shell: grep -rl --exclude-dir=objects oauth2 .git || true
+      shell: |
+        set -euo pipefail
+        rc=0
+        grep -rlF --exclude-dir=objects -e oauth2 -e "$TESTDATA_TOKEN" .git || rc=$?
+        [ "$rc" -le 1 ]
       args:
         chdir: /srv/ci/cached/instar-testdata
         executable: /bin/bash
+      environment:
+        TESTDATA_TOKEN: "{{ gitlab_testdata_token }}"
       register: credential_search
       changed_when: false
+      no_log: true
 
     - name: Confirm no credential is left on the instar-testdata disk
       assert:
@@ -375,12 +411,6 @@
 - hosts: localhost
   gather_facts: no
   connection: ssh
-  vars:
-    identifier: cron
-    sshkey: '/srv/github/id_ci.pub'
-    ssh_private_key: '/srv/github/id_ci'
-    base_image_user: "ubuntu"
-    label: "ci-images/instar-testdata-scratch"
 
   tasks:
     - name: Snapshot the instance
@@ -406,7 +436,6 @@
   gather_facts: no
   connection: ssh
   vars:
-    identifier: cron
     label: "ci-images/instar-testdata-scratch"
 
   tasks:
@@ -431,5 +460,5 @@
     - name: Delete build instance
       shakenfist.shakenfist.sf_instance:
         uuid: "{{hostvars['imagerebuild']['sf_instance_uuid']}}"
-        namespace: "{{identifier}}"
+        namespace: "{{hostvars['imagerebuild']['sf_namespace']}}"
         state: absent

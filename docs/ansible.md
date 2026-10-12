@@ -545,10 +545,11 @@ The disk is attached to runners that run pull request code, so the
 build removes the GitLab token before publishing. The clone leaves it
 in the `origin` URL, and git-lfs records an `[lfs "<url>"]` section
 naming it. The build resets `origin`, removes every `lfs.*` section
-containing `oauth2:`, and then fails if `oauth2` appears anywhere under
-`.git/` outside the object stores. Every task that carries the token
-has `no_log: true`. The design is in
-[PLAN-instar-testdata-disk.md](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-instar-testdata-disk.md).
+containing `oauth2:`, and then fails if `oauth2` or the token itself
+appears anywhere under `.git/` outside the object stores. Every task
+that carries the token has `no_log: true`. The design is in
+[PLAN-instar-testdata-disk.md](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-instar-testdata-disk.md),
+in the private-ci repository, which is not public.
 
 ## Package resolution policy
 

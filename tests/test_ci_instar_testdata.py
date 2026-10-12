@@ -78,11 +78,32 @@ class InstarTestdataTests(unittest.TestCase):
 
     def test_filesystem_is_labelled(self):
         # The runner mounts by LABEL=instar-testdata, not by position.
+        checked = 0
         for task in all_tasks(self.plays):
-            command = task.get('shell')
+            command = task.get('shell') or task.get('command')
             if isinstance(command, str) and 'mkfs.ext4' in command:
+                checked += 1
                 self.assertIn('-L instar-testdata', command)
                 self.assertIn('/dev/vdc', command)
+        self.assertEqual(1, checked, 'expected exactly one mkfs.ext4 task')
+
+    def test_multi_line_scripts_fail_on_error(self):
+        # A multi-line script runs its commands in sequence, and without
+        # errexit and pipefail a failure part way through is hidden by
+        # whatever runs after it: a failed cp in the resparsify loop would
+        # otherwise be moved over the image it was copying.
+        checked = 0
+        for task in all_tasks(self.plays):
+            script = task.get('shell')
+            if isinstance(script, str) and len(script.strip().splitlines()) > 1:
+                checked += 1
+                self.assertEqual(
+                    'set -euo pipefail', script.strip().splitlines()[0],
+                    '%r does not start with set -euo pipefail' % task.get('name'))
+                self.assertEqual(
+                    '/bin/bash', task.get('args', {}).get('executable'),
+                    '%r needs bash for pipefail' % task.get('name'))
+        self.assertGreater(checked, 0, 'no multi-line shell task found; the detection is vacuous')
 
     def test_token_is_checked_before_the_instance_is_created(self):
         self.assertLess(
