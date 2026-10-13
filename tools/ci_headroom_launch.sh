@@ -10,10 +10,9 @@
 # The probe itself (shakenfist's tools/ci_headroom_probe.py) and the tool that
 # summarises what it writes both live in the shakenfist repository, so that the
 # JSONL format contract has both of its halves in one place and is covered by
-# unit tests that run on an ordinary pull request. This script carries no
-# analysis logic at all: it copies the probe over and starts it. See
-# decisions D13 and D14 in
-# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
+# unit tests that run on an ordinary pull request, which a change to this
+# repository cannot be. This script carries no analysis logic at all: it
+# copies the probe over and starts it.
 #
 # Usage:
 #   tools/ci_headroom_launch.sh <primary> <ssh-user> <max-seconds> [interval]

@@ -16,15 +16,16 @@
 #   * ci_headroom_report.py returns 3, and only 3, when the cluster-wide ratio
 #     of committed vCPU to the schedulable ledger sits outside the band CI
 #     sizing is held to. That is a statement about the cloud the suite just
-#     ran on rather than about the instrument, and phase 5 of
-#     PLAN-ci-cloud-sizing decided it may stop a merge.
+#     ran on rather than about the instrument, and a mis-sized cloud
+#     otherwise surfaces only as a flake in whichever unrelated test drew the
+#     short straw, so it may stop a merge.
 #
 #   * Every other non-zero status is the report being unhappy rather than the
 #     cloud: a series it cannot parse, a python that will not run it, a flag
 #     it was passed and does not have. Each of those is a reason to distrust
 #     the measurement, not to fail the build, so they are reported in the log
-#     and let go. That is D15 of phase 1, which still governs every path but
-#     the one above.
+#     and let go: an instrument which can fail the job changes the thing it
+#     measures. That rule still governs every path but the one above.
 #
 # Two guards sit in front of the gate, and both fail towards not gating.
 #

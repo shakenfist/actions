@@ -292,8 +292,7 @@ jobs:
       # belt-and-braces mkdir in tools/ci_headroom_launch.sh cannot substitute:
       # it runs unprivileged, discards its own error, and the script exits 0
       # regardless -- so narrowing this step again would not fail the job, it
-      # would leave a green run that measured nothing. See D3 in
-      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-06-docs.md
+      # would leave a green run that measured nothing.
       - name: Make the traces directory
         if: inputs.test_kind == 'functional' || inputs.test_kind == 'ansible-modules'
         run: |
@@ -305,8 +304,7 @@ jobs:
       # inspect real host state (net namespaces, links, iptables) on *other*
       # cluster nodes -- e.g. the network node for floating IPs. Drop the CI
       # key onto the primary so those helpers can ssh across the mesh; every
-      # node already trusts id_ci for this user. See
-      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-node-exec-assertions.md
+      # node already trusts id_ci for this user.
       - name: Authorise the primary to reach other nodes over the mesh
         if: inputs.test_kind == 'functional'
         run: |
@@ -355,13 +353,12 @@ jobs:
       # the handful of hand-collected data points it was guessed from. The
       # probe itself, and the tool that summarises what it writes, both live in
       # shakenfist's tools/ -- that is where the JSONL format contract has both
-      # of its halves and is unit tested on an ordinary pull request. This is
-      # only the launcher. See D13 and D14 in
-      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
+      # of its halves and is unit tested on an ordinary pull request, which a
+      # change here cannot be. This is only the launcher.
       #
       # continue-on-error, and ci_headroom_launch.sh itself always exits 0:
       # the point of the instrument is to observe CI's failure surface, and
-      # one that can fail the job changes the thing being measured (D15).
+      # one that can fail the job changes the thing being measured.
       # That holds without exception for this step. The collection step below
       # carries one, for the verdict rather than for the instrument.
       #
@@ -496,14 +493,14 @@ jobs:
       # the summary. Two separate instruments, reported separately: a poll
       # every few seconds cannot see a refusal, which begins and ends between
       # samples, and a refusal census cannot see a cloud sitting half empty for
-      # an hour (D9). The census is its own filtered Loki query rather than the
-      # unfiltered dump ci-gather-logs-loki.yml puts in the bundle, which is
-      # taken later by "Gather logs" and capped at its newest 200000 entries,
-      # so on a busy run it need not hold every refusal (D11). A third
+      # an hour, so a single number derived from both would hide which of
+      # them produced it. The census is its own filtered Loki query rather
+      # than the unfiltered dump ci-gather-logs-loki.yml puts in the bundle,
+      # which is taken later by "Gather logs" and capped at its newest 200000
+      # entries, so on a busy run it need not hold every refusal. A third
       # instrument is reported beside them but not produced here: the
-      # capacity waits the functional suite itself recorded (D14 of
-      # PLAN-transient-capacity-refusals phase 2). See the header of
-      # tools/ci_headroom_collect.sh.
+      # capacity waits the functional suite itself recorded. See the header
+      # of tools/ci_headroom_collect.sh.
       #
       # All three outputs stay in /srv/ci/traces on the primary, which the
       # "Gather logs" step below already collects into the 90 day bundle, so
@@ -522,8 +519,7 @@ jobs:
       # does not implement it and against an operator who needs the gate off,
       # and the tests for all of that, are in tools/ci_headroom_verdict.sh.
       # headroom_gate above is the off switch; it reaches the script as
-      # CI_HEADROOM_GATE. See also D7 in
-      # https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-05-guardrails.md
+      # CI_HEADROOM_GATE.
       #
       # The gate is anded with the test kind, not passed straight through. The
       # band is fitted in shakenfist against the job shapes its warn window
