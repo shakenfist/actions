@@ -49,10 +49,6 @@
       "sha": "f749600bfd0e76413cfdc248c13b608ad9a4a49e",
       "date": "2026-10-10"
     },
-    "README.md": {
-      "sha": "5651306409a869d5f3f27b4571b4562520eb0f78",
-      "date": "2026-10-10"
-    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"

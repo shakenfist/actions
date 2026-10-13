@@ -525,10 +525,6 @@
       "author": "mikal"
     },
     {
-      "path": "README.md",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_node_checks.py",
       "author": "mikal"
     },
