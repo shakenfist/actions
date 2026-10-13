@@ -7,6 +7,8 @@ the main caller.
 
 - **ci-image.yml**: Builds CI base images with pre-installed packages.
 - **ci-dependencies.yml**: Downloads and caches VM images.
+- **ci-instar-testdata.yml**: Builds the instar-testdata cache disk; see
+  [The instar-testdata disk](#the-instar-testdata-disk).
 - **ci-topology-\*.yml**: Provisions multi-node test clusters.
 - **ci-gather-logs-loki.yml**: Collects logs from test nodes after runs,
   plus a dump of the cluster's central Loki; see
@@ -509,6 +511,45 @@ needs no per-image checksums against images that are rebuilt nightly
 The third is the pair of assertions that run on the builder
 immediately before the unmount, which are covered with the other image
 verification below.
+
+### The instar-testdata disk
+
+`ci-instar-testdata.yml` builds a separate cache disk for the instar
+project's functional tests. It holds a depth-1 clone of the private
+`instar-testdata` repository with its git-lfs content materialised
+twice, in the working tree and in `.git/lfs/objects`, so that a runner's
+own `git lfs pull` only fetches objects added since the build. The
+images under `downloaded/` are resparsified at build time; `custom/` is
+left alone because tests assert about those files. The tree is
+owned by the `debian` user, created that way by running the clone as
+`debian` rather than by a recursive chown afterwards.
+
+The conductor's image builder is meant to build it nightly and publish
+it as the `ci-images/instar-testdata` label, once private-ci wires the
+playbook into its list of image builds. Until then nothing runs the
+playbook, and a hand run publishes to
+`ci-images/instar-testdata-scratch` unless `label` is passed as an
+extra var. The `gitlab_testdata_token` extra var is required: unlike the
+dependencies disk, which skips its clone without one, this disk would be
+empty, so the build fails before it creates an instance.
+
+Runners whose job asks for the `instar` label attach the disk as a
+third disk and mount it by filesystem label (`LABEL=instar-testdata`)
+at `/srv/ci/cached/instar-testdata`. It is writable, as a per-runner
+copy-on-write overlay that is discarded with the runner, because
+instar's `prepare-testdata.sh` updates the clone in place. The
+filesystem is made with exactly the feature list the dependencies disk
+uses, and `tests/test_ci_instar_testdata.py` compares the two.
+
+The disk is attached to runners that run pull request code, so the
+build removes the GitLab token before publishing. The clone leaves it
+in the `origin` URL, and git-lfs records an `[lfs "<url>"]` section
+naming it. The build resets `origin`, removes every `lfs.*` section
+containing `oauth2:`, and then fails if `oauth2` or the token itself
+appears anywhere under `.git/` outside the object stores. Every task
+that carries the token has `no_log: true`. The design is in
+[PLAN-instar-testdata-disk.md](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-instar-testdata-disk.md),
+in the private-ci repository, which is not public.
 
 ## Package resolution policy
 

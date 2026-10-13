@@ -444,6 +444,7 @@ class ReadinessGateTest(unittest.TestCase):
             'ci-dependencies.yml',
             'ci-image-desktop.yml',
             'ci-image.yml',
+            'ci-instar-testdata.yml',
             'ci-topology-localhost-released.yml',
             'ci-topology-localhost-upgrade.yml',
             'ci-topology-localhost.yml',
