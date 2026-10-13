@@ -433,10 +433,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_headroom_launch.sh",
-      "author": "mikal"
-    },
-    {
       "path": "deploy-kolla-ansible/action.yml",
       "author": "mikal"
     },
@@ -461,19 +457,11 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_headroom_verdict.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_headroom_collect.py",
       "author": "mikal"
     },
     {
       "path": "tests/test_ci_headroom_verdict.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
     },
     {

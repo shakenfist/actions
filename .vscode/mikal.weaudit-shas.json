@@ -409,18 +409,6 @@
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
     },
-    "tools/ci_headroom_collect.sh": {
-      "sha": "dc436c77533ad507bef2b7e87520f235bc1b7520",
-      "date": "2026-10-06"
-    },
-    "tools/ci_headroom_launch.sh": {
-      "sha": "0ca6632ec18fe8cdfe64745f6fea41f32f52adb8",
-      "date": "2026-10-01"
-    },
-    "tools/ci_headroom_verdict.sh": {
-      "sha": "ebe3675b0c9e8f6822ace2badbbc6176f32b4a0c",
-      "date": "2026-10-06"
-    },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
       "date": "2026-09-10"
