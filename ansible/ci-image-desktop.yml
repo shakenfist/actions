@@ -48,9 +48,9 @@
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
 
     # Name the fields rather than dumping hostvars['imagerebuild']:
-    # hostvars include every extra var, secrets such as
-    # gitlab_testdata_token among them, so a dump prints them into the
-    # build log. tests/test_ansible_log_hygiene.py holds this.
+    # hostvars include every extra var, so a dump prints any secret
+    # passed in as one into the build log.
+    # tests/test_ansible_log_hygiene.py holds this.
     - name: Log the build host
       debug:
         msg: >-

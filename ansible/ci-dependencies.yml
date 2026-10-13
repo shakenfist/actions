@@ -79,9 +79,9 @@
         groups: allsf
 
     # Name the fields rather than dumping hostvars['imagerebuild']:
-    # hostvars include every extra var, secrets such as
-    # gitlab_testdata_token among them, so a dump prints them into the
-    # build log. tests/test_ansible_log_hygiene.py holds this.
+    # hostvars include every extra var, so a dump prints any secret
+    # passed in as one into the build log.
+    # tests/test_ansible_log_hygiene.py holds this.
     - name: Log the build host
       debug:
         msg: >-
@@ -120,7 +120,6 @@
     NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
   vars:
     actions_url: ""
-    gitlab_testdata_token: ""
 
   tasks:
     - name: Make a directory for cached images
@@ -303,30 +302,6 @@
             name: "github-actions-runner.tar.gz",
           }
 
-    - name: Clone imago-testdata from GitLab
-      git:
-        repo: "https://oauth2:{{ gitlab_testdata_token }}@gitlab.home.stillhq.com/private/imago-testdata.git"
-        dest: /srv/ci/cached/imago-testdata
-        depth: 1
-      when: gitlab_testdata_token != ""
-
-    - name: Resparsify imago-testdata images
-      shell: |
-        cd /srv/ci/cached/imago-testdata
-        find downloaded/ -type f \( \
-          -name "*.qcow2" -o \
-          -name "*.vmdk" -o \
-          -name "*.vhd" -o \
-          -name "*.vhdx" -o \
-          -name "*.img" \
-        \) -print0 | while IFS= read -r -d '' file; do
-          cp --sparse=always "$file" "$file.sparse"
-          mv "$file.sparse" "$file"
-        done
-      args:
-        executable: /bin/bash
-      when: gitlab_testdata_token != ""
-
 - hosts: localhost
   gather_facts: no
   connection: ssh
@@ -454,9 +429,6 @@
     # It is still a floor and not an inventory -- a missing entry
     # passes, because what belongs here lives in the get_url loop
     # above and matching the two by hand would rot.
-    #
-    # Not recursive: imago-testdata is a git clone and is legitimately
-    # full of small files.
     - name: Look for cache entries that arrived empty or truncated
       find:
         paths: /srv/ci/cached
@@ -479,13 +451,13 @@
 
     # The size floor above cannot see a disk that ran out of room. The
     # builder's second disk is fixed at 50GB, the images in the get_url
-    # loop come to roughly 10.2GB between them, and the imago-testdata
-    # clone and the debian-gnome snapshot land on top of that. A
-    # download cut off by ENOSPC part way through a several hundred
-    # megabyte image is still tens of megabytes on disk, so it passes a
-    # one megabyte floor and publishes as a label whose entries every
-    # CI job then fails to read. Free space is the signal that does
-    # catch it, because ENOSPC leaves essentially none.
+    # loop come to roughly 10.2GB between them, and the debian-gnome
+    # snapshot lands on top of that. A download cut off by ENOSPC part
+    # way through a several hundred megabyte image is still tens of
+    # megabytes on disk, so it passes a one megabyte floor and
+    # publishes as a label whose entries every CI job then fails to
+    # read. Free space is the signal that does catch it, because ENOSPC
+    # leaves essentially none.
     #
     # Two gigabytes is the floor, and the number is chosen from the
     # healthy end rather than the failure end: a full disk reports

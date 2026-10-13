@@ -5,9 +5,10 @@
 hostvars include every extra var, so a task that prints a host's whole
 hostvars, such as a debug of {{hostvars['imagerebuild']}}, prints every
 secret passed in as an extra var too. ci-dependencies.yml had exactly
-that debug, and the conductor passes it the GitLab testdata token as an
-extra var once that token is provisioned; a failed build's log tail is
-filed as a public issue. Naming fields is fine:
+that debug while the conductor was meant to pass it the GitLab testdata
+token as an extra var; ci-instar-testdata.yml receives that token now,
+and a failed build's log tail is filed as a public issue. Naming fields
+is fine:
 {{hostvars['imagerebuild']['sf_instance_uuid']}} prints one value.
 Binding a whole entry to a variable that is only read field by field,
 as tasks/wait-for-cloud-init.yml does, is fine too; what this holds is

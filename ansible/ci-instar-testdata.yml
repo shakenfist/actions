@@ -23,11 +23,10 @@
     gitlab_testdata_token: ""
 
   tasks:
-    # ci-dependencies.yml skips its imago-testdata clone when the token
-    # is empty, because that disk has other content worth publishing.
-    # This disk has nothing else, so an empty token is not a degraded
-    # image, it is an empty one. Check here, before an instance exists to
-    # clean up. The message must never interpolate the token.
+    # This disk holds nothing but the clone, so without a token it
+    # would not be a degraded image, it would be an empty one. Check
+    # here, before an instance exists to clean up. The message must
+    # never interpolate the token.
     - name: Require a GitLab token for the instar-testdata clone
       assert:
         that:
