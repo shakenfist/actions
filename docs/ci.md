@@ -342,26 +342,33 @@ as `shakenfist-bot`.
 That commit is unsigned and does not need to be: pruning only ever
 *removes* marks, and the attestations themselves live in the signed
 commits that recorded them. The push uses the built-in `GITHUB_TOKEN`
-rather than a personal access token, which works here because this
-repository's ruleset blocks force-pushes and deletion only. (Ryll's
-copy of the same workflow needs `DEPENDENCIES_TOKEN`, because its
-`develop` ruleset requires a pull request and the Actions app cannot be
-a bypass actor.) A push made with `GITHUB_TOKEN` does not trigger
-workflows, so the bot's commits fire neither `canary.yml` nor this
-workflow again.
+rather than a personal access token (the workflow would prefer a
+`DEPENDENCIES_TOKEN` secret if one reached this repository; it defines
+none), which works here because this repository's ruleset blocks
+force-pushes and deletion only. (Ryll's copy of the same workflow needs
+`DEPENDENCIES_TOKEN`, because its `develop` ruleset requires a pull
+request and the Actions app cannot be a bypass actor.) A push made with
+`GITHUB_TOKEN` does not trigger workflows, so the bot's commits fire
+neither `canary.yml` nor this workflow again.
 
-The `workflow_dispatch` trigger carries an `if: github.ref ==
-'refs/heads/main'` guard. The script pushes to `main` whatever ref is
-checked out, so dispatching it on a feature branch would push that
-branch's unmerged commits to `main`, skipping review entirely.
+The job never reads the static runner's reused workspace, where an
+earlier job could have left git hooks or configuration. It has no
+checkout: it clones `main` at depth 1 into `RUNNER_TEMP`, runs
+`tools/ci-prune-reviews.sh` from that clone, and the script lands from
+a second fresh clone. The push token reaches only the final `git push`.
 
-**This workflow runs `shakenfist/development@main` code with write
-access to this repository.** The job clones that repository at
+The job is guarded to the default branch, because every push starts a
+run and only `main`'s should land anything; the script always lands
+on `main`, from `main`'s own copy of itself.
+
+**This workflow commits `shakenfist/development@main` output to this
+repository without review.** The job clones that repository at
 whatever its default branch holds when the run starts, with no ref or
 SHA pin, and `tools/review-tracking.sh` then execs
-`scripts/review-tracking.py` out of that clone -- on the long-lived
-static runner, holding a `contents: write` token, with the output
-committed to `main` without review. That is a deliberate trust edge
+`scripts/review-tracking.py` out of that clone, on the long-lived
+static runner. That code never sees the push token, but what it writes
+into `.vscode/` and `REVIEWS.md` is committed to `main` without
+review. That is a deliberate trust edge
 between two repositories in the same organisation, recorded here
 because it is invisible from this side and because this repository is
 otherwise explicit about what `@main` pinning costs. Pin the clone to
