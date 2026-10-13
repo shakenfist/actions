@@ -129,9 +129,11 @@ removing *that* does break the reviewer.
 every extra var, so `debug: msg: "{{hostvars['imagerebuild']}}"` prints
 any secret the conductor passed in (the GitLab testdata token, for one)
 into a build log whose tail the conductor files as a public issue when
-the build fails. Name the fields you want instead.
-`tests/test_ansible_log_hygiene.py` checks every `debug`, `fail` and
-`assert` under `ansible/`.
+the build fails. Name the fields you want instead; piping the whole
+entry through `to_nice_json` is the same leak.
+`tests/test_ansible_log_hygiene.py` checks every task under `ansible/`
+whose arguments reach the log (`debug`, `fail`, `assert`, `shell`,
+`command`, `raw` and `set_stats`).
 
 **Some `tools/` scripts only ever run on a remote cluster node,** copied
 there and executed over ssh by `tools/run_remote`. They cannot be
