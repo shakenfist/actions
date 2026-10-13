@@ -217,10 +217,6 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
-    "docs/ansible.md": {
-      "sha": "ca09d02382d24795d4e5cfc8346b013acd4b73c6",
-      "date": "2026-10-03"
-    },
     "docs/ci.md": {
       "sha": "d4bd2b7eb4698e3183714047780d357eb0ca9efd",
       "date": "2026-10-10"
@@ -292,10 +288,6 @@
     "tests/helpers.py": {
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
       "date": "2026-09-07"
-    },
-    "tests/test_ansible_readiness.py": {
-      "sha": "8739790d8d8737d9633b86f822a877af5acc2662",
-      "date": "2026-09-25"
     },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",

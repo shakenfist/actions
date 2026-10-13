@@ -361,10 +361,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ansible_readiness.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_extract_review_json.py",
       "author": "mikal"
     },
@@ -457,10 +453,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/pr-re-review.yml",
       "author": "mikal"
     },
@@ -510,10 +502,6 @@
     },
     {
       "path": "ansible/files",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {
