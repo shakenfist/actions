@@ -218,9 +218,8 @@
             url: "https://download.cirros-cloud.net/0.5.2/cirros-0.5.2-x86_64-disk.img",
             name: "cirros",
           }
-        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain,
-        # and the one frozen entry with a live reader rather than only a
-        # download cost. The guest CI lane in
+        # Deliberately frozen, and the one frozen entry with a live reader
+        # rather than only a download cost. The guest CI lane in
         # .github/workflows/smoke-cluster.yml uploads /srv/ci/ubuntu:20.04
         # into the nested cluster under the artifact name "ubuntu-2004",
         # and shakenfist's guest, smoke and cluster suites boot that name.
@@ -243,19 +242,20 @@
             url: "https://images.shakenfist.com/ubuntu:24.04/latest.qcow2",
             name: "ubuntu:24.04",
           }
-        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
-        # Not unreferenced: shakenfist#3669's regression coverage boots
-        # this image (ansible_module_ci/005.yml), but over the internet
-        # rather than from this cache, which is the defect finding 6
-        # points at rather than an argument for deleting the entry.
-        # Remove it once nothing boots it any more, or once the cache
-        # starts actually serving reads so that keeping it stops being
-        # free.
+        # Deliberately frozen. Not unreferenced: shakenfist#3669's
+        # regression coverage boots this image (ansible_module_ci/005.yml),
+        # but over the internet rather than from this cache. That is a
+        # defect (shakenfist#4461) rather than an argument for deleting the
+        # entry: an image that is not cached cannot later be served from
+        # the cache, so removing it would foreclose the fix. Remove it once
+        # nothing boots it any more, or once the cache starts actually
+        # serving reads so that keeping it stops being free.
         - {
             url: "https://images.shakenfist.com/debian:11/latest.qcow2",
             name: "debian:11",
           }
-        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
+        # Deliberately frozen, because an image that is not cached cannot
+        # later be served from the cache (see shakenfist#4461).
         # Nothing currently boots this image from this cache --
         # build-smoke-cluster uploads only one cached image and no
         # topology playbook sets a mirror -- so keeping it costs one
@@ -274,7 +274,8 @@
             url: "https://images.shakenfist.com/centos:9-stream/latest.qcow2",
             name: "centos:9-stream",
           }
-        # Deliberately frozen per decision 5.4 of PLAN-image-supply-chain.
+        # Deliberately frozen, because an image that is not cached cannot
+        # later be served from the cache (see shakenfist#4461).
         # Nothing currently boots this image from this cache --
         # build-smoke-cluster uploads only one cached image and no
         # topology playbook sets a mirror -- so keeping it costs one

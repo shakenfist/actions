@@ -11,19 +11,22 @@
 # but cannot see a scheduler refusal, since a refusal begins and ends between
 # samples. The refusal CENSUS is the converse: a filtered Loki query counting
 # every candidate node the scheduler dropped, per stage, including on runs that
-# pass. See decisions D9 and D11 in
-# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-01-headroom-probe.md
+# pass. Reporting one number derived from both would hide which of them
+# produced it. The census reads Loki rather than the REST events API because
+# those routes are per object with no time filter, and because an instance
+# refused with a 507 is queued for deletion and its events are hard deleted an
+# hour later -- so the instances whose events matter most are the ones the API
+# can no longer list.
 #
 # A third instrument rides along, and this script does not produce it. The
 # functional suite's BaseTestCase.create_instance() wrapper appends one JSON
 # object per waited-out capacity refusal to
-# /srv/ci/traces/instance-waits.jsonl -- see decision D14 in
-# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-transient-capacity-refusals-phase-02-suite-wait.md
-# That file already reaches the 90 day bundle without any help from here,
-# because the workflow's "Gather logs" step scp's the whole of
-# /srv/ci/traces. All this script adds is a local copy, so the wait summary
-# is printed in the job log beside the other two rather than only being
-# readable by downloading the artifact afterwards.
+# /srv/ci/traces/instance-waits.jsonl, one line per wait so that concurrent
+# stestr workers never have to coordinate. That file already reaches the 90
+# day bundle without any help from here, because the workflow's "Gather logs"
+# step scp's the whole of /srv/ci/traces. All this script adds is a local
+# copy, so the wait summary is printed in the job log beside the other two
+# rather than only being readable by downloading the artifact afterwards.
 #
 # The filter is a regex, not a substring, because the scheduler emits TWO
 # message forms and the important one is the second: 'schedule at stage X'
@@ -43,20 +46,20 @@
 # events, and the guard's own refusals -- which sit one layer below the stage
 # check -- never appear at all. That produced a *Capacity guard census*
 # section with nothing to count on every run since the stage-event filter
-# was fixed, even though the guard fired. See decision D20 and survey
-# finding 4 in
-# https://github.com/shakenfist/shakenfist/blob/develop/docs/plans/PLAN-ci-cloud-sizing-phase-02-baseline.md
+# was fixed, even though the guard fired.
 #
 # The third guard message, 'placement recorded despite exceeding capacity
-# guard' (also shakenfist/instance.py), is the P5 forced ground-truth write:
-# a placement recorded even though the guard refused it. It matters more than
-# its rarity suggests. Step 2f established that a cluster's first ~165 seconds
-# admit every placement unguarded, because scheduler_node_capacity has no rows
-# until the reconciler's first pass, and the reconciler then records the
-# result as a node holding more than its own limit. That mechanism and the
-# P5 forced write leave the *same* end state, and this event is the only
-# thing which tells them apart -- so a census collecting the other two but
-# not this one cannot distinguish the defect from its lookalike.
+# guard' (also shakenfist/instance.py), is the forced ground-truth write: a
+# placement which has already happened, recorded with the guard's enforcement
+# off even though the guard would have refused it. It matters more than its
+# rarity suggests. Measured across 204 CI job-runs, a cluster's first 135 to
+# 210 seconds (median 165) admit every placement unguarded, because
+# scheduler_node_capacity has no rows until the reconciler's first pass, and
+# the reconciler then records the result as a node holding more than its own
+# limit. That mechanism and the forced write leave the *same* end state, and
+# this event is the only thing which tells them apart -- so a census
+# collecting the other two but not this one cannot distinguish the defect from
+# its lookalike.
 #
 # The census cannot reuse the Loki dump that ansible/ci-gather-logs-loki.yml
 # puts in every bundle. That one is taken later, by the "Gather logs" step,
@@ -99,9 +102,11 @@
 # not on a cluster node.
 #
 # The exception is the band verdict, and it is not really an exception to that
-# reasoning so much as a different subject. D15 is about the instrument's own
-# failures; the verdict is a statement about the cloud the suite just ran on,
-# and phase 5 of PLAN-ci-cloud-sizing decided that statement may stop a merge.
+# reasoning so much as a different subject. That reasoning is about the
+# instrument's own failures; the verdict is a statement about the cloud the
+# suite just ran on. A mis-sized cloud otherwise surfaces only as a flake in
+# whichever unrelated test drew the short straw, so that statement may stop a
+# merge.
 # It is handled entirely in tools/ci_headroom_verdict.sh, which this script
 # execs at the foot and which is the authority on the contract -- including
 # the two guards that make it inert against a report which does not implement
