@@ -12,6 +12,7 @@ disk's, the token must never reach a build log, and the credential must
 be scrubbed before the disk is unmounted and snapshotted.
 """
 
+import glob
 import os
 import re
 import unittest
@@ -153,6 +154,20 @@ class InstarTestdataTests(unittest.TestCase):
         # The grep only proves anything if it runs after the scrubbing.
         self.assertLess(
             find_task(self.plays, SCRUB_TASKS[1]), find_task(self.plays, SCRUB_TASKS[2]))
+
+    def test_no_other_playbook_uses_the_token(self):
+        # This is the only playbook that scrubs the credential before
+        # snapshotting. ci-dependencies.yml once cloned testdata with
+        # the token and kept it in .git/config on a disk every runner
+        # attaches; a new user of the token needs this one's scrub.
+        users = []
+        for path in sorted(glob.glob(os.path.join(REPO_ROOT, 'ansible', '**', '*.yml'), recursive=True)):
+            if path == PLAYBOOK:
+                continue
+            # Parsed, so comments explaining the token do not count.
+            if TOKEN in yaml.safe_dump(load_plays(path), width=1000):
+                users.append(os.path.relpath(path, REPO_ROOT))
+        self.assertEqual([], users)
 
 
 if __name__ == '__main__':
