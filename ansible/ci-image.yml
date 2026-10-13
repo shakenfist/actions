@@ -52,9 +52,15 @@
         sf_instance_uuid: "{{imagerebuild_instance['meta']['uuid']}}"
         sf_interface_uuid: "{{imagerebuild_instance['meta']['interfaces'][0]['uuid']}}"
 
-    - name: Log instance
+    # Name the fields rather than dumping hostvars['imagerebuild']:
+    # hostvars include every extra var, secrets such as
+    # gitlab_testdata_token among them, so a dump prints them into the
+    # build log. tests/test_ansible_log_hygiene.py holds this.
+    - name: Log the build host
       debug:
-        msg: "{{hostvars['imagerebuild']}}"
+        msg: >-
+          imagerebuild is {{hostvars['imagerebuild']['sf_instance_uuid']}}
+          at {{hostvars['imagerebuild']['ansible_ssh_host']}}
 
     - name: Wait for the instance to answer SSH, refloating once on timeout
       include_tasks: tasks/wait-for-ssh-with-refloat.yml
