@@ -225,10 +225,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image-desktop.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/kerbside-multi-node-2.yml",
       "author": "mikal"
     },
@@ -465,10 +461,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-image.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_verdict.sh",
       "author": "mikal"
     },
@@ -482,10 +474,6 @@
     },
     {
       "path": "tools/ci_headroom_collect.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-dependencies.yml",
       "author": "mikal"
     },
     {

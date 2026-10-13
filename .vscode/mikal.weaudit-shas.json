@@ -53,10 +53,6 @@
       "sha": "5651306409a869d5f3f27b4571b4562520eb0f78",
       "date": "2026-10-10"
     },
-    "ansible/ci-dependencies.yml": {
-      "sha": "430945c4a7cbb6fb22698328bce72a238b04c283",
-      "date": "2026-10-06"
-    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -64,14 +60,6 @@
     "ansible/ci-gather-logs.yml": {
       "sha": "8f72cef07419e05672c015976536ec6132663911",
       "date": "2026-09-07"
-    },
-    "ansible/ci-image-desktop.yml": {
-      "sha": "9b09bbf4bf69cd2a56a1f43969cb477b4cd308d1",
-      "date": "2026-09-19"
-    },
-    "ansible/ci-image.yml": {
-      "sha": "9acaae13af3d934da8a6f3708ad1b9ddbde2d79b",
-      "date": "2026-10-05"
     },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
