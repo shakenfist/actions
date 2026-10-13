@@ -497,10 +497,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-ship-test-env.sh",
       "author": "mikal"
     },
