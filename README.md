@@ -78,6 +78,6 @@ python3 -m unittest discover -s tests -t . --verbose
 
 ## Projects using these actions
 
-- [imago](https://github.com/shakenfist/imago) — disk image management
+- [instar](https://github.com/shakenfist/instar) — disk image management
 - [occystrap](https://github.com/shakenfist/occystrap) — container image tools
 - [shakenfist](https://github.com/shakenfist/shakenfist) — the main project

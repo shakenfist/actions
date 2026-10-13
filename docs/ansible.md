@@ -421,14 +421,14 @@ pass proxy settings to Ansible modules (apt, get_url, etc.).
 mirror it is a disk rather than a service. The playbook creates a
 builder instance with a 50GB second disk, fills it with the cloud images
 CI boots -- cirros, the Ubuntu, Debian, CentOS Stream, Fedora and Rocky
-minimal images, and the GitHub Actions runner tarball -- and adds the
-imago-testdata clone and, when that label already exists, the
-`debian-gnome-13` snapshot. The disk is then snapshotted and published
-as the `dependencies` label, which every topology attaches as its second
-disk and mounts at `/srv/ci`. The `get_url` loop in that playbook is
-therefore the definition of what CI can boot without going to the
-network; `debian:13` and `rocky:10` sit in it alongside the earlier
-releases, and the images alone now come to roughly 10.2GB.
+minimal images, and the GitHub Actions runner tarball -- and adds,
+when that label already exists, the `debian-gnome-13` snapshot. The
+disk is then snapshotted and published as the `dependencies` label,
+which every topology attaches as its second disk and mounts at
+`/srv/ci`. The `get_url` loop in that playbook is therefore the
+definition of what CI can boot without going to the network;
+`debian:13` and `rocky:10` sit in it alongside the earlier releases,
+and the images alone now come to roughly 10.2GB.
 
 That snapshot lands on the disk at
 `/srv/ci/cached/debian-gnome-agents`, and that name deliberately does
@@ -529,9 +529,9 @@ it as the `ci-images/instar-testdata` label, once private-ci wires the
 playbook into its list of image builds. Until then nothing runs the
 playbook, and a hand run publishes to
 `ci-images/instar-testdata-scratch` unless `label` is passed as an
-extra var. The `gitlab_testdata_token` extra var is required: unlike the
-dependencies disk, which skips its clone without one, this disk would be
-empty, so the build fails before it creates an instance.
+extra var. The `gitlab_testdata_token` extra var is required: without
+it this disk would be empty, so the build fails before it creates an
+instance. It is the only CI disk that holds testdata.
 
 Runners whose job asks for the `instar` label attach the disk as a
 third disk and mount it by filesystem label (`LABEL=instar-testdata`)
