@@ -1,6 +1,10 @@
 {
   "version": 1,
   "files": {
+    ".github/actionlint.yaml": {
+      "sha": "6987cac290912889c8048971979cb7c22dff103f",
+      "date": "2026-10-14"
+    },
     ".github/workflows/canary.yml": {
       "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
       "date": "2026-09-27"
@@ -41,6 +45,10 @@
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
     },
+    "AGENTS.md": {
+      "sha": "d020328defd5ac671cd46207abd93527dfbd082f",
+      "date": "2026-10-14"
+    },
     "ARCHITECTURE.md": {
       "sha": "ecc33cc61b40996532ab7b93fbfe6156530d6dd9",
       "date": "2026-10-10"
@@ -48,6 +56,10 @@
     "PUSH-AUDIT.md": {
       "sha": "f749600bfd0e76413cfdc248c13b608ad9a4a49e",
       "date": "2026-10-10"
+    },
+    "README.md": {
+      "sha": "b2eefb54883f0989e1a5f3d45261ed3ea85a4bd8",
+      "date": "2026-10-14"
     },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
@@ -57,9 +69,21 @@
       "sha": "8f72cef07419e05672c015976536ec6132663911",
       "date": "2026-09-07"
     },
+    "ansible/ci-image-desktop.yml": {
+      "sha": "ebeec99e88d3a1135d401287674b142585029fa1",
+      "date": "2026-10-14"
+    },
+    "ansible/ci-image.yml": {
+      "sha": "792c24b2a3eb475e5b2610bb940ab39688d5706e",
+      "date": "2026-10-14"
+    },
     "ansible/ci-include-common-localhost.yml": {
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
+    },
+    "ansible/ci-instar-testdata.yml": {
+      "sha": "5210fa196c7e05bbaff1cda07636d8ea22952178",
+      "date": "2026-10-14"
     },
     "ansible/ci-node-checks.yml": {
       "sha": "4d42b36d9114e44df128f29fe3fa2c28367db8fe",
@@ -201,9 +225,21 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
+    "docs/actions.md": {
+      "sha": "f43395d0be4bb15d5aa22ce4bdeb57ea461b8624",
+      "date": "2026-10-14"
+    },
+    "docs/ansible.md": {
+      "sha": "c774eb2c06cf8c1330fb74f9047cdcf75d3eca1e",
+      "date": "2026-10-14"
+    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
+    },
+    "docs/consuming.md": {
+      "sha": "9cadc769c96d5ed4e7909c71825691cce30d7007",
+      "date": "2026-10-14"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -269,6 +305,14 @@
       "sha": "3f0204d3890304ec0206c1779d80f077c995827c",
       "date": "2026-09-07"
     },
+    "tests/test_ansible_log_hygiene.py": {
+      "sha": "1f58c19becb65b80e86df92c83cd8e8ec6934ddb",
+      "date": "2026-10-14"
+    },
+    "tests/test_ansible_readiness.py": {
+      "sha": "39499da82b6fdaeb3d02fcbebfc9a5e22ed103eb",
+      "date": "2026-10-14"
+    },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
@@ -288,6 +332,10 @@
     "tests/test_ci_headroom_verdict.py": {
       "sha": "f16ea142f6c71226a37d1430588f9070afca360d",
       "date": "2026-10-06"
+    },
+    "tests/test_ci_instar_testdata.py": {
+      "sha": "a4811d6037e177c69fdfc79b54931682db724c38",
+      "date": "2026-10-14"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",
