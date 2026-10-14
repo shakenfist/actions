@@ -497,10 +497,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_workflow_references.py",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_node_checks.sh",
       "author": "mikal"
     },
@@ -545,14 +541,6 @@
       "author": "mikal"
     },
     {
-      "path": "pr-bot-trigger/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "pr-bot-trigger",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_redeploy_check.py",
       "author": "mikal"
     },
@@ -578,10 +566,6 @@
     },
     {
       "path": ".github/actionlint.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/actions.md",
       "author": "mikal"
     },
     {
