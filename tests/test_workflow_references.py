@@ -352,6 +352,80 @@ class ConfirmedOutputTest(unittest.TestCase):
                       'the starting message must wait for the verdict')
 
 
+class RefusedBranchNameTest(unittest.TestCase):
+    """A refused branch name is reported on the pull request.
+
+    The branch-name check runs after the reaction, and failing it skips
+    the confirm step and that step's report, so a refusal used to look
+    to the requester like a request acknowledged and then ignored
+    (shakenfist/actions#146).
+    """
+
+    ACTION = os.path.join(REPO_ROOT, 'pr-bot-trigger', 'action.yml')
+
+    def setUp(self):
+        with open(self.ACTION) as f:
+            self.parsed = yaml.safe_load(f)
+        self.steps = self.parsed['runs']['steps']
+        self.details = {s.get('id'): s for s in self.steps}['pr_details']
+
+    def run_details(self, head_ref, gh_status=0):
+        """Run the shipped step against a stub gh that reports head_ref."""
+        # The runner expands expressions before bash sees the script, and
+        # bash rejects them unexpanded.
+        script = re.sub(r'\$\{\{[^}]*\}\}', 'x', self.details['run'])
+        with tempfile.TemporaryDirectory() as tmp:
+            gh = os.path.join(tmp, 'gh')
+            with open(gh, 'w') as f:
+                f.write('#!/bin/sh\nprintf \'%%s\\n\' "${HEAD_REF}"\nexit %d\n' % gh_status)
+            os.chmod(gh, 0o755)
+            output = os.path.join(tmp, 'gh-output')
+            open(output, 'w').close()
+            env = dict(os.environ, HEAD_REF=head_ref, GITHUB_OUTPUT=output,
+                       PATH='%s:%s' % (tmp, os.environ['PATH']))
+            # `shell: bash` runs with -eo pipefail, which is what stops
+            # the step at a failed gh call.
+            result = subprocess.run(
+                ['bash', '-eo', 'pipefail', '-c', script], env=env, check=False,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            with open(output) as f:
+                return result.returncode, f.read()
+
+    def test_refusals_are_recorded_and_acceptances_are_not(self):
+        cases = {
+            'feature/thing-1.2_x': 'pr_ref=feature/thing-1.2_x\n',
+            'has space': 'rejected=true\n',
+            'semi;colon': 'rejected=true\n',
+            '-leading-hyphen': 'rejected=true\n',
+        }
+        for head_ref, want in cases.items():
+            with self.subTest(head_ref=head_ref):
+                returncode, written = self.run_details(head_ref)
+                self.assertEqual(returncode != 0, 'rejected' in want)
+                self.assertEqual(written, want)
+
+    def test_an_api_failure_is_not_a_refusal(self):
+        # An API error has its own message in the log and must not tell
+        # the requester their branch name is at fault.
+        returncode, written = self.run_details('feature', gh_status=1)
+        self.assertNotEqual(returncode, 0)
+        self.assertEqual(written, '')
+
+    def test_a_refusal_is_reported_on_the_pull_request(self):
+        tell = [s for s in self.steps if 'steps.pr_details.outputs.rejected' in str(s.get('if', ''))]
+        self.assertEqual(len(tell), 1)
+        self.assertIn('failure()', tell[0]['if'],
+                      'the report follows a failed step, so it needs failure() to run at all')
+        self.assertIn('gh pr comment', tell[0]['run'])
+        self.assertIs(self.steps[self.steps.index(self.details) + 1], tell[0],
+                      'the report must come straight after the branch-name check')
+
+    def test_the_report_does_not_repeat_the_refused_name(self):
+        tell = [s for s in self.steps if 'steps.pr_details.outputs.rejected' in str(s.get('if', ''))][0]
+        self.assertNotIn('pr_ref', str(tell))
+        self.assertNotIn('PR_REF', str(tell))
+
+
 class ToolScriptReferenceTest(unittest.TestCase):
     """A `run:` step naming a script under tools/ must find it there.
 

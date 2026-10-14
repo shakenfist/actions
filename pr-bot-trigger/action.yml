@@ -236,19 +236,46 @@ runs:
           "repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}" \
           --jq '.head.ref')
 
-        # Validate branch name for security
-        if ! [[ "${PR_REF}" =~ ^[a-zA-Z0-9/_.-]+$ ]]; then
-          echo "Error: Invalid branch name format: ${PR_REF}"
+        # Validate branch name for security. A refusal is recorded as
+        # an output so the next step can tell the requester; any other
+        # failure here is an API error with its own message in the log.
+        reject() {
+          echo "Error: $1: ${PR_REF}"
+          echo "rejected=true" >> "${GITHUB_OUTPUT}"
           exit 1
+        }
+
+        if ! [[ "${PR_REF}" =~ ^[a-zA-Z0-9/_.-]+$ ]]; then
+          reject "Invalid branch name format"
         fi
 
         if [[ "${PR_REF}" == -* ]]; then
-          echo "Error: Branch name cannot start with hyphen: ${PR_REF}"
-          exit 1
+          reject "Branch name cannot start with hyphen"
         fi
 
         echo "pr_ref=${PR_REF}" >> $GITHUB_OUTPUT
         echo "PR branch: ${PR_REF}"
+
+    # By now the requester has had the reaction, and a refused branch
+    # name skips the confirm step and its report along with everything
+    # else, so without this the request is acknowledged and then nothing
+    # happens (shakenfist/actions#146). The body is fixed text: the
+    # refused name is exactly the input that cannot be trusted in a
+    # comment, so it stays in the run log.
+    - name: Tell the requester the branch name was refused
+      if: failure() && steps.pr_details.outputs.rejected == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        body="This request will not run: the pull request's branch name is not"
+        body="${body} one the bot will act on. Branch names may use letters,"
+        body="${body} digits and \`/_.-\`, and may not start with a hyphen."
+        body="${body} The [run log](${RUN_URL}) has the detail."
+        gh pr comment "${{ github.event.issue.number }}" \
+          --repo "${{ github.repository }}" \
+          --body "${body}"
 
     # Callers used to open-code this: each bot workflow re-read
     # triggered, authorized and same-repo, failed when one was neither
@@ -305,8 +332,9 @@ runs:
 
     # The requester has usually had the reaction by now, and the run log
     # is not somewhere they will look. Gated on the step above rather
-    # than on any failure: an earlier step failing is an API or input
-    # error with its own message in the log, not this action and its
+    # than on any failure: an earlier step failing is an API error with
+    # its own message in the log, or a refused branch name, which the
+    # step after Get PR details reports -- not this action and its
     # callers disagreeing. Gated on triggered too: when that cannot be
     # determined there may be no request to answer -- a caller need not
     # filter comments on the phrase before running this action -- so the

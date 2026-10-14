@@ -17,7 +17,8 @@ Handles `@shakenfist-bot` trigger comments on pull requests. This action:
 - Checks if the commenter has write/admin permissions
 - Refuses pull requests from forks
 - Adds a reaction to the triggering comment
-- Posts status messages (starting, unauthorized, fork-not-supported)
+- Posts status messages (starting, unauthorized, fork-not-supported,
+  refused branch name)
 - Outputs PR details for downstream jobs
 
 **Usage:**
@@ -67,6 +68,13 @@ wrong branch entirely. That is why fork pull requests are refused here
 rather than in each caller: the guard cannot be lost when a project edits
 its workflows, and every consumer inherits it at `@main` without changing
 anything, because it is folded into `authorized`.
+
+The action also refuses a branch name that is not made only of letters,
+digits and `/_.-`, or that starts with a hyphen, since callers pass it
+to `git` and the shell. That check comes after the reaction, so the
+action fails and posts a fixed-text comment saying the request will not
+run; the refused name itself goes only to the run log, never into the
+comment.
 
 Gate on `confirmed` rather than `authorized`. A downstream job gated on
 an output that comes through empty -- because it was renamed, dropped
