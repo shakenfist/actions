@@ -27,6 +27,7 @@ CACHE_TASK = 'Cache all minimal images we currently build to reduce network traf
 VERSION_TASK = 'Require an ansible-core whose get_url checks Content-Length'
 MANIFEST_TASK = 'Write the action archive manifest'
 ARCHIVE_TASK = 'Cache action archives, without failing the build'
+SUMMARY_TASK = 'Parse the action archive summary'
 WARN_TASK = 'Warn about action archives that could not be cached'
 FLOOR_TASK = 'Look for cache entries that arrived empty or truncated'
 MINIMUM = "ansible_version.full is version('2.19.0', '>=')"
@@ -101,13 +102,34 @@ class ActionArchiveTests(unittest.TestCase):
         self.assertIn('/tmp/action-archives.json', script)
         self.assertIn('/srv/ci/cached/action-archive-cache', script)
         self.assertIn(manifest['copy']['dest'], script.split())
+        self.assertIn('--budget 600', script, 'The bound on the whole run should be visible here.')
+
+    def test_summary_is_parsed_from_the_last_line_only(self):
+        # ssh runs the command under a tty, which merges stderr into stdout, so the diagnostics come
+        # before the JSON summary and parsing all of stdout fails exactly when there are failures.
+        play_index, archive_index, _ = find_task(self.plays, ARCHIVE_TASK)
+        for task in self.plays[play_index]['tasks'][archive_index:]:
+            text = yaml.safe_dump(task)
+            self.assertNotRegex(text, r'stdout\s*\|\s*from_json',
+                                '%r parses all of stdout, which includes stderr under ssh.' % task.get('name'))
+        _, _, task = find_task(self.plays, SUMMARY_TASK)
+        value = task['set_fact']['action_archives_summary']
+        self.assertIn('stdout_lines', value)
+        self.assertIn('from_json', value)
+        self.assertIs(True, task.get('ignore_errors'), 'Parsing the summary must not fail the build.')
+
+    def test_warning_reads_the_parsed_summary(self):
+        _, _, task = find_task(self.plays, WARN_TASK)
+        text = yaml.safe_dump(task)
+        self.assertIn('action_archives_summary', text)
+        self.assertNotIn('action_archives_result.stdout', text)
 
     def test_failed_archive_warning_cannot_fail_the_build(self):
         _, _, task = find_task(self.plays, WARN_TASK)
         self.assertIn('debug', task)
         self.assertNotIn('failed_when', task)
         self.assertIs(True, task.get('ignore_errors'),
-                      'from_json raises on malformed output, and the warning must not fail the build.')
+                      'A warning must not be able to fail the build it is warning about.')
         self.assertNotIn('fail', task)
         self.assertNotIn('assert', task)
 

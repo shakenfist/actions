@@ -8,6 +8,7 @@ body, a throttle, a tarball of the wrong shape.
 """
 
 import contextlib
+import http.client
 import http.server
 import io
 import json
@@ -81,7 +82,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if 'Content-Length' not in headers and 'X-No-Length' not in headers:
             self.send_header('Content-Length', str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if callable(body):
+            body(self)
+        else:
+            self.wfile.write(body)
         self.close_connection = True
 
 
@@ -268,17 +272,51 @@ class ArchiveCacheTestCase(unittest.TestCase):
 
     def test_budget_runs_out_mid_transfer(self):
         self.route(REPO, SHA, (200, {}, good()))
-        calls = []
+        now = [0]
+        real_read1 = http.client.HTTPResponse.read1
 
-        def clock():
-            # fetch, download and the first pass of the chunk loop see time before the deadline.
-            calls.append(1)
-            return 0 if len(calls) <= 3 else 1000
+        def read1(response, *args):
+            # The transfer, not a count of clock reads, is what uses up the budget: it is gone as
+            # soon as the first chunk has been delivered.
+            chunk = real_read1(response, *args)
+            now[0] = 1000
+            return chunk
 
-        with mock.patch.object(caa, 'time', mock.Mock(monotonic=clock)), mock.patch.object(caa, 'CHUNK_SIZE', 16):
+        with mock.patch.object(caa, 'time', mock.Mock(monotonic=lambda: now[0])), \
+                mock.patch.object(http.client.HTTPResponse, 'read1', read1), \
+                mock.patch.object(caa, 'CHUNK_SIZE', 16):
             with self.assertRaises(caa.FetchError) as raised:
                 caa.fetch(self.entry(), self.dest, self.base_url(), 100)
         self.assertEqual('budget', str(raised.exception))
+        self.assertEqual([], self.leftovers())
+        self.assertFalse(os.path.exists(caa.archive_path(self.dest, REPO, SHA)))
+
+    def test_budget_is_enforced_against_a_server_that_trickles(self):
+        body = good()
+        release = threading.Event()
+        now = [0]
+        state = {'timed_out': False}
+
+        def trickle(handler):
+            # Pause so the client is waiting in its first read, then spend the budget and send a few
+            # bytes of a body that will never finish. A read that waits for a full chunk would
+            # block here until the wait below gives up.
+            release.wait(0.2)
+            now[0] = 1000
+            try:
+                handler.wfile.write(body[:8])
+                if not release.wait(3):
+                    state['timed_out'] = True
+            except OSError:
+                pass
+
+        self.route(REPO, SHA, (200, {'Content-Length': str(len(body))}, trickle))
+        with mock.patch.object(caa, 'time', mock.Mock(monotonic=lambda: now[0])):
+            with self.assertRaises(caa.FetchError) as raised:
+                caa.fetch(self.entry(), self.dest, self.base_url(), 100)
+        release.set()
+        self.assertEqual('budget', str(raised.exception))
+        self.assertFalse(state['timed_out'], 'The deadline was only noticed once the server gave up.')
         self.assertEqual([], self.leftovers())
         self.assertFalse(os.path.exists(caa.archive_path(self.dest, REPO, SHA)))
 

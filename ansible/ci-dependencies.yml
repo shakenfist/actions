@@ -340,7 +340,7 @@
         mode: "0644"
 
     - name: Cache action archives, without failing the build
-      script: cache-action-archives.py /tmp/action-archives.json /srv/ci/cached/action-archive-cache
+      script: cache-action-archives.py /tmp/action-archives.json /srv/ci/cached/action-archive-cache --budget 600
       args:
         executable: python3
       register: action_archives_result
@@ -351,11 +351,21 @@
       debug:
         msg: "Action archive cache: {{ action_archives_result.stdout | default('') | trim }}"
 
+    # ssh runs a become command under -tt, which merges stderr into stdout,
+    # so the script's diagnostics precede its JSON summary: only the last
+    # line of stdout is the summary. An empty stdout becomes an empty
+    # summary. Parsing must not be able to fail the build.
+    - name: Parse the action archive summary
+      set_fact:
+        action_archives_summary: "{{ (action_archives_result.stdout_lines | default([]) or ['{}']) | last | from_json }}"
+      ignore_errors: true
+
     - name: Warn that the action archive script did not run cleanly
       debug:
         msg: >-
           cache-action-archives.py exited {{ action_archives_result.rc | default('unknown') }}:
           {{ action_archives_result.stderr | default('') | trim }}
+          {{ (action_archives_result.stdout_lines | default([]))[-5:] | join(' | ') }}
           {{ action_archives_result.msg | default('') }}
           The build continues without a complete action archive cache.
       when: action_archives_result.rc | default(1) != 0
@@ -364,15 +374,13 @@
       debug:
         msg: >-
           Action archives not cached:
-          {% for f in (action_archives_result.stdout | from_json).failed %}
+          {% for f in action_archives_summary.failed %}
           {{ f.repository }}@{{ f.sha }} ({{ f.reason }}){{ '' if loop.last else ',' }}
           {% endfor %}
       when:
         - action_archives_result.rc | default(1) == 0
-        - (action_archives_result.stdout | default('') | trim) != ''
-        - (action_archives_result.stdout | from_json).failed | default([]) | length > 0
-      # from_json raises on malformed output, and a warning must not be able
-      # to fail the build it is warning about.
+        - (action_archives_summary | default({})).failed | default([]) | length > 0
+      # A warning must not be able to fail the build it is warning about.
       ignore_errors: true
 
 - hosts: localhost

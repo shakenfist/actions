@@ -477,14 +477,14 @@ The list comes from the conductor, which passes its manifest as the
 `/tmp/action-archives.json` on the builder and runs
 `ansible/files/cache-action-archives.py` over it, which downloads each
 archive and checks it is a gzipped tarball of that commit with a single
-top-level directory ending in `-<sha>`. A failure here only warns: a missing archive costs a
-job one codeload request, which is what every job pays today, while a
-failed nightly rebuild would cost every image its freshness. The archives
-sit in a subdirectory because the size floor below does not recurse and
-`actions/checkout`'s archive is about 465 KiB, under its 1 MB floor. Runners
-will read the directory once `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` is set
-for them (phase 3); until then it is only populated. File ownership is
-not what protects the archives: what stops one runner's job tampering
+top-level directory ending in `-<sha>`. A failure here only warns: a
+missing archive costs a job one codeload request, which is what every
+job pays today, while a failed nightly rebuild would cost every image
+its freshness. The archives sit in a subdirectory because the size floor
+below does not recurse and `actions/checkout`'s archive is about 465 KiB,
+under its 1 MB floor. Runners will read the directory once
+`ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` is set for them (phase 3); until
+then it is only populated. File ownership is not what protects the archives: what stops one runner's job tampering
 with another's cache is that each runner gets its own copy of the disk
 and is discarded after one job, and a cache on a long-lived disk that
 jobs can write to would need a different design. See the
@@ -702,9 +702,10 @@ three are worth knowing before you tighten them:
   `Content-Length`, so the floor and the length check each catch what
   the other does not. The `find` is deliberately non-recursive because
   of `action-archive-cache/`, whose archives are legitimately under the
-  floor; see the paragraph on the action archive cache above. It does not check that a given entry is *present*,
-  because the list of what should be there lives in the `get_url` loop
-  and would have to be kept in step by hand. The free space assertion
+  floor; see the paragraph on the action archive cache above. It does
+  not check that a given entry is *present*, because the list of what
+  should be there lives in the `get_url` loop and would have to be kept
+  in step by hand. The free space assertion
   beside it covers the failure the floor is blind to: a download cut
   off by ENOSPC part way through a several hundred megabyte image is
   still tens of megabytes on disk and passes the floor easily, so the

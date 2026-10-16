@@ -172,14 +172,17 @@ def download(url, tmp, deadline):
                     while True:
                         if time.monotonic() >= deadline:
                             raise FetchError('budget')
-                        chunk = response.read(CHUNK_SIZE)
+                        # read1, not read: read(n) loops until n bytes or EOF, and every recv
+                        # resets the socket timeout, so a server trickling bytes could hold one
+                        # call open for ever and this deadline check would never run.
+                        chunk = response.read1(CHUNK_SIZE)
                         if not chunk:
                             break
                         received += len(chunk)
                         if received > MAX_ARCHIVE_BYTES:
                             raise FetchError('too large')
                         f.write(chunk)
-                # read(amt) does not raise when the server closes early,
+                # read1 does not raise when the server closes early,
                 # only an unbounded read() does, so check the length by hand.
                 if expected is not None and received != int(expected):
                     raise http.client.IncompleteRead(b'', int(expected) - received)
