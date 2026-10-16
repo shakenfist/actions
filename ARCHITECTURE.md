@@ -171,10 +171,13 @@ the sole way to get a second review -- which is why a repository without
 never sees the fixes.
 
 A pull request's diff and tree are untrusted input, so the reviewer
-runs Claude Code with read-only tools (Read, Grep, Glob), without the
-job's GitHub token in its environment, and loading no Claude settings
-or MCP servers from the checked-out tree; everything that talks to
-GitHub happens in `review-pr-with-claude.sh` around it. The job still
+runs Claude Code in its restricted mode with only the read tools (Read,
+Grep, Glob), confined to the checkout, and without the job's GitHub
+token in its environment; everything that talks to GitHub happens in
+`review-pr-with-claude.sh` around it. It loads no Claude settings files
+or MCP servers at all -- not the pull request's, and not the user
+settings in the home directory of the shared, long-lived runner, which
+any other job on the pool could have written. The job still
 holds a write-capable token, so both review lanes act on
 same-repository pull requests only. The bot never reviews a fork pull
 request; a maintainer who wants one reviewed pushes its branch to the

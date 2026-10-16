@@ -11,7 +11,8 @@
 #                       the budget from the diff size (the default);
 #                       an integer pins it and opts out of scaling.
 #   INPUT_FORCE       - Review even if already reviewed (default: false)
-#   GH_TOKEN          - GitHub token for API access
+#   GH_TOKEN          - GitHub token for API access (used by this script
+#                       only; never passed to the reviewer)
 #
 # The review output is structured JSON that is:
 #   1. Validated against review-schema.json
@@ -598,17 +599,26 @@ cat "${output_dir}/pr-diff.txt" >> "${prompt_file}"
 #
 # The reviewer reads untrusted text -- the diff, and every file in the
 # pull request's tree -- so it gets only what a review needs: reading
-# files. It has no shell, no network and no write tools, and it never
-# sees a GitHub token: everything that talks to GitHub happens in this
-# script, before and after. --setting-sources user and
-# --strict-mcp-config stop the checked-out tree configuring the CLI
-# itself: a .claude/settings.json in the pull request would otherwise
-# have its hooks run as shell commands on the runner before the first
-# turn, and a .mcp.json would start whatever servers it names.
+# the checkout. It has no shell, no network and no write tools, and it
+# never sees a GitHub token: everything that talks to GitHub happens in
+# this script, before and after.
+#
+# --tools is the allowlist of tools that exist at all; the allow and
+# deny lists are defence in depth behind it. --restricted confines the
+# file tools to the working directory, which is the checkout: a bare
+# Read would otherwise open any path, such as the runner's credentials
+# or /proc, and the review it writes is posted publicly. --restricted
+# also ignores user, project and local settings files. Project and
+# local settings come from the pull request, whose hooks would run as
+# shell commands on the runner before the first turn; user settings
+# live in the home directory of a shared, long-lived runner, which any
+# other job on the pool could have written. --strict-mcp-config does
+# the same for MCP servers, such as a .mcp.json in the pull request.
 echo "Running Claude to generate review JSON..."
 env -u GH_TOKEN -u GITHUB_TOKEN "${claude_bin}" -p - \
-    --setting-sources user \
+    --restricted \
     --strict-mcp-config \
+    --tools Read,Grep,Glob \
     --allowedTools Read Grep Glob \
     --disallowedTools Bash Edit Write NotebookEdit WebFetch WebSearch \
     --max-turns "${max_turns}" \

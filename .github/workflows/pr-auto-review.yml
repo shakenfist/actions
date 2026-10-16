@@ -45,9 +45,10 @@
 #
 # SECURITY: the PR diff and tree the reviewer reads are untrusted input,
 # and the runner is a shared, long-lived pool. review-pr-with-claude
-# therefore runs Claude Code with read-only tools, without the job's
-# token in its environment, and ignoring any Claude configuration in
-# the checked-out tree. The job itself still holds pull-requests: write
+# therefore runs Claude Code with read-only tools confined to the
+# checkout, without the job's token in its environment, and ignoring
+# any Claude settings files, in the checked-out tree or in the runner's
+# home directory. The job itself still holds pull-requests: write
 # and issues: write, and a fork PR's diff would arrive with no human
 # having read it, so this reviews same-repository pull requests only.
 # Reviewing forks would mean sandboxing the reviewer first.

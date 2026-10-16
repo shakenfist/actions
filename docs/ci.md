@@ -636,7 +636,7 @@ one.
 | `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
 | `review-pr-with-claude/extract-review-json.py` | Decides whether a review survives a truncated or malformed response. It rebuilds JSON the model did not finish writing, and repairs quotes the model left unescaped, so the boundary between "recovered the completed findings" and "invented a review" is worth pinning |
 | `review-pr-with-claude/render-unparsed-review.py` | Posts model output to a pull request verbatim when no review could be recovered from it, so what is pinned is that it cannot escape its fence, fire a bot trigger, or overrun the comment size limit |
-| `review-pr-with-claude/review-pr-with-claude.sh` | Launches the reviewer over an untrusted diff and tree. The test runs the shipped script against a stub `gh` and a stub `claude` and pins what the reviewer is given: read-only tools, no GitHub token, and no Claude settings or MCP servers from the checkout |
+| `review-pr-with-claude/review-pr-with-claude.sh` | Launches the reviewer over an untrusted diff and tree. The test runs the shipped script against a stub `gh` and a stub `claude` and pins what the reviewer is given: only read tools, confined to the checkout, no GitHub token, and no Claude settings files or MCP servers |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
 
 The documentation gets `tests/test_documentation_links.py`, which

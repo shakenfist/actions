@@ -27,9 +27,11 @@ SCRIPT = os.path.join(
 # Answers the calls the script makes before it reaches the reviewer: no
 # earlier comment, no earlier review, a pull request, and a one-line
 # diff. Everything else -- posting a comment or a review -- succeeds and
-# does nothing.
+# does nothing. Every call is logged, so a run that stops short of the
+# reviewer shows which call it stopped after.
 FAKE_GH = textwrap.dedent('''\
     #!/bin/bash
+    echo "gh $*" >> "${FAKE_GH_LOG}"
     case "$1 $2" in
         'pr view')
             case "$*" in
@@ -62,6 +64,9 @@ FAKE_CLAUDE = textwrap.dedent('''\
     print(json.dumps({'type': 'result', 'subtype': 'success',
                       'result': '', 'num_turns': 1}))
     ''')
+
+# The tools a review needs.
+READ_TOOLS = {'Read', 'Grep', 'Glob'}
 
 # Tools that would let the reviewer do more than read the checkout.
 UNSAFE_TOOLS = {
@@ -96,12 +101,14 @@ class ReviewerLaunchTest(unittest.TestCase):
         claude = os.path.join(bin_dir, 'fake-claude')
         write_executable(claude, FAKE_CLAUDE)
         record = os.path.join(cls.tmp.name, 'record.json')
+        cls.gh_log = os.path.join(cls.tmp.name, 'gh.log')
 
         env = dict(os.environ)
         env.update({
             'PATH': bin_dir + os.pathsep + env.get('PATH', ''),
             'CLAUDE_BIN': claude,
             'FAKE_CLAUDE_RECORD': record,
+            'FAKE_GH_LOG': cls.gh_log,
             'GH_TOKEN': 'gh-token-the-reviewer-must-not-see',
             'GITHUB_TOKEN': 'github-token-the-reviewer-must-not-see',
             'GITHUB_REPOSITORY': 'shakenfist/example',
@@ -124,10 +131,16 @@ class ReviewerLaunchTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def setUp(self):
-        self.assertIsNotNone(
-            self.record,
-            'the script never launched the reviewer:\n'
-            + self.run_result.stdout + self.run_result.stderr)
+        if self.record is None:
+            try:
+                with open(self.gh_log) as f:
+                    gh_calls = f.read()
+            except FileNotFoundError:
+                gh_calls = '(none)\n'
+            self.fail('the script never launched the reviewer.\n'
+                      'gh calls:\n' + gh_calls
+                      + 'output:\n' + self.run_result.stdout
+                      + self.run_result.stderr)
         self.argv = self.record['argv']
 
     def test_the_prompt_reaches_the_reviewer(self):
@@ -140,22 +153,38 @@ class ReviewerLaunchTest(unittest.TestCase):
         self.assertNotIn('--dangerously-skip-permissions', self.argv)
         self.assertNotIn('bypassPermissions', self.argv)
 
+    def test_only_read_tools_exist(self):
+        # An allowlist of the tools loaded at all, so a tool missing
+        # from the deny list -- Agent, Skill, or one a later CLI adds --
+        # is not there to be approved.
+        tools = flag_values(self.argv, '--tools')
+        self.assertIsNotNone(tools, self.argv)
+        self.assertLessEqual(set(tools), READ_TOOLS)
+
     def test_only_read_tools_are_allowed(self):
         allowed = flag_values(self.argv, '--allowedTools')
         self.assertIsNotNone(allowed, self.argv)
-        self.assertEqual(set(allowed) & UNSAFE_TOOLS, set())
-        self.assertLessEqual(set(allowed), {'Read', 'Grep', 'Glob'})
+        self.assertLessEqual(set(allowed), READ_TOOLS)
 
     def test_shell_network_and_write_tools_are_denied(self):
         denied = flag_values(self.argv, '--disallowedTools')
         self.assertIsNotNone(denied, self.argv)
         self.assertLessEqual(UNSAFE_TOOLS, set(denied))
 
-    def test_the_checkout_cannot_configure_the_cli(self):
-        # A .claude/settings.json in the pull request would run its
-        # hooks as shell commands, and a .mcp.json would start servers.
-        self.assertEqual(flag_values(self.argv, '--setting-sources'),
-                         ['user'])
+    def test_file_tools_are_confined_to_the_checkout(self):
+        # A bare Read opens any path: the runner's credentials, or
+        # /proc/self/environ, quoted into a public review.
+        self.assertIn('--restricted', self.argv)
+
+    def test_no_settings_file_can_configure_the_cli(self):
+        # A .claude/settings.json in the pull request, or one another
+        # job left in the shared runner's home, would run its hooks as
+        # shell commands; a .mcp.json would start servers. --restricted
+        # ignores every settings file, and no setting source is named
+        # to load one back.
+        self.assertIn('--restricted', self.argv)
+        self.assertIn(flag_values(self.argv, '--setting-sources'),
+                      (None, []))
         self.assertIn('--strict-mcp-config', self.argv)
 
 
