@@ -38,6 +38,27 @@
           Pass the token as an extra var.
         success_msg: A GitLab token was supplied.
 
+    # The resparsify script is fetched with get_url, which fails a
+    # transfer that stops short of its Content-Length only from
+    # ansible-core 2.19.0. A truncated script would run as far as it got
+    # and could exit zero having resparsified nothing. The comment on
+    # the same assert in ci-dependencies.yml says why a controller can
+    # quietly fall below this.
+    - name: Require an ansible-core whose get_url checks Content-Length
+      assert:
+        that:
+          - ansible_version.full is version('2.19.0', '>=')
+        fail_msg: >-
+          ansible-core {{ ansible_version.full }} is too old to build the
+          instar-testdata disk. Its get_url does not check a download
+          against the Content-Length the server advertised, so a
+          truncated resparsify script could run and leave every image
+          unsparsified. Use ansible-core 2.19.0 or later, which needs
+          Python 3.11 or later.
+        success_msg: >-
+          ansible-core {{ ansible_version.full }} verifies the resparsify
+          script download against its Content-Length.
+
     - name: Create an instance
       shakenfist.shakenfist.sf_instance:
         name: "rebuild-instar-testdata"
@@ -216,38 +237,35 @@
       become_user: debian
       no_log: true
 
-    # This mirrors the "Resparsify test images" step in instar's
-    # .github/workflows/functional-tests.yml, deliberately only under
-    # downloaded/ and only these extensions: resparsifying the custom/
-    # fixtures could change files a test asserts about. instar plans to
-    # lift that step into tools/ci/resparsify-testdata.sh; when that
-    # lands, this should fetch and run it instead of keeping a copy.
-    # It runs as debian so that the rewritten files keep their owner.
+    # Resparsifying is instar's own tools/ci/resparsify-testdata.sh, the
+    # same script its functional tests run, fetched rather than copied
+    # so that which images it rewrites (only downloaded/, only whole-disk
+    # image extensions; the custom/ fixtures are left alone because tests
+    # assert about them) cannot drift from what instar's jobs expect. Its
+    # header names this build as a consumer and fixes the interface:
+    # exactly one argument, the tree, meaning the whole tree; no
+    # environment variables; a non-zero exit on any failure, including
+    # matching no images at all.
     #
-    # A failed cp must fail the build rather than be moved over the
-    # original: this loop rewrites most of the disk's payload, a disk
-    # filling mid-copy leaves a truncated .sparse file, and the
-    # free-space check below cannot see that once the mv has given the
-    # space back. errexit stops the loop at the cp, and pipefail carries
-    # that out of the pipeline. Do not chain the two with &&: errexit
-    # ignores a failure on the left of &&, so only a failure on the last
-    # file would be seen.
+    # It comes from develop, instar's default branch, by name. instar
+    # has no main, and raw.githubusercontent.com serves the default
+    # branch for a ref that does not exist, so a main URL would work
+    # today and then change under this build the day someone made one.
+    #
+    # get_url fails the build on a fetch that fails or arrives short
+    # (the ansible-core assert at the top of this playbook is what makes
+    # the second true), rather than leaving the images unsparsified for
+    # every instar job. The script lands on the builder's boot disk,
+    # which is discarded, not on the disk being published.
+    - name: Fetch instar's resparsify script
+      get_url:
+        url: https://raw.githubusercontent.com/shakenfist/instar/develop/tools/ci/resparsify-testdata.sh
+        dest: /usr/local/bin/resparsify-testdata.sh
+        mode: "0755"
+
+    # As debian, so that the rewritten files keep their owner.
     - name: Resparsify instar-testdata images
-      shell: |
-        set -euo pipefail
-        cd /srv/ci/cached/instar-testdata
-        find downloaded/ -type f \( \
-          -name "*.qcow2" -o \
-          -name "*.vmdk" -o \
-          -name "*.vhd" -o \
-          -name "*.vhdx" -o \
-          -name "*.img" \
-        \) -print0 | while IFS= read -r -d '' file; do
-          cp --sparse=always "$file" "$file.sparse"
-          mv "$file.sparse" "$file"
-        done
-      args:
-        executable: /bin/bash
+      command: /usr/local/bin/resparsify-testdata.sh /srv/ci/cached/instar-testdata
       become_user: debian
 
     # Scrub the credential. This disk is attached to runners that run
