@@ -27,6 +27,7 @@ for external in \
         clingwrap \
         development \
         agent-python \
+        hunkydory \
 	instar \
         kerbside \
         occystrap \
