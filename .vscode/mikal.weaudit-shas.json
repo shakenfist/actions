@@ -25,10 +25,6 @@
       "sha": "4e5b158307670d19c1fa45d791bd97803df1c3e0",
       "date": "2026-09-09"
     },
-    ".github/workflows/pr-auto-review.yml": {
-      "sha": "7782339f38c7d1daa88a7019483318ee8fe34491",
-      "date": "2026-09-04"
-    },
     ".github/workflows/pr-re-review.yml": {
       "sha": "68425cd384443ae15a909832693af1df01414c38",
       "date": "2026-10-05"
@@ -60,10 +56,6 @@
     "AGENTS.md": {
       "sha": "d020328defd5ac671cd46207abd93527dfbd082f",
       "date": "2026-10-14"
-    },
-    "ARCHITECTURE.md": {
-      "sha": "ecc33cc61b40996532ab7b93fbfe6156530d6dd9",
-      "date": "2026-10-10"
     },
     "PUSH-AUDIT.md": {
       "sha": "f749600bfd0e76413cfdc248c13b608ad9a4a49e",
@@ -237,10 +229,6 @@
       "sha": "ff872cc6baa5a11a542170fbb81acf1aa189e3ed",
       "date": "2026-10-16"
     },
-    "docs/ci.md": {
-      "sha": "c4d10246d16a2f2989c5fd58e7fdb6e3382c1dd2",
-      "date": "2026-10-16"
-    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
@@ -287,10 +275,6 @@
     },
     "review-pr-with-claude/render-unparsed-review.py": {
       "sha": "534dde87ee8d0f0d8461b2ec06cd1625e3043bb3",
-      "date": "2026-09-25"
-    },
-    "review-pr-with-claude/review-pr-with-claude.sh": {
-      "sha": "619a7702a9243c0313807f6c6302dd2a4fb82a12",
       "date": "2026-09-25"
     },
     "review-pr-with-claude/review-schema.json": {

@@ -5,10 +5,6 @@
   "treeEntries": [],
   "auditedFiles": [
     {
-      "path": ".github/workflows/pr-auto-review.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/netplan-eth1.yaml",
       "author": "mikal"
     },
@@ -345,10 +341,6 @@
       "author": "mikal"
     },
     {
-      "path": "review-pr-with-claude/review-pr-with-claude.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_render_unparsed_review.py",
       "author": "mikal"
     },
@@ -529,10 +521,6 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_redeploy_check.py",
       "author": "mikal"
     },
@@ -570,10 +558,6 @@
     },
     {
       "path": "README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ci.md",
       "author": "mikal"
     },
     {
