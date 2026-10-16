@@ -140,15 +140,20 @@ class InstarTestdataTests(unittest.TestCase):
         self.assertEqual('%s %s' % (RESPARSIFY_SCRIPT, TREE), task['command'])
         self.assertEqual('debian', task.get('become_user'))
 
-    def test_resparsify_runs_after_the_pull_and_before_the_scrub(self):
-        # After the LFS pull, which writes the images fully allocated, and
-        # before the scrub and the checks, so the free-space check sees
-        # the disk as it will be published.
+    def test_resparsify_runs_after_the_scrub_and_before_the_checks(self):
+        # The script is fetched from another repository's branch, so it
+        # must not run while the token is still on the disk: after both
+        # credential removals. It must still run after the LFS pull, which
+        # writes the images fully allocated, and before the checks, so
+        # that the credential search and the free-space check see the
+        # disk as it will be published.
         fetch = find_task(self.plays, FETCH_TASK)
         resparsify = find_task(self.plays, RESPARSIFY_TASK)
         self.assertLess(find_task(self.plays, LFS_PULL_TASK), fetch)
+        self.assertLess(find_task(self.plays, SCRUB_TASKS[0]), fetch)
+        self.assertLess(find_task(self.plays, SCRUB_TASKS[1]), fetch)
         self.assertLess(fetch, resparsify)
-        self.assertLess(resparsify, find_task(self.plays, SCRUB_TASKS[0]))
+        self.assertLess(resparsify, find_task(self.plays, SCRUB_TASKS[2]))
 
     def test_token_is_checked_before_the_instance_is_created(self):
         self.assertLess(
