@@ -591,6 +591,66 @@
     {
       "path": "README.md",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/prune-reviews.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-prune-reviews.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_verdict.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_launch.sh",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_headroom_collect.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
