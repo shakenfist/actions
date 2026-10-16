@@ -303,6 +303,78 @@
             name: "github-actions-runner.tar.gz",
           }
 
+    # Source tarballs of the GitHub actions the CI workflows use, for
+    # runners to unpack instead of fetching from codeload on every job.
+    # Phase 3 of
+    # https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-action-archive-cache.md
+    # points the runners at this directory; until then it is only
+    # populated. docs/ansible.md has the longer account.
+    #
+    # This is a script and not another get_url loop because an archive
+    # needs more than a Content-Length check: it must be a gzipped
+    # tarball with a single top-level directory ending in -<sha>, and
+    # get_url cannot look inside what it downloaded.
+    #
+    # Nothing here may fail the build, the opposite of the image loop
+    # above. A missing archive costs a job one codeload request, which
+    # is what every job pays today; a failed nightly build costs every
+    # image its freshness. Hence a script that exits 0 and reports its
+    # failures in a summary, and failed_when: false for what it cannot
+    # catch, such as a missing interpreter.
+    #
+    # The archives live in a subdirectory, and that is load-bearing: the
+    # size floor near the end of this playbook fails the build for any
+    # top level file under 1 MB, and actions/checkout's archive is about
+    # 465 KiB. That find does not recurse, so the subdirectory is never
+    # examined.
+    #
+    # Ownership is not what protects these files. What stops one
+    # runner's job tampering with another's cache is that each runner
+    # gets its own copy of this disk and is discarded after one job. A
+    # cache on a long-lived disk that jobs can write to would need a
+    # different design.
+    - name: Write the action archive manifest
+      copy:
+        content: "{{ action_archives | default([]) | to_json }}"
+        dest: /tmp/action-archives.json
+        mode: "0644"
+
+    - name: Cache action archives, without failing the build
+      script: cache-action-archives.py /tmp/action-archives.json /srv/ci/cached/action-archive-cache
+      args:
+        executable: python3
+      register: action_archives_result
+      failed_when: false
+      changed_when: true
+
+    - name: Report the action archives cached
+      debug:
+        msg: "Action archive cache: {{ action_archives_result.stdout | default('') | trim }}"
+
+    - name: Warn that the action archive script did not run cleanly
+      debug:
+        msg: >-
+          cache-action-archives.py exited {{ action_archives_result.rc | default('unknown') }}:
+          {{ action_archives_result.stderr | default('') | trim }}
+          {{ action_archives_result.msg | default('') }}
+          The build continues without a complete action archive cache.
+      when: action_archives_result.rc | default(1) != 0
+
+    - name: Warn about action archives that could not be cached
+      debug:
+        msg: >-
+          Action archives not cached:
+          {% for f in (action_archives_result.stdout | from_json).failed %}
+          {{ f.repository }}@{{ f.sha }} ({{ f.reason }}){{ '' if loop.last else ',' }}
+          {% endfor %}
+      when:
+        - action_archives_result.rc | default(1) == 0
+        - (action_archives_result.stdout | default('') | trim) != ''
+        - (action_archives_result.stdout | from_json).failed | default([]) | length > 0
+      # from_json raises on malformed output, and a warning must not be able
+      # to fail the build it is warning about.
+      ignore_errors: true
+
 - hosts: localhost
   gather_facts: no
   connection: ssh
@@ -430,6 +502,10 @@
     # It is still a floor and not an inventory -- a missing entry
     # passes, because what belongs here lives in the get_url loop
     # above and matching the two by hand would rot.
+    #
+    # This find must stay non-recursive: actions/checkout's archive in
+    # action-archive-cache/ is about 465 KiB, under this floor, and only
+    # the subdirectory keeps it out of sight.
     - name: Look for cache entries that arrived empty or truncated
       find:
         paths: /srv/ci/cached

@@ -6,7 +6,7 @@ the composite actions rather than run directly; `build-smoke-cluster` is
 the main caller.
 
 - **ci-image.yml**: Builds CI base images with pre-installed packages.
-- **ci-dependencies.yml**: Downloads and caches VM images.
+- **ci-dependencies.yml**: Downloads and caches VM images and GitHub action archives.
 - **ci-instar-testdata.yml**: Builds the instar-testdata cache disk; see
   [The instar-testdata disk](#the-instar-testdata-disk).
 - **ci-topology-\*.yml**: Provisions multi-node test clusters.
@@ -469,6 +469,27 @@ the conductor's gnome-less marker uses it to decide when a cluster
 rebuilds its cache disk, so a constant naming a label this playbook
 does not snapshot leaves the disk stale without anything reporting it.
 
+The disk also holds a cache of GitHub action source archives, the
+tarballs a runner would otherwise fetch from codeload on every job. They
+live at `/srv/ci/cached/action-archive-cache/<owner>_<repo>/<sha>.tar.gz`.
+The list comes from the conductor, which passes its manifest as the
+`action_archives` extra var; the playbook writes it to
+`/tmp/action-archives.json` on the builder and runs
+`ansible/files/cache-action-archives.py` over it, which downloads each
+archive and checks it is a gzipped tarball of that commit with a single
+top-level directory ending in `-<sha>`. A failure here only warns: a missing archive costs a
+job one codeload request, which is what every job pays today, while a
+failed nightly rebuild would cost every image its freshness. The archives
+sit in a subdirectory because the size floor below does not recurse and
+`actions/checkout`'s archive is about 465 KiB, under its 1 MB floor. Runners
+will read the directory once `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` is set
+for them (phase 3); until then it is only populated. File ownership is
+not what protects the archives: what stops one runner's job tampering
+with another's cache is that each runner gets its own copy of the disk
+and is discarded after one job, and a cache on a long-lived disk that
+jobs can write to would need a different design. See the
+[master plan](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-action-archive-cache.md).
+
 Three things about that disk are load bearing and easy to undo by
 accident.
 
@@ -679,7 +700,9 @@ three are worth knowing before you tighten them:
   wave through. This is the failure `get_url`'s length check cannot
   see: an error page arrives complete, with a correct
   `Content-Length`, so the floor and the length check each catch what
-  the other does not. It does not check that a given entry is *present*,
+  the other does not. The `find` is deliberately non-recursive because
+  of `action-archive-cache/`, whose archives are legitimately under the
+  floor; see the paragraph on the action archive cache above. It does not check that a given entry is *present*,
   because the list of what should be there lives in the `get_url` loop
   and would have to be kept in step by hand. The free space assertion
   beside it covers the failure the floor is blind to: a download cut
