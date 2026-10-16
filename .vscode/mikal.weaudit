@@ -429,10 +429,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ci_dependencies_downloads.py",
-      "author": "mikal"
-    },
-    {
       "path": "deploy-kolla-ansible/action.yml",
       "author": "mikal"
     },
@@ -474,10 +470,6 @@
     },
     {
       "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/files",
       "author": "mikal"
     },
     {
@@ -561,10 +553,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": ".github/actionlint.yaml",
       "author": "mikal"
     },
@@ -593,14 +581,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ci.md",
       "author": "mikal"
     },
@@ -610,10 +590,6 @@
     },
     {
       "path": "docs/actions.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {

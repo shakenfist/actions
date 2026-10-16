@@ -73,10 +73,6 @@
       "sha": "b2eefb54883f0989e1a5f3d45261ed3ea85a4bd8",
       "date": "2026-10-14"
     },
-    "ansible/ci-dependencies.yml": {
-      "sha": "33718c6536b0467929484051b9b37f9f8140ddc2",
-      "date": "2026-10-16"
-    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -245,10 +241,6 @@
       "sha": "ff872cc6baa5a11a542170fbb81acf1aa189e3ed",
       "date": "2026-10-16"
     },
-    "docs/ansible.md": {
-      "sha": "c774eb2c06cf8c1330fb74f9047cdcf75d3eca1e",
-      "date": "2026-10-14"
-    },
     "docs/ci.md": {
       "sha": "c4d10246d16a2f2989c5fd58e7fdb6e3382c1dd2",
       "date": "2026-10-16"
@@ -340,10 +332,6 @@
     "tests/test_ci_apply_deploy_profile.py": {
       "sha": "67b042cf42ba5ee50152dfe27f649d55ddfe5a85",
       "date": "2026-10-10"
-    },
-    "tests/test_ci_dependencies_downloads.py": {
-      "sha": "a32f29e8cd3cc98953f8d227b7f5bba2bb25aa13",
-      "date": "2026-09-30"
     },
     "tests/test_ci_headroom_collect.py": {
       "sha": "4b9da3038d9bd593720faba0a2cb3d274b24abad",
