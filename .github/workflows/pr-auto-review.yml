@@ -43,13 +43,15 @@
 #      pr-re-review.yml does, so a human asking for a re-review is the
 #      only way to get a second review on a PR.
 #
-# SECURITY: the reviewer runs Claude Code with
-# --dangerously-skip-permissions on a runner holding a token with
-# pull-requests: write and issues: write, and the PR diff it is fed is
-# untrusted input. A prompt injection in a diff from an untrusted fork
-# could therefore reach a write-capable token, so this reviews
-# same-repository pull requests only. Reviewing forks would mean
-# sandboxing the reviewer or dropping its token to read-only first.
+# SECURITY: the PR diff and tree the reviewer reads are untrusted input,
+# and the runner is a shared, long-lived pool. review-pr-with-claude
+# therefore runs Claude Code with read-only tools confined to the
+# checkout, without the job's token in its environment, and ignoring
+# any Claude settings files, in the checked-out tree or in the runner's
+# home directory. The job itself still holds pull-requests: write
+# and issues: write, and a fork PR's diff would arrive with no human
+# having read it, so this reviews same-repository pull requests only.
+# Reviewing forks would mean sandboxing the reviewer first.
 #
 # The checkout is the merge ref of a same-repository PR, which the
 # reviewer needs for AGENTS.md, ARCHITECTURE.md and README.md context.
@@ -121,11 +123,15 @@ jobs:
               ;;
           esac
 
+      # persist-credentials: false because nothing here pushes, and the
+      # default would leave the job's write-scoped token in .git/config
+      # of the very tree the reviewer reads.
       - name: Checkout code
         if: steps.check_bot.outputs.is_bot != 'true'
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Run automated reviewer
         if: steps.check_bot.outputs.is_bot != 'true'
