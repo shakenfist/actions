@@ -37,6 +37,18 @@
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
     },
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
+      "date": "2026-10-16"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "07e038ce4f1ba143eeb172e17e3d24c6e43e203a",
+      "date": "2026-10-16"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "0a765d997604ddfac2d4d0f2fb7436df0f3bd54c",
+      "date": "2026-10-16"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -60,6 +72,10 @@
     "README.md": {
       "sha": "b2eefb54883f0989e1a5f3d45261ed3ea85a4bd8",
       "date": "2026-10-14"
+    },
+    "ansible/ci-dependencies.yml": {
+      "sha": "33718c6536b0467929484051b9b37f9f8140ddc2",
+      "date": "2026-10-16"
     },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
@@ -225,9 +241,17 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
+    "docs/actions.md": {
+      "sha": "ff872cc6baa5a11a542170fbb81acf1aa189e3ed",
+      "date": "2026-10-16"
+    },
     "docs/ansible.md": {
       "sha": "c774eb2c06cf8c1330fb74f9047cdcf75d3eca1e",
       "date": "2026-10-14"
+    },
+    "docs/ci.md": {
+      "sha": "c4d10246d16a2f2989c5fd58e7fdb6e3382c1dd2",
+      "date": "2026-10-16"
     },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
@@ -248,6 +272,10 @@
     "etc/ovirt-45-rocky-9-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
+    },
+    "pr-bot-trigger/action.yml": {
+      "sha": "3d9e93ee5e11d171ea5119405a0b265e978a3a9b",
+      "date": "2026-10-16"
     },
     "renovate.json": {
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
@@ -401,6 +429,10 @@
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
     },
+    "tests/test_workflow_references.py": {
+      "sha": "417ef99b958e9128afe480b94713676655b395e1",
+      "date": "2026-10-16"
+    },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
       "date": "2026-09-16"
@@ -425,6 +457,10 @@
       "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
       "date": "2026-09-10"
     },
+    "tools/ci-prune-reviews.sh": {
+      "sha": "b4ce5b64c79afb01e07b98f43457fa5ff842e896",
+      "date": "2026-10-16"
+    },
     "tools/ci-redeploy-check.py": {
       "sha": "d0d1ddea382935bbdf95e25a0d0e9d63bd333d5f",
       "date": "2026-10-10"
@@ -444,6 +480,18 @@
     "tools/ci_event_checks.sh": {
       "sha": "47f0eeec3d6d3d743608fb79b4756b9eb07541b6",
       "date": "2026-09-07"
+    },
+    "tools/ci_headroom_collect.sh": {
+      "sha": "57bc0f867deecbe4fe49bb2ad4d7a825e1c2b1a9",
+      "date": "2026-10-16"
+    },
+    "tools/ci_headroom_launch.sh": {
+      "sha": "07bd48d18d84fdfcb239d7b969f0d8b79b89ff44",
+      "date": "2026-10-16"
+    },
+    "tools/ci_headroom_verdict.sh": {
+      "sha": "7a47cf36cae0e8ad650709becea7f2776578d73e",
+      "date": "2026-10-16"
     },
     "tools/ci_log_checks.sh": {
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
