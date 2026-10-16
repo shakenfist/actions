@@ -569,14 +569,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-instar-testdata.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ci_instar_testdata.py",
-      "author": "mikal"
-    },
-    {
       "path": "README.md",
       "author": "mikal"
     },
