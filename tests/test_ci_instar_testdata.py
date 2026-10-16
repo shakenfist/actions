@@ -36,6 +36,16 @@ SCRUB_TASKS = [
     'Remove the credential from the instar-testdata lfs config',
     'Confirm no credential is left on the instar-testdata disk',
 ]
+VERSION_TASK = 'Require an ansible-core whose get_url checks Content-Length'
+MINIMUM = "ansible_version.full is version('2.19.0', '>=')"
+LFS_PULL_TASK = 'Fetch the git-lfs content for instar-testdata'
+FETCH_TASK = "Fetch instar's resparsify script"
+RESPARSIFY_TASK = 'Resparsify instar-testdata images'
+# develop by name: instar has no main, and raw.githubusercontent.com
+# serves the default branch for a ref that does not exist.
+RESPARSIFY_URL = 'https://raw.githubusercontent.com/shakenfist/instar/develop/tools/ci/resparsify-testdata.sh'
+RESPARSIFY_SCRIPT = '/usr/local/bin/resparsify-testdata.sh'
+TREE = '/srv/ci/cached/instar-testdata'
 
 
 def load_plays(path):
@@ -94,8 +104,8 @@ class InstarTestdataTests(unittest.TestCase):
     def test_multi_line_scripts_fail_on_error(self):
         # A multi-line script runs its commands in sequence, and without
         # errexit and pipefail a failure part way through is hidden by
-        # whatever runs after it: a failed cp in the resparsify loop would
-        # otherwise be moved over the image it was copying.
+        # whatever runs after it, and the task reports success for a
+        # step that did not happen.
         checked = 0
         for task in all_tasks(self.plays):
             script = task.get('shell')
@@ -108,6 +118,37 @@ class InstarTestdataTests(unittest.TestCase):
                     '/bin/bash', task.get('args', {}).get('executable'),
                     '%r needs bash for pipefail' % task.get('name'))
         self.assertGreater(checked, 0, 'no multi-line shell task found; the detection is vacuous')
+
+    def test_resparsify_script_is_fetched_from_develop_with_get_url(self):
+        # get_url, not uri: only get_url fails a download shorter than its
+        # Content-Length, and a truncated script could exit zero having
+        # rewritten nothing.
+        task = all_tasks(self.plays)[find_task(self.plays, FETCH_TASK)]
+        self.assertIn('get_url', task)
+        self.assertEqual(RESPARSIFY_URL, task['get_url']['url'])
+        self.assertEqual(RESPARSIFY_SCRIPT, task['get_url']['dest'])
+
+    def test_version_is_asserted_before_the_instance_is_created(self):
+        index = find_task(self.plays, VERSION_TASK)
+        self.assertLess(index, find_task(self.plays, CREATE_TASK))
+        self.assertIn(MINIMUM, all_tasks(self.plays)[index]['assert']['that'])
+
+    def test_resparsify_is_called_with_only_the_tree(self):
+        # The script's header fixes this form as the whole tree,
+        # permanently; any further argument narrows what it rewrites.
+        task = all_tasks(self.plays)[find_task(self.plays, RESPARSIFY_TASK)]
+        self.assertEqual('%s %s' % (RESPARSIFY_SCRIPT, TREE), task['command'])
+        self.assertEqual('debian', task.get('become_user'))
+
+    def test_resparsify_runs_after_the_pull_and_before_the_scrub(self):
+        # After the LFS pull, which writes the images fully allocated, and
+        # before the scrub and the checks, so the free-space check sees
+        # the disk as it will be published.
+        fetch = find_task(self.plays, FETCH_TASK)
+        resparsify = find_task(self.plays, RESPARSIFY_TASK)
+        self.assertLess(find_task(self.plays, LFS_PULL_TASK), fetch)
+        self.assertLess(fetch, resparsify)
+        self.assertLess(resparsify, find_task(self.plays, SCRUB_TASKS[0]))
 
     def test_token_is_checked_before_the_instance_is_created(self):
         self.assertLess(

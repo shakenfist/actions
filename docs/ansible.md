@@ -519,15 +519,17 @@ project's functional tests. It holds a depth-1 clone of the private
 `instar-testdata` repository with its git-lfs content materialised
 twice, in the working tree and in `.git/lfs/objects`, so that a runner's
 own `git lfs pull` only fetches objects added since the build. The
-images under `downloaded/` are resparsified at build time; `custom/` is
-left alone because tests assert about those files. The tree is
-owned by the `debian` user, created that way by running the clone as
-`debian` rather than by a recursive chown afterwards.
+images under `downloaded/` are resparsified at build time by instar's
+own `tools/ci/resparsify-testdata.sh`, fetched from instar's `develop`
+branch on each build, so the disk is rewritten exactly as instar's jobs
+would rewrite it; `custom/` is left alone because tests assert about
+those files. A failed fetch, or a script that finds no images, fails
+the build. The tree is owned by the `debian` user, created that way by
+running the clone as `debian` rather than by a recursive chown
+afterwards.
 
-The conductor's image builder is meant to build it nightly and publish
-it as the `ci-images/instar-testdata` label, once private-ci wires the
-playbook into its list of image builds. Until then nothing runs the
-playbook, and a hand run publishes to
+The conductor's image builder builds it nightly and publishes it as
+the `ci-images/instar-testdata` label. A hand run publishes to
 `ci-images/instar-testdata-scratch` unless `label` is passed as an
 extra var. The `gitlab_testdata_token` extra var is required: without
 it this disk would be empty, so the build fails before it creates an
