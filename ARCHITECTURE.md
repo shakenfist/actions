@@ -170,11 +170,15 @@ the sole way to get a second review -- which is why a repository without
 `pr-re-review.yml` deployed reviews each pull request exactly once and
 never sees the fixes.
 
-The reviewer runs Claude Code with `--dangerously-skip-permissions`
-while holding a write-capable token, and a pull request diff is
-untrusted input, so `pr-auto-review.yml` restricts itself to
-same-repository pull requests. Fork pull requests are reviewed only on
-explicit human request.
+A pull request's diff and tree are untrusted input, so the reviewer
+runs Claude Code with read-only tools (Read, Grep, Glob), without the
+job's GitHub token in its environment, and loading no Claude settings
+or MCP servers from the checked-out tree; everything that talks to
+GitHub happens in `review-pr-with-claude.sh` around it. The job still
+holds a write-capable token, so both review lanes act on
+same-repository pull requests only. The bot never reviews a fork pull
+request; a maintainer who wants one reviewed pushes its branch to the
+repository.
 
 The review data structure is shared, not ad hoc:
 `review-pr-with-claude/review-schema.json` defines it and constrains

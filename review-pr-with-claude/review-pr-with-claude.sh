@@ -594,12 +594,26 @@ PYSUBST
 # Append the diff
 cat "${output_dir}/pr-diff.txt" >> "${prompt_file}"
 
-# Run Claude Code to get JSON review
+# Run Claude Code to get JSON review.
+#
+# The reviewer reads untrusted text -- the diff, and every file in the
+# pull request's tree -- so it gets only what a review needs: reading
+# files. It has no shell, no network and no write tools, and it never
+# sees a GitHub token: everything that talks to GitHub happens in this
+# script, before and after. --setting-sources user and
+# --strict-mcp-config stop the checked-out tree configuring the CLI
+# itself: a .claude/settings.json in the pull request would otherwise
+# have its hooks run as shell commands on the runner before the first
+# turn, and a .mcp.json would start whatever servers it names.
 echo "Running Claude to generate review JSON..."
-cat "${prompt_file}" | "${claude_bin}" -p - \
-    --dangerously-skip-permissions \
+env -u GH_TOKEN -u GITHUB_TOKEN "${claude_bin}" -p - \
+    --setting-sources user \
+    --strict-mcp-config \
+    --allowedTools Read Grep Glob \
+    --disallowedTools Bash Edit Write NotebookEdit WebFetch WebSearch \
     --max-turns "${max_turns}" \
     --output-format json \
+    < "${prompt_file}" \
     > "${output_dir}/claude-output.json" || true
 
 # Extract metadata for CI output. ``subtype`` is how the run ended --
