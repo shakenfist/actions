@@ -175,6 +175,8 @@ class InstarTestdataTests(unittest.TestCase):
         task = all_tasks(self.plays)[check]
         self.assertEqual('git diff-files --quiet', task['command'])
         self.assertEqual('debian', task.get('become_user'))
+        # A check changes nothing, like the other checks in the playbook.
+        self.assertIs(False, task.get('changed_when'))
 
     def test_token_is_checked_before_the_instance_is_created(self):
         self.assertLess(

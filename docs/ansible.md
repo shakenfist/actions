@@ -550,9 +550,12 @@ those files. A failed fetch, or a script that finds no images, fails
 the build. The git index is then refreshed and checked clean: the
 resparsify gives every image a new inode and timestamps, and an index
 still holding the old ones makes each runner's first `git reset`
-rewrite all of them. The tree is owned by the `debian` user, created that way by
-running the clone as `debian` rather than by a recursive chown
-afterwards.
+rewrite all of them. That saving lasts only while the runner's `debian`
+user has the same uid and gid as the builder's and nothing on the
+runner changes the images' ctime, since git compares both; breaking
+either brings the rewrite back silently, as a slow prepare step. The
+tree is owned by the `debian` user, created that way by running the
+clone as `debian` rather than by a recursive chown afterwards.
 
 The conductor's image builder builds it nightly and publishes it as
 the `ci-images/instar-testdata` label. A hand run publishes to
