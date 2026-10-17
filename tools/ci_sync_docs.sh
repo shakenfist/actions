@@ -28,7 +28,7 @@ for external in \
         development \
         agent-python \
         hunkydory \
-	instar \
+        instar \
         kerbside \
         occystrap \
         ryll; do
