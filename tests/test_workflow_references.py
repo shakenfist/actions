@@ -50,6 +50,17 @@ def workflows():
                 yield name, f.read()
 
 
+def job_needs(job):
+    """The jobs a job depends on, as a list whichever form `needs:` takes.
+
+    `needs: build` is as valid as `needs: [build]`, and `in` against the
+    string form is a substring test, under which a job needing
+    `trigger-re-review` would also count as needing `re-review`.
+    """
+    needs = job.get('needs') or []
+    return [needs] if isinstance(needs, str) else needs
+
+
 class DispatchTargetTest(unittest.TestCase):
     def test_every_dispatched_workflow_exists(self):
         # `gh workflow run X` on a name GitHub does not know fails at
@@ -462,7 +473,8 @@ if '--jq' in args:
         sys.exit(99)
     for key in match.group(1).split('.')[1:]:
         value = value.get(key) if isinstance(value, dict) else None
-    if match.group(2) and value in (None, False):
+    # Not `in (None, False)`: 0 == False, and jq's // empty keeps a 0.
+    if match.group(2) and (value is None or value is False):
         sys.exit(0)
 print(value if isinstance(value, str) else json.dumps(value))
 """
@@ -471,10 +483,12 @@ print(value if isinstance(value, str) else json.dumps(value))
 STEP_CONTEXT = {
     'github.repository': 'shakenfist/actions',
     'github.event.issue.number': '42',
+    'github.event.comment.user.login': 'alice',
+    'github.token': 'x',
 }
 
 
-def run_shipped_step(step, env, responses):
+def run_shipped_step(step, responses):
     """Run a shipped composite step's script against FAKE_GH.
 
     Returns the exit status and what the step wrote to GITHUB_OUTPUT.
@@ -482,6 +496,9 @@ def run_shipped_step(step, env, responses):
     are substituted from STEP_CONTEXT here; an expression the context
     does not hold fails the test rather than being guessed at, because
     a comparison against `github.repository` is the thing under test.
+    The step's environment is its own `env:` block expanded the same
+    way, not one the test supplies, so a step that renames or rewires a
+    variable is run with what the runner would hand it.
     """
     def substitute(match):
         name = match.group(1).strip()
@@ -489,7 +506,11 @@ def run_shipped_step(step, env, responses):
             raise AssertionError('the step uses ${{ %s }}, which STEP_CONTEXT does not provide' % name)
         return STEP_CONTEXT[name]
 
-    script = re.sub(r'\$\{\{([^}]*)\}\}', substitute, step['run'])
+    def expand(text):
+        return re.sub(r'\$\{\{([^}]*)\}\}', substitute, str(text))
+
+    script = expand(step['run'])
+    step_env = {name: expand(value) for name, value in (step.get('env') or {}).items()}
     with tempfile.TemporaryDirectory() as tmp:
         gh = os.path.join(tmp, 'gh')
         with open(gh, 'w') as f:
@@ -503,9 +524,8 @@ def run_shipped_step(step, env, responses):
         # Nothing of the job running the tests reaches the step: a
         # step appending to GITHUB_ENV would otherwise change that job.
         run_env = {k: v for k, v in os.environ.items() if not k.startswith('GITHUB_')}
-        run_env.update(GH_TOKEN='x', GITHUB_OUTPUT=output, FAKE_GH_RESPONSES=answers,
-                       PATH='%s:%s' % (tmp, os.environ['PATH']))
-        run_env.update(env)
+        run_env.update(GITHUB_OUTPUT=output, FAKE_GH_RESPONSES=answers, PATH='%s:%s' % (tmp, os.environ['PATH']))
+        run_env.update(step_env)
         # The command line `shell: bash` runs a composite step with.
         result = subprocess.run(
             ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c', script], env=run_env, check=False,
@@ -535,7 +555,7 @@ class OriginCheckTest(unittest.TestCase):
         self.step = pr_bot_trigger_step('check_origin')
 
     def run_origin(self, status, body):
-        return run_shipped_step(self.step, {}, {self.PULL: {'status': status, 'body': body}})
+        return run_shipped_step(self.step, {self.PULL: {'status': status, 'body': body}})
 
     def test_only_a_head_in_this_repository_is_same_repo(self):
         cases = {
@@ -596,7 +616,7 @@ class PermissionCheckTest(unittest.TestCase):
         self.step = pr_bot_trigger_step('check_permission')
 
     def run_permission(self, status, body):
-        return run_shipped_step(self.step, {'COMMENTER': 'alice'}, {self.PERMISSION: {'status': status, 'body': body}})
+        return run_shipped_step(self.step, {self.PERMISSION: {'status': status, 'body': body}})
 
     def test_only_write_access_and_above_is_permitted(self):
         for role, (permission, permitted) in self.ROLES.items():
@@ -856,7 +876,7 @@ class LaneConditionTest(unittest.TestCase):
         # ten others.
         found = False
         for name, job in self.ci['jobs'].items():
-            if 'check_paths' not in (job.get('needs') or []):
+            if 'check_paths' not in job_needs(job):
                 continue
             found = True
             with self.subTest(job=name):
@@ -902,7 +922,7 @@ class LaneConditionTest(unittest.TestCase):
         # and not repeating it is the point.
         gitleaks = self.ci['jobs']['gitleaks']
         self.assertNotIn(
-            'check_paths', gitleaks.get('needs') or [],
+            'check_paths', job_needs(gitleaks),
             'gitleaks must not depend on check_paths: prose is where a '
             'secret or a smuggled character lands, so the scanner has to '
             'read what the filter skips')
@@ -1024,7 +1044,7 @@ class ReviewWorkflowGuardTest(unittest.TestCase):
                     trigger = needed[0]
                     self.assertIn("needs.%s.outputs.authorized == 'true'" % trigger, terms,
                                   '%s does not require the commenter to be authorized' % job_name)
-                    self.assertIn(trigger, job.get('needs') or [])
+                    self.assertIn(trigger, job_needs(job))
                     self.assert_bot_trigger_output(jobs[trigger], 'same_repo', 'same-repo')
                     self.assert_bot_trigger_output(jobs[trigger], 'authorized', 'authorized')
 

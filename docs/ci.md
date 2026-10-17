@@ -667,8 +667,9 @@ any ref but `main`. For `pr-bot-trigger` it runs the shipped confirm
 and branch-name scripts, and holds each of the two reports that tell a
 requester their request will not run to the step it follows, because
 losing either brings back a reaction followed by nothing. It runs the
-fork and permission checks too, against a stub `gh` that answers the
-way the API does, so that a fork, a deleted fork, a `read` or `triage`
+fork and permission checks too, with the environment their own `env:`
+blocks give them, against a stub `gh` that answers the way the API
+does, so that a fork, a deleted fork, a `read` or `triage`
 collaborator and a failed API call are each refused, and `maintain`,
 which the API reports as `write`, is accepted.
 For the two review workflows it pins that every `claude-code` job is
