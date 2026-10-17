@@ -292,50 +292,34 @@ including the files it writes for later steps;
 ## Adding a bot-triggered workflow
 
 `pr-bot-trigger` turns an `@shakenfist-bot` pull request comment into a
-gated, authorized trigger for anything you want to run. A complete
-example:
+gated, authorized trigger for anything you want to run. Start from
+[`templates/ci-review-automation/pr-retest.yml`](https://github.com/shakenfist/development/blob/main/templates/ci-review-automation/pr-retest.yml)
+in `shakenfist/development` rather than writing one from scratch: it
+is the reference caller, the `ci-review-automation` audit measures
+copies of it, and this repository's own `pr-retest.yml` is an
+unmodified copy.
 
-```yaml
-name: PR Retest
+Whatever you change in a copy, keep these:
 
-on:
-  issue_comment:
-    types: [created]
+* **A job-level `if:`** that requires a pull request comment, a
+  commenter who is not a bot, and the phrase via `contains()`. The
+  `contains()` is what stops every comment on every pull request from
+  booking a runner, and the bot check stops a review that quotes a
+  phrase back onto the pull request from firing it.
+* **The fork guard, stated where the work happens.** The job that
+  checks out, dispatches or pushes requires both `authorized` and
+  `same-repo` to be `'true'`, passed on through the trigger job's
+  `outputs:`. The action already refuses forks, so this is redundant
+  by design: a regression in the shared action cannot quietly widen
+  what a copy runs.
+* **Outputs reach shell through `env:`**, never as `${{ }}` inside a
+  `run:` block. `pr-ref` is a branch name somebody else chose.
+* **`timeout-minutes` on every job.** A trigger job is a few API calls, so
+  anything long is a hang holding a runner.
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-  actions: write
-
-jobs:
-  trigger-retest:
-    if: |
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@shakenfist-bot please retest')
-    runs-on: [self-hosted, static]
-
-    steps:
-      - uses: shakenfist/actions/pr-bot-trigger@main
-        id: trigger
-        with:
-          trigger-phrase: 'please retest'
-          reaction: 'rocket'
-
-      - name: Trigger functional tests
-        if: steps.trigger.outputs.authorized == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run functional-tests.yml \
-            --repo ${{ github.repository }} \
-            --ref "${{ steps.trigger.outputs.pr-ref }}"
-```
-
-Note the `if:` on the job as well as the check inside the action. The
-job-level `contains()` is what stops every comment on every pull request
-from starting a runner; the action is what decides whether the commenter
-is allowed to do this and whether the pull request is a fork.
+See [pr-bot-trigger](actions.md#pr-bot-trigger) for what each output
+means, and for `confirmed`, the single output that says the action
+vouches for the rest.
 
 ## Adding the automated reviewer
 
