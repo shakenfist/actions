@@ -85,6 +85,10 @@
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
     },
+    "ansible/ci-instar-testdata.yml": {
+      "sha": "810134fb6a95d12e55407af84d4a00df0a7e2bff",
+      "date": "2026-10-17"
+    },
     "ansible/ci-node-checks.yml": {
       "sha": "4d42b36d9114e44df128f29fe3fa2c28367db8fe",
       "date": "2026-09-09"
@@ -112,6 +116,10 @@
     "ansible/ci-topology-slim-tier.yml": {
       "sha": "0e8e563a3ee2a9d7260eea6641fa8180ad2dbc2d",
       "date": "2026-09-30"
+    },
+    "ansible/files/cache-action-archives.py": {
+      "sha": "97106245dd3531d45934002d9e988e2637b1c0f7",
+      "date": "2026-10-17"
     },
     "ansible/files/ci-runner-alloy.alloy": {
       "sha": "94c529510f0d39d40b04428193e48284e5713319",
@@ -305,6 +313,10 @@
       "sha": "39499da82b6fdaeb3d02fcbebfc9a5e22ed103eb",
       "date": "2026-10-14"
     },
+    "tests/test_cache_action_archives.py": {
+      "sha": "d17941726f022c076db905cbc967d59df982c6c0",
+      "date": "2026-10-17"
+    },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
@@ -313,6 +325,10 @@
       "sha": "67b042cf42ba5ee50152dfe27f649d55ddfe5a85",
       "date": "2026-10-10"
     },
+    "tests/test_ci_dependencies_downloads.py": {
+      "sha": "e482ca37078b4f84addccba1f935a21b4f8147a7",
+      "date": "2026-10-17"
+    },
     "tests/test_ci_headroom_collect.py": {
       "sha": "4b9da3038d9bd593720faba0a2cb3d274b24abad",
       "date": "2026-10-06"
@@ -320,6 +336,10 @@
     "tests/test_ci_headroom_verdict.py": {
       "sha": "f16ea142f6c71226a37d1430588f9070afca360d",
       "date": "2026-10-06"
+    },
+    "tests/test_ci_instar_testdata.py": {
+      "sha": "288ef63962ebd59e501219182fd303794c6e1b0a",
+      "date": "2026-10-17"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",

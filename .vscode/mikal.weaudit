@@ -603,6 +603,30 @@
     {
       "path": "tools/ci_headroom_collect.sh",
       "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_dependencies_downloads.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_instar_testdata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_cache_action_archives.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-instar-testdata.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files/cache-action-archives.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/files",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
