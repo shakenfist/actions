@@ -64,9 +64,7 @@ def load_schema() -> dict | None:
     a bypass rather than weaker checking: a relocated script does not
     fail loudly, it silently stops validating, and every review passes
     including ones the schema would reject. Move the two files
-    together. The workflow test that used to pin this arrangement went
-    with the comment addresser it was written for, so this comment is
-    the record.
+    together; tests/test_render_review.py fails if they are apart.
     """
     if not SCHEMA_PATH.exists():
         return None
@@ -242,24 +240,6 @@ def render_markdown(review_data: dict, embed_json: bool = False) -> str:
                 lines.append(f'- {scenario}')
         lines.append('')
 
-    # Collect issues created for auto-close links
-    issue_numbers = []
-    for item in review_data.get('items', []):
-        if item.get('issue_number'):
-            issue_numbers.append(item['issue_number'])
-
-    if issue_numbers:
-        lines.append('---')
-        lines.append('')
-        lines.append('### Related Issues')
-        lines.append('')
-        lines.append('The following issues were created for this review and '
-                     'will be closed when this PR merges:')
-        lines.append('')
-        for num in issue_numbers:
-            lines.append(f'- Closes #{num}')
-        lines.append('')
-
     # Footer
     lines.append('---')
     lines.append('')
@@ -300,10 +280,6 @@ def render_item(item: dict) -> list[str]:
         title_parts.append(f"{severity_emoji}")
 
     title_parts.append(f"{category_emoji} {item['title']}")
-
-    # Add issue link if present
-    if item.get('issue_number'):
-        title_parts.append(f"(#{item['issue_number']})")
 
     lines.append(' '.join(title_parts))
     lines.append('')

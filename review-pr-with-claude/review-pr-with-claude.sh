@@ -16,8 +16,7 @@
 #
 # The review output is structured JSON that is:
 #   1. Validated against review-schema.json
-#   2. Used to create GitHub issues for actionable items
-#   3. Rendered to markdown with embedded JSON for automation
+#   2. Rendered to markdown with embedded JSON for automation
 #
 # Exit codes:
 #   0 - Review posted successfully, or skipped for a reason the PR
@@ -56,16 +55,6 @@ if [ -n "${max_turns}" ] && [ "${max_turns}" != "auto" ] && \
     max_turns=''
 fi
 
-# CI mode is always true when running as an action
-ci_mode=true
-
-# No colors in CI
-RED=''
-GREEN=''
-YELLOW=''
-BLUE=''
-NC=''
-
 # Create output directory
 output_dir=$(mktemp -d)
 cleanup() {
@@ -73,11 +62,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# CI mode output helper
+# Report a result both to the log and, when running in Actions, as a
+# step output, which action.yml publishes so a caller can tell a review
+# that was posted from a green run that posted nothing. Newlines are
+# flattened because each line of GITHUB_OUTPUT is a separate key=value:
+# the claude_* values come from the CLI's envelope, and a stray newline
+# in one would otherwise set a second output.
 ci_output() {
     local key="$1"
-    local value="$2"
+    local value="${2//$'\n'/ }"
     echo "${key}=${value}"
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+        printf '%s=%s\n' "${key}" "${value}" >> "${GITHUB_OUTPUT}"
+    fi
 }
 
 # Write lines to the job's check summary, when running in Actions.
@@ -366,16 +363,13 @@ if [ "${diff_fetch_ok}" = "false" ]; then
             "$(cat << 'COMMENT_EOF'
 The PR diff exceeds GitHub's 20,000-line cap on
 ``GET /repos/{owner}/{repo}/pulls/{number}`` and the reviewer
-could not fetch it for analysis.
+could not fetch it for analysis. The reviewer has no other way
+to get the diff, so asking for another review will end here too.
 
-Options for getting an automated review:
+Options:
 
 * **Split the PR.** Smaller PRs review faster and are easier
   for humans to read too.
-* **Run the reviewer manually.** A maintainer can invoke
-  ``shakenfist/actions/review-pr-with-claude`` against the
-  branch with a locally-generated diff (``git diff
-  develop...HEAD``) and post the result.
 * **Skip automated review.** Land relying on the merge-queue
   CI and human review.
 COMMENT_EOF
@@ -442,6 +436,7 @@ if [ -n "${existing_review}" ]; then
     else
         echo "Bot has already reviewed this PR"
         ci_output "review_skipped" "already_reviewed"
+        ci_output "review_posted" "false"
         exit 0
     fi
 fi
@@ -636,8 +631,8 @@ env -u GH_TOKEN -u GITHUB_TOKEN "${claude_bin}" -p - \
 # JSON: the CLI can die mid-write, or put a line of its own on stdout.
 # That is checked once, here, rather than left to the first bare ``jq``
 # and ``set -e`` -- an abort there would skip every handler below and
-# leave a red X carrying a jq parse error and nothing else, which is
-# the opaque failure this whole change exists to stop.
+# leave a red X carrying a jq parse error and nothing else, which
+# explains nothing to anyone.
 claude_output="${output_dir}/claude-output.json"
 if ! jq -e . "${claude_output}" > /dev/null 2>&1; then
     echo "Envelope was:"
@@ -672,11 +667,9 @@ echo
 echo "Step 6: Extracting and validating review JSON..."
 
 review_json_file="${output_dir}/review.json"
-review_json_with_issues="${output_dir}/review-with-issues.json"
 review_md_file="${output_dir}/review.md"
 claude_result_file="${output_dir}/claude-result.txt"
 render_script="${script_dir}/render-review.py"
-create_issues_script="${script_dir}/create-review-issues.py"
 extract_script="${script_dir}/extract-review-json.py"
 
 jq -r '.result // empty' "${claude_output}" > "${claude_result_file}"
@@ -722,8 +715,8 @@ else
     dump_response
 
     # Exit 2 says a review block was there and stopped before anything
-    # usable arrived, which is the large-diff outcome this PR exists
-    # to handle. So is a budget that ran out with prose in the result
+    # usable arrived, which is how a large diff usually ends when it
+    # ends badly. So is a budget that ran out with prose in the result
     # rather than nothing at all. Either way the response is too small,
     # not the tooling too broken.
     if [ "${extract_rc}" -eq 2 ]; then
@@ -765,28 +758,17 @@ rather than a problem with the PR.${unparsed_note}"
 fi
 echo "JSON validation passed"
 
-# Step 7: Create GitHub issues for actionable items
-echo
-echo "Step 7: Creating GitHub issues for action items..."
-python3 "${create_issues_script}" \
-    "${review_json_file}" \
-    "${review_json_with_issues}" \
-    --pr "${pr_number}" || {
-    echo "Warning: Issue creation failed, continuing without issues"
-    cp "${review_json_file}" "${review_json_with_issues}"
-}
-
-# Step 8: Render to markdown (with the review embedded as JSON, so it can
+# Step 7: Render to markdown (with the review embedded as JSON, so it can
 # be recovered from the posted comment)
 echo
-echo "Step 8: Rendering review to markdown..."
+echo "Step 7: Rendering review to markdown..."
 python3 "${render_script}" --embed-json \
-    "${review_json_with_issues}" "${review_md_file}"
+    "${review_json_file}" "${review_md_file}"
 echo "Rendered review to ${review_md_file}"
 
-# Step 9: Post the review
+# Step 8: Post the review
 echo
-echo "Step 9: Posting review to PR..."
+echo "Step 8: Posting review to PR..."
 
 review_size=$(wc -c < "${review_md_file}")
 if [ "${review_size}" -gt 0 ]; then

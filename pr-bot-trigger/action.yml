@@ -16,7 +16,7 @@ inputs:
   starting-message:
     description: >
       Message to post when starting. Supports placeholders:
-      {pr_ref} - PR branch name
+      {pr_ref} - PR head branch name
       {run_url} - URL to the workflow run
       Leave empty to skip posting a message.
     required: false
@@ -51,7 +51,10 @@ outputs:
     description: 'The PR number'
     value: ${{ github.event.issue.number }}
   pr-ref:
-    description: 'The PR branch ref'
+    description: >
+      The PR head branch's name (.head.ref), not a full ref. Set only
+      when authorized is 'true', which means the branch is in this
+      repository.
     value: ${{ steps.pr_details.outputs.pr_ref }}
   triggered:
     description: 'Whether the trigger phrase matched (true/false)'
@@ -113,22 +116,26 @@ runs:
     #
     # pr_ref below is .head.ref, the branch name *in the head
     # repository*, and it carries no indication of which repository that
-    # is. Callers hand it to actions/checkout and to `git push origin
-    # HEAD:refs/heads/<ref>` against *this* repository. Fork pull
-    # requests are very commonly opened from the fork's own default
-    # branch, so .head.ref is literally "main" -- and then the checkout
-    # silently succeeds against this repository's main, the bot commits
-    # to it, and the push lands unreviewed commits on the branch every
-    # consumer in the fleet pins at @main. No malice is required: a
+    # is. The callers that read it resolve it against *their own*
+    # repository: the retest template dispatches a workflow there with
+    # `--ref`, and the test-drift-fix template checks it out and runs
+    # `git push origin` to it. Fork pull requests are very commonly
+    # opened from the fork's own default branch, so .head.ref is
+    # literally "main" -- and then the retest runs against the calling
+    # repository's main, or the checkout silently succeeds against it,
+    # the bot commits to it, and the push lands unreviewed commits on
+    # that repository's main (in shakenfist/actions, the branch every
+    # consumer in the fleet pins at @main). No malice is required: a
     # maintainer typing the trigger phrase on a fork pull request is
     # enough.
     #
     # This is refused here rather than in each caller so the guard
     # cannot be lost when a project edits its workflows, which is the
     # same reasoning pr-auto-review.yml gives for owning its own fork
-    # restriction. Every caller of this action either pushes to the head
-    # branch or dispatches a workflow against it, so none of them has a
-    # meaningful fork behaviour to lose.
+    # restriction. No caller has a useful fork behaviour to lose: those
+    # that read pr_ref would act on the wrong branch, and the re-review,
+    # which checks out refs/pull/<n>/ rather than reading it, keeps
+    # forks out for the reason pr-auto-review.yml gives.
     - name: Check the pull request is not from a fork
       id: check_origin
       if: steps.check_trigger.outputs.triggered == 'true'
@@ -219,7 +226,7 @@ runs:
           --body "$(printf '%s\n' \
             "Bot commands are not supported on pull requests from forks." \
             "" \
-            "This pull request's head branch lives in \`${HEAD_REPO:-a deleted fork}\`, not in this repository. The bot workflows check out and push to a branch *here* by the head branch's name, which would act on the wrong branch entirely -- and a fork pull request opened from the fork's default branch would name \`main\`." \
+            "This pull request's head branch lives in \`${HEAD_REPO:-a deleted fork}\`, not in this repository. The bot workflows act on a branch *here* by the head branch's name, which would be the wrong branch entirely -- and a fork pull request opened from the fork's default branch would name \`main\`." \
             "" \
             "Push the branch to this repository and open a pull request from it if you need the bot lane.")"
 

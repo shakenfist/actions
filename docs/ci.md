@@ -164,10 +164,10 @@ consequence is a dispatch: `pr-retest.yml` would run `ci.yml` against
 *this* repository's `main`. It is the only local caller that touches
 `pr-ref` at all -- `pr-re-review.yml` checks out `refs/pull/<n>/merge`,
 or `refs/pull/<n>/head` when the merge ref is absent or behind, and
-never reads it. In the fleet's other callers the same name reaches
-`actions/checkout` against their own repository and
-`git push origin HEAD:refs/heads/<ref>`, where it lands bot commits on
-the branch the whole fleet pins. Putting the refusal in the action means
+never reads it. Elsewhere in the fleet, the optional test-drift-fix
+workflow hands the same name to `actions/checkout` against its own
+repository and to `git push`, where it would land bot commits on that
+repository's `main`. Putting the refusal in the action means
 every repository consuming it at `@main` gets the guard without editing
 anything.
 
@@ -633,10 +633,9 @@ one.
 | `tools/ci-apply-deploy-profile.py` | Merges another repository's deploy profile into that inventory and writes its credentials to disk. The tests pin the refusals (unknown keys, hosts and names), the `0600` modes, and that `deploy-collection.sh` runs the same command as before when no profile is given |
 | `tools/ci-redeploy-check.py` | Decides whether a second deploy restarted a daemon. The tests pin that a changed or vanished `InvocationID` fails, that a check matching no unit is refused rather than passed, and (with `tools/ci-deploy-cluster.sh` and `tools/ci-ship-test-env.sh` run against stubs) that a run without a profile deploys once and sources no test environment |
 | `review-pr-with-claude/render-review.py` | Renders the review comment posted on every fleet pull request, and the embedded JSON block that makes that comment the review's durable machine-readable copy |
-| `review-pr-with-claude/create-review-issues.py` | Decides the labels every automated-review issue is triaged by, and builds the only context those issues carry once the pull request is gone |
 | `review-pr-with-claude/extract-review-json.py` | Decides whether a review survives a truncated or malformed response. It rebuilds JSON the model did not finish writing, and repairs quotes the model left unescaped, so the boundary between "recovered the completed findings" and "invented a review" is worth pinning |
 | `review-pr-with-claude/render-unparsed-review.py` | Posts model output to a pull request verbatim when no review could be recovered from it, so what is pinned is that it cannot escape its fence, fire a bot trigger, or overrun the comment size limit |
-| `review-pr-with-claude/review-pr-with-claude.sh` | Launches the reviewer over an untrusted diff and tree. The test runs the shipped script against a stub `gh` and a stub `claude` and pins what the reviewer is given: only read tools, confined to the checkout, no GitHub token, and no Claude settings files or MCP servers |
+| `review-pr-with-claude/review-pr-with-claude.sh` | Launches the reviewer over an untrusted diff and tree. The test runs the shipped script against a stub `gh` and a stub `claude` and pins what the reviewer is given: only read tools, confined to the checkout, no GitHub token, and no Claude settings files or MCP servers. It also pins the step outputs a caller reads to tell a posted review from a green run that posted nothing |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
 
 The documentation gets `tests/test_documentation_links.py`, which
