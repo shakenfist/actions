@@ -343,6 +343,14 @@ do not add `secrets: inherit`. The reviewer files no issues, so a
 caller still granting `issues: write` can drop it; keeping it is
 harmless, since the reusable workflow narrows what it is given.
 
+The review job runs only for a `pull_request` event whose head branch
+is in the calling repository. Anything else skips it, silently and
+green: a fork pull request, and every other event the calling workflow
+runs on -- `push`, `merge_group`, and `workflow_dispatch`, which
+includes the run a retest request dispatches. Fork pull requests are
+never reviewed by the bot; to get one reviewed, push its branch to the
+repository and open a pull request from there.
+
 A pull request is reviewed exactly once this way. The reviewer skips a
 pull request the bot has already looked at unless `force` is set, and
 this path deliberately does not set it, so deploy `pr-re-review.yml`
