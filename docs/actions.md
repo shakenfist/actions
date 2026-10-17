@@ -26,6 +26,8 @@ Handles `@shakenfist-bot` trigger comments on pull requests. This action:
 ```yaml
 - uses: shakenfist/actions/pr-bot-trigger@main
   id: trigger
+  # A handful of API calls, so anything longer is a hang.
+  timeout-minutes: 10
   with:
     trigger-phrase: 'please retest'
     reaction: 'rocket'
@@ -57,14 +59,15 @@ Handles `@shakenfist-bot` trigger comments on pull requests. This action:
 | `same-repo` | `true` if the PR head is a branch in this repository |
 | `head-repo` | Full name of the repository the PR head lives in, empty if the fork was deleted |
 | `pr-number` | The PR number |
-| `pr-ref` | The PR branch name, in the head repository |
+| `pr-ref` | The PR head branch's name (not a full ref); set only when `authorized` is `true` |
 | `confirmed` | `true` if the request may proceed *and* the action vouches for the outputs above; see below |
 
 `pr-ref` is `.head.ref`, which for a fork pull request is a branch name
-in the *fork* and carries no indication of that. Callers hand it to
-`actions/checkout` and `git push` against their own repository, so a fork
-PR opened from the fork's default branch would name `main` and act on the
-wrong branch entirely. That is why fork pull requests are refused here
+in the *fork* and carries no indication of that. Callers resolve it
+against their own repository -- the retest template dispatches a
+workflow with it, and the test-drift-fix template checks it out and
+pushes to it -- so a fork PR opened from the fork's default branch would
+name `main` and act on the wrong branch entirely. That is why fork pull requests are refused here
 rather than in each caller: the guard cannot be lost when a project edits
 its workflows, and every consumer inherits it at `@main` without changing
 anything, because it is folded into `authorized`.
@@ -104,9 +107,35 @@ Runs an automated code review on a pull request using Claude Code.
 
 ```yaml
 - uses: shakenfist/actions/review-pr-with-claude@main
+  # A review takes three to six minutes. Without this a wedged run
+  # holds a scarce claude-code runner for GitHub's six hour default.
+  timeout-minutes: 60
   with:
     pr-number: ${{ github.event.issue.number }}
 ```
+
+The example is from a comment-triggered job, where the number is
+`github.event.issue.number`; on a `pull_request` event it is
+`github.event.pull_request.number`. Most callers want
+[`pr-auto-review.yml`](consuming.md#adding-the-automated-reviewer)
+instead, which meets every requirement below for them. A job that uses
+the action directly must provide:
+
+* **`contents: read` and `pull-requests: write`** on the job's token.
+  The action posts the review and its explanations with
+  `github.token`.
+* **A checkout of the pull request as the working directory**, made
+  with `persist-credentials: false`. The reviewer reads `AGENTS.md`,
+  `ARCHITECTURE.md` and `README.md` from it for context, and can read
+  anything else in it, so a token left in `.git/config` is in front of
+  the model.
+* **The Claude Code CLI on the runner.** The `claude-code` runners
+  have it. The action looks on `PATH`, then in `~/.local/bin`; set
+  `CLAUDE_BIN` to point anywhere else.
+* **Same-repository pull requests only.** The job holds a write token
+  and the reviewer reads untrusted text, so gate the job on the head
+  repository as `pr-auto-review.yml` does, or on `pr-bot-trigger`'s
+  `same-repo` output as `pr-re-review.yml` does.
 
 **Inputs:**
 
@@ -133,6 +162,22 @@ needs the input to be there. A value that is not a positive integer of
 at most four digits -- including `0`, which the CLI rejects -- is
 ignored, with a warning, in favour of scaling.
 
+**Outputs:**
+
+| Name | Description |
+|------|-------------|
+| `review-posted` | `true` when a review was posted; `false` on every green path that posted nothing, and on a red one that got as far as running the reviewer |
+| `review-skipped` | Why nothing was posted on a green path: `already_reviewed`, `diff_too_large`, `turn_budget_exhausted` or `truncated_unusable`. Empty otherwise |
+| `review-truncated` | `true` when the response was cut off, whether or not a partial review was salvaged from it |
+| `claude-turns`, `claude-duration-ms`, `claude-cost-usd` | What the reviewer run used, or `unknown` |
+| `claude-subtype` | How the run ended, as the CLI reports it (`success`, `error_max_turns`, `error_during_execution`), or `unknown` |
+
+Read `review-posted` rather than the step's outcome to know whether the
+pull request was reviewed: as the table below shows, most of the ways
+of not producing a review finish green. `pr-auto-review.yml` does not
+pass these on, so they are available only to a job that uses the
+action directly.
+
 ### When the reviewer cannot produce a review
 
 The reviewer is not a required check anywhere in the fleet, so a red
@@ -143,7 +188,7 @@ the job summary rather than only in the step log.
 
 | Outcome | Job | What happens |
 |---|---|---|
-| Bot has already reviewed, and `force` is unset | Green | Skipped silently, as before |
+| Bot has already reviewed, and `force` is unset | Green | Skipped, with no comment on the PR |
 | Diff over GitHub's 20,000-line API cap | Green | A comment on the PR explaining the options |
 | Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
 | A complete review whose JSON was malformed by an unescaped `"` or a raw newline inside a string | Green | The review is repaired and posted as normal |
@@ -203,7 +248,8 @@ comments, so on a very long thread an older explanation can scroll out
 of view and be posted again.
 
 A green job means the reviewer reached a known endpoint. It does not
-mean the pull request was reviewed -- read the comment.
+mean the pull request was reviewed -- read the comment, or the
+`review-posted` output.
 
 ## setup-test-environment
 

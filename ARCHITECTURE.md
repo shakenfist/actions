@@ -60,7 +60,8 @@ them.
 | `deploy-proxmox-on-shakenfist` | Deploys a single-node Proxmox VE hypervisor, with a booted SPICE guest and an API token, in the runner's own namespace |
 
 **Reusable workflows** are invoked as whole jobs, and bring their own
-runner and permissions.
+runner. The caller grants the token scope: a reusable workflow's
+`permissions:` block can only narrow what the calling job gives it.
 
 | Workflow | Purpose |
 |---|---|
@@ -146,8 +147,7 @@ caller CI (tests pass)                 human comment on a PR
               ├── review-pr-with-claude.sh              (with force set)
               ├── extract-review-json.py  response -> JSON
               ├── render-review.py    JSON -> markdown
-              ├── render-unparsed-review.py   unrecoverable response -> comment
-              └── create-review-issues.py   actionable items -> issues
+              └── render-unparsed-review.py   unrecoverable response -> comment
 ```
 
 A large diff is the case this chain is shaped around. The turn budget

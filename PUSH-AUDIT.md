@@ -627,8 +627,8 @@ from the next run.
   request's diff, which is attacker-controlled input to a model
   holding a token. Does the change widen what the model's output
   can cause -- the tools it may call, the shape
-  `review-schema.json` lets through, the issues
-  `create-review-issues.py` will file?
+  `review-schema.json` lets through, the text `render-review.py`
+  posts from it?
 - **What reaches CI nodes as root.** `tools/run_remote` scripts,
   `ansible/` and `ansible/files/` (cloud-init, netplan, log
   shipper and gather configuration) all run with root on nodes

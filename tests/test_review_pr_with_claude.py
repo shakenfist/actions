@@ -12,6 +12,7 @@ shell and a token.
 
 import json
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -23,6 +24,7 @@ from tests.helpers import REPO_ROOT
 
 SCRIPT = os.path.join(
     REPO_ROOT, 'review-pr-with-claude', 'review-pr-with-claude.sh')
+ACTION = os.path.join(REPO_ROOT, 'review-pr-with-claude', 'action.yml')
 
 # Answers the calls the script makes before it reaches the reviewer: no
 # earlier comment, no earlier review, a pull request, and a one-line
@@ -186,6 +188,139 @@ class ReviewerLaunchTest(unittest.TestCase):
         self.assertIn(flag_values(self.argv, '--setting-sources'),
                       (None, []))
         self.assertIn('--strict-mcp-config', self.argv)
+
+
+# A gh that answers each outcome's calls. FAKE_GH_REVIEWED makes the bot
+# look as if it had already reviewed the pull request, and
+# FAKE_GH_DIFF_TOO_LARGE fails the diff fetch the way the API does past
+# its line cap. The --jq filters are the script's; this answers with
+# what they would select.
+OUTCOME_GH = textwrap.dedent('''\
+    #!/bin/bash
+    case "$1 $2" in
+        'pr view')
+            case "$*" in
+                *--json\\ reviews*)
+                    [ -n "${FAKE_GH_REVIEWED:-}" ] && echo 'PRR_1'
+                    exit 0 ;;
+                *--json\\ comments*) exit 0 ;;
+            esac
+            echo '{"title": "t", "body": "b", "author": {"login": "a"},' \\
+                '"baseRefName": "main", "headRefName": "topic"}'
+            ;;
+        'pr diff')
+            if [ -n "${FAKE_GH_DIFF_TOO_LARGE:-}" ]; then
+                echo 'HTTP 406: the diff exceeded the maximum number of lines' >&2
+                exit 1
+            fi
+            printf 'diff --git a/x b/x\\n+one line\\n'
+            ;;
+    esac
+    exit 0
+    ''')
+
+# A claude that returns a complete, valid review. FAKE_CLAUDE_SUBTYPE
+# replaces the envelope's subtype, which the script reports as an output.
+REVIEWING_CLAUDE = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    import json, os, sys
+    sys.stdin.read()
+    review = {'summary': 'Fine.', 'items': [
+        {'id': 1, 'title': 'A nit', 'category': 'style', 'action': 'none'}]}
+    result = '```json\\n' + json.dumps(review) + '\\n```\\n'
+    subtype = os.environ.get('FAKE_CLAUDE_SUBTYPE', 'success')
+    print(json.dumps({'type': 'result', 'subtype': subtype,
+                      'result': result, 'num_turns': 3,
+                      'duration_ms': 1200, 'total_cost_usd': 0.25}))
+    ''')
+
+
+class ReviewerOutputsTest(unittest.TestCase):
+    """A green job does not say whether a review was posted; these do.
+
+    Each outcome runs the shipped script and reads back what it wrote to
+    GITHUB_OUTPUT, which is what action.yml publishes to the caller.
+    """
+
+    def run_script(self, github_output=True, **fake_env):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        bin_dir = os.path.join(tmp.name, 'bin')
+        os.mkdir(bin_dir)
+        write_executable(os.path.join(bin_dir, 'gh'), OUTCOME_GH)
+        claude = os.path.join(bin_dir, 'fake-claude')
+        write_executable(claude, REVIEWING_CLAUDE)
+        output_file = os.path.join(tmp.name, 'github-output')
+
+        env = dict(os.environ)
+        env.pop('GITHUB_OUTPUT', None)
+        env.pop('GITHUB_STEP_SUMMARY', None)
+        env.update({
+            'PATH': bin_dir + os.pathsep + env.get('PATH', ''),
+            'CLAUDE_BIN': claude,
+            'GITHUB_REPOSITORY': 'shakenfist/example',
+            'INPUT_PR_NUMBER': '7',
+            'INPUT_MAX_TURNS': '',
+            'INPUT_FORCE': 'false',
+        })
+        if github_output:
+            env['GITHUB_OUTPUT'] = output_file
+        env.update(fake_env)
+        result = subprocess.run(
+            ['bash', SCRIPT], cwd=tmp.name, env=env,
+            capture_output=True, text=True, timeout=60)
+        outputs = {}
+        if os.path.exists(output_file):
+            with open(output_file) as f:
+                for line in f:
+                    key, _, value = line.rstrip('\n').partition('=')
+                    outputs[key] = value
+        return result, outputs
+
+    def test_a_posted_review_says_so(self):
+        result, outputs = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(outputs.get('review_posted'), 'true', outputs)
+        self.assertNotIn('review_skipped', outputs)
+        self.assertEqual(outputs.get('claude_turns'), '3')
+        self.assertEqual(outputs.get('claude_subtype'), 'success')
+
+    def test_an_already_reviewed_pull_request_is_green_and_unreviewed(self):
+        result, outputs = self.run_script(FAKE_GH_REVIEWED='1')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(outputs.get('review_posted'), 'false', outputs)
+        self.assertEqual(outputs.get('review_skipped'), 'already_reviewed')
+
+    def test_a_diff_too_large_is_green_and_unreviewed(self):
+        result, outputs = self.run_script(FAKE_GH_DIFF_TOO_LARGE='1')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(outputs.get('review_posted'), 'false', outputs)
+        self.assertEqual(outputs.get('review_skipped'), 'diff_too_large')
+
+    def test_a_newline_in_a_value_cannot_set_another_output(self):
+        result, outputs = self.run_script(
+            FAKE_CLAUDE_SUBTYPE='odd\nreview_skipped=injected')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('review_skipped', outputs)
+        self.assertEqual(outputs.get('claude_subtype'),
+                         'odd review_skipped=injected')
+
+    def test_runs_outside_actions_without_an_output_file(self):
+        result, outputs = self.run_script(github_output=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(outputs, {})
+        self.assertIn('review_posted=true', result.stdout)
+
+    def test_every_output_the_script_writes_is_published(self):
+        # A key written to GITHUB_OUTPUT that action.yml does not map to
+        # an output never reaches the caller.
+        with open(SCRIPT) as f:
+            written = set(re.findall(r'ci_output "([a-z_]+)"', f.read()))
+        with open(ACTION) as f:
+            published = set(re.findall(
+                r'steps\.review\.outputs\.([a-z_]+)', f.read()))
+        self.assertTrue(written)
+        self.assertEqual(written, published)
 
 
 if __name__ == '__main__':
