@@ -947,6 +947,138 @@ class LaneConditionTest(unittest.TestCase):
                 'while it does not check the branch out')
 
 
+class ReviewWorkflowGuardTest(unittest.TestCase):
+    """The review lanes' guards fail silently when they rot.
+
+    Both workflows put a pull request's code on a claude-code runner and
+    run Claude Code over it with --dangerously-skip-permissions. Losing
+    any term pinned here raises no error: the lane starts reviewing fork
+    code, re-fires on its own comments, reviews a pull request twice, or
+    leaves a token in the tree the reviewer reads.
+    """
+
+    AUTO = 'pr-auto-review.yml'
+    RE_REVIEW = 'pr-re-review.yml'
+    FORK_GUARD = 'github.event.pull_request.head.repo.full_name == github.repository'
+
+    def setUp(self):
+        self.workflows = {}
+        for name in (self.AUTO, self.RE_REVIEW):
+            with open(os.path.join(WORKFLOW_DIR, name)) as f:
+                self.workflows[name] = yaml.safe_load(f)
+
+    def claude_jobs(self, name):
+        jobs = {}
+        for job_name, job in self.workflows[name]['jobs'].items():
+            labels = job.get('runs-on')
+            # A label list is the only form whose runner can be read here;
+            # an expression or a group would slip past every check below.
+            self.assertTrue(isinstance(labels, list) and all(isinstance(label, str) for label in labels),
+                            '%s in %s does not name its runner as a list of labels' % (job_name, name))
+            if 'claude-code' in labels:
+                jobs[job_name] = job
+        self.assertTrue(jobs, '%s has no claude-code job' % name)
+        return jobs
+
+    def terms(self, condition):
+        """The terms an `if:` requires, which only holds without a disjunction.
+
+        Comparing whole terms rather than searching for text is what
+        stops a negated guard, or one compared against the wrong value,
+        from passing.
+        """
+        self.assertNotIn('||', condition, 'a disjunction would let the job run without its guard')
+        return [term.strip() for term in condition.split('&&')]
+
+    def assert_bot_trigger_output(self, job, output, action_output):
+        """The job output has to be pr-bot-trigger's verdict, not a value the job made up."""
+        source = re.fullmatch(r'\$\{\{\s*steps\.([\w-]+)\.outputs\.%s\s*\}\}' % re.escape(action_output),
+                              str((job.get('outputs') or {}).get(output, '')).strip())
+        self.assertIsNotNone(source, '%s is not read from a pr-bot-trigger output' % output)
+        step = {s.get('id'): s for s in job['steps']}[source.group(1)]
+        self.assertEqual(step.get('uses'), 'shakenfist/actions/pr-bot-trigger@main')
+
+    def steps_using(self, name, action):
+        return [(job_name, step)
+                for job_name, job in self.workflows[name]['jobs'].items()
+                for step in job.get('steps', [])
+                if step.get('uses', '').split('@')[0] == action]
+
+    def test_every_claude_code_job_is_same_repository_only(self):
+        for name in (self.AUTO, self.RE_REVIEW):
+            jobs = self.workflows[name]['jobs']
+            for job_name, job in self.claude_jobs(name).items():
+                with self.subTest(workflow=name, job=job_name):
+                    terms = self.terms(job.get('if', ''))
+                    if self.FORK_GUARD in terms:
+                        continue
+                    # Otherwise the job is gated on a trigger job, which
+                    # has to vouch for the commenter as well as the origin:
+                    # either alone lets someone run a forced review.
+                    needed = [match.group(1) for match in
+                              (re.fullmatch(r"needs\.([\w-]+)\.outputs\.same_repo == 'true'", term)
+                               for term in terms) if match]
+                    self.assertEqual(
+                        len(needed), 1, '%s runs a pull request through Claude Code on a write-scoped '
+                        'runner without a same-repository condition' % job_name)
+                    trigger = needed[0]
+                    self.assertIn("needs.%s.outputs.authorized == 'true'" % trigger, terms,
+                                  '%s does not require the commenter to be authorized' % job_name)
+                    self.assertIn(trigger, job.get('needs') or [])
+                    self.assert_bot_trigger_output(jobs[trigger], 'same_repo', 'same-repo')
+                    self.assert_bot_trigger_output(jobs[trigger], 'authorized', 'authorized')
+
+    def test_only_a_human_request_forces_a_second_review(self):
+        # review-pr-with-claude skips a pull request the bot has already
+        # reviewed unless forced. The automatic lane must not force, or
+        # every push is reviewed again; the re-review lane must, or
+        # asking for a re-review does nothing.
+        automatic = self.steps_using(self.AUTO, 'shakenfist/actions/review-pr-with-claude')
+        self.assertEqual(len(automatic), 1)
+        self.assertNotIn('force', automatic[0][1].get('with') or {})
+        requested = self.steps_using(self.RE_REVIEW, 'shakenfist/actions/review-pr-with-claude')
+        self.assertEqual(len(requested), 1)
+        self.assertIn((requested[0][1].get('with') or {}).get('force'), ('true', True))
+
+    def test_the_re_review_trigger_ignores_bot_comments(self):
+        # The automated review is model-generated text posted as the bot,
+        # and the trigger is a contains() over the whole comment body, so
+        # a review that quotes the phrase would fire another review.
+        triggers = self.steps_using(self.RE_REVIEW, 'shakenfist/actions/pr-bot-trigger')
+        self.assertEqual(len(triggers), 1)
+        terms = self.terms(self.workflows[self.RE_REVIEW]['jobs'][triggers[0][0]].get('if', ''))
+        self.assertIn("github.event.comment.user.type != 'Bot'", terms)
+
+    def test_no_claude_code_checkout_persists_credentials(self):
+        # The default writes the job's token into .git/config of the tree
+        # the reviewer then reads with its permissions skipped.
+        for name in (self.AUTO, self.RE_REVIEW):
+            claude_jobs = self.claude_jobs(name)
+            checkouts = [(job_name, step) for job_name, step in self.steps_using(name, 'actions/checkout')
+                         if job_name in claude_jobs]
+            self.assertTrue(checkouts, '%s checks nothing out on a claude-code runner' % name)
+            for job_name, step in checkouts:
+                with self.subTest(workflow=name, job=job_name):
+                    self.assertIn((step.get('with') or {}).get('persist-credentials'), (False, 'false'))
+
+    def test_hooks_are_disabled_straight_after_the_re_review_checkout(self):
+        # pr-re-review.yml claims this control, and places it immediately
+        # after the checkout so that any step added later inherits it. It
+        # is per repository rather than --global because the claude-code
+        # pool is shared between repositories.
+        found = False
+        for job_name, job in self.claude_jobs(self.RE_REVIEW).items():
+            steps = job.get('steps', [])
+            for index, step in enumerate(steps):
+                if step.get('uses', '').split('@')[0] != 'actions/checkout':
+                    continue
+                found = True
+                following = steps[index + 1] if index + 1 < len(steps) else {}
+                with self.subTest(job=job_name):
+                    self.assertEqual(following.get('run', '').strip(), 'git config core.hooksPath /dev/null')
+        self.assertTrue(found, '%s checks nothing out on a claude-code runner' % self.RE_REVIEW)
+
+
 class PruneGuardTest(unittest.TestCase):
     def test_prune_only_runs_on_the_default_branch(self):
         # ci-prune-reviews.sh lands review state on the default branch
