@@ -20,6 +20,7 @@
       "items": {
         "type": "object",
         "required": ["id", "title", "category", "action"],
+        "additionalProperties": false,
         "properties": {
           "id": {
             "type": "integer",

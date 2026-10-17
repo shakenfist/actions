@@ -17,11 +17,15 @@ import os
 import tempfile
 import unittest
 
-from tests.helpers import load_script
+from tests.helpers import REPO_ROOT, load_script
 
 
 render = load_script(
     'review-pr-with-claude/render-review.py', 'render_review')
+
+# The reviewer's prompt, which shows the model the review it must write.
+PROMPT_SOURCE = os.path.join(
+    REPO_ROOT, 'review-pr-with-claude', 'review-pr-with-claude.sh')
 
 
 def item(item_id, action, title='A finding', **kwargs):
@@ -102,6 +106,35 @@ class ValidateReviewTest(unittest.TestCase):
             'items': [{'id': 1, 'title': 't', 'category': 'bug'}],
         })
         self.assertFalse(valid)
+
+    def test_the_schema_closes_review_items(self):
+        # Every key on an item is model output. One the schema does not
+        # declare is either noise or something steering a later step
+        # -- an issue_number once suppressed filing and linked any
+        # issue the model named -- so none gets through.
+        item_schema = render.load_schema()['properties']['items']['items']
+        self.assertIs(item_schema.get('additionalProperties'), False)
+
+    def test_every_item_field_the_prompt_asks_for_is_declared(self):
+        # The other side of closing the items: a field the prompt
+        # requests and the schema omits would fail every review that
+        # used it.
+        with open(PROMPT_SOURCE) as f:
+            script = f.read()
+        example = script.split('```json\n', 1)[1].split('```', 1)[0]
+        prompt_fields = set(json.loads(example)['items'][0])
+        item_schema = render.load_schema()['properties']['items']['items']
+        self.assertLessEqual(prompt_fields, set(item_schema['properties']))
+
+    @unittest.skipUnless(render.HAS_JSONSCHEMA,
+                         'the fallback validator does not read the schema')
+    def test_rejects_an_item_key_the_schema_does_not_declare(self):
+        valid, error = render.validate_review({
+            'summary': 's',
+            'items': [item(1, 'fix', issue_number=42)],
+        })
+        self.assertFalse(valid)
+        self.assertIn('issue_number', error)
 
 
 class RenderMarkdownTest(unittest.TestCase):
