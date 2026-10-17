@@ -634,8 +634,8 @@ env -u GH_TOKEN -u GITHUB_TOKEN "${claude_bin}" -p - \
 # JSON: the CLI can die mid-write, or put a line of its own on stdout.
 # That is checked once, here, rather than left to the first bare ``jq``
 # and ``set -e`` -- an abort there would skip every handler below and
-# leave a red X carrying a jq parse error and nothing else, which is
-# the opaque failure this whole change exists to stop.
+# leave a red X carrying a jq parse error and nothing else, which
+# explains nothing to anyone.
 claude_output="${output_dir}/claude-output.json"
 if ! jq -e . "${claude_output}" > /dev/null 2>&1; then
     echo "Envelope was:"
@@ -718,8 +718,8 @@ else
     dump_response
 
     # Exit 2 says a review block was there and stopped before anything
-    # usable arrived, which is the large-diff outcome this PR exists
-    # to handle. So is a budget that ran out with prose in the result
+    # usable arrived, which is how a large diff usually ends when it
+    # ends badly. So is a budget that ran out with prose in the result
     # rather than nothing at all. Either way the response is too small,
     # not the tooling too broken.
     if [ "${extract_rc}" -eq 2 ]; then

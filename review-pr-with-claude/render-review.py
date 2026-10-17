@@ -64,9 +64,7 @@ def load_schema() -> dict | None:
     a bypass rather than weaker checking: a relocated script does not
     fail loudly, it silently stops validating, and every review passes
     including ones the schema would reject. Move the two files
-    together. The workflow test that used to pin this arrangement went
-    with the comment addresser it was written for, so this comment is
-    the record.
+    together; tests/test_render_review.py fails if they are apart.
     """
     if not SCHEMA_PATH.exists():
         return None

@@ -159,7 +159,7 @@ the job summary rather than only in the step log.
 
 | Outcome | Job | What happens |
 |---|---|---|
-| Bot has already reviewed, and `force` is unset | Green | Skipped silently, as before |
+| Bot has already reviewed, and `force` is unset | Green | Skipped, with no comment on the PR |
 | Diff over GitHub's 20,000-line API cap | Green | A comment on the PR explaining the options |
 | Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
 | A complete review whose JSON was malformed by an unescaped `"` or a raw newline inside a string | Green | The review is repaired and posted as normal |
