@@ -113,6 +113,29 @@ Runs an automated code review on a pull request using Claude Code.
     pr-number: ${{ github.event.issue.number }}
 ```
 
+The example is from a comment-triggered job, where the number is
+`github.event.issue.number`; on a `pull_request` event it is
+`github.event.pull_request.number`. Most callers want
+[`pr-auto-review.yml`](consuming.md#adding-the-automated-reviewer)
+instead, which meets every requirement below for them. A job that uses
+the action directly must provide:
+
+* **`contents: read` and `pull-requests: write`** on the job's token.
+  The action posts the review and its explanations with
+  `github.token`.
+* **A checkout of the pull request as the working directory**, made
+  with `persist-credentials: false`. The reviewer reads `AGENTS.md`,
+  `ARCHITECTURE.md` and `README.md` from it for context, and can read
+  anything else in it, so a token left in `.git/config` is in front of
+  the model.
+* **The Claude Code CLI on the runner.** The `claude-code` runners
+  have it. The action looks on `PATH`, then in `~/.local/bin`; set
+  `CLAUDE_BIN` to point anywhere else.
+* **Same-repository pull requests only.** The job holds a write token
+  and the reviewer reads untrusted text, so gate the job on the head
+  repository as `pr-auto-review.yml` does, or on `pr-bot-trigger`'s
+  `same-repo` output as `pr-re-review.yml` does.
+
 **Inputs:**
 
 | Name | Required | Default | Description |
