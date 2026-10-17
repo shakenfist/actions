@@ -164,10 +164,10 @@ consequence is a dispatch: `pr-retest.yml` would run `ci.yml` against
 *this* repository's `main`. It is the only local caller that touches
 `pr-ref` at all -- `pr-re-review.yml` checks out `refs/pull/<n>/merge`,
 or `refs/pull/<n>/head` when the merge ref is absent or behind, and
-never reads it. In the fleet's other callers the same name reaches
-`actions/checkout` against their own repository and
-`git push origin HEAD:refs/heads/<ref>`, where it lands bot commits on
-the branch the whole fleet pins. Putting the refusal in the action means
+never reads it. Elsewhere in the fleet, the optional test-drift-fix
+workflow hands the same name to `actions/checkout` against its own
+repository and to `git push`, where it would land bot commits on that
+repository's `main`. Putting the refusal in the action means
 every repository consuming it at `@main` gets the guard without editing
 anything.
 
