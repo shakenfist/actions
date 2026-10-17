@@ -1,10 +1,9 @@
 name: 'Review PR with Claude'
 description: >
   Run an automated code review on a pull request using Claude Code.
-  Produces a structured JSON review, creates GitHub issues for
-  actionable items, renders to markdown, and posts as a PR comment.
-  The calling job needs pull-requests: write and issues: write
-  permissions.
+  Produces a structured JSON review, renders it to markdown, and posts
+  it as a PR review. The calling job needs contents: read and
+  pull-requests: write permissions.
 
 inputs:
   pr-number:

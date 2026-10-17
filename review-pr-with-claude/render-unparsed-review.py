@@ -79,9 +79,9 @@ def render(response, reason):
         'posted below as it came, so that any findings in it reach the '
         'pull request rather than only the job log.',
         '',
-        'Nothing below has been checked against the review schema, no '
-        'issues were filed for it, and it does not count as the bot '
-        'having reviewed this pull request. The job is red because the '
+        'Nothing below has been checked against the review schema, and '
+        'it does not count as the bot having reviewed this pull '
+        'request. The job is red because the '
         'reviewer or its prompt needs fixing, not because of anything '
         'in this pull request.',
         '',

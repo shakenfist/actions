@@ -177,25 +177,19 @@ class RenderMarkdownTest(unittest.TestCase):
     def test_empty_review_renders_no_finding_sections(self):
         text = render.render_markdown({'summary': 'Nothing found', 'items': []})
         for heading in ('### Action Items', '### Suggestions',
-                        '### Observations', '### Related Issues'):
+                        '### Observations'):
             self.assertNotIn(heading, text)
 
-    def test_issue_numbers_become_closes_lines(self):
-        # This is the mechanism that closes the review's issues when the
-        # PR merges, so the exact "Closes #N" spelling matters.
+    def test_an_issue_number_is_not_rendered_as_a_link(self):
+        # The review is model output, so a number in it names whatever
+        # issue the model, or a diff it read, chose. Nothing files
+        # issues for a review, so no number in one is ours to link.
         text = render.render_markdown({
             'summary': 's',
-            'items': [item(1, 'fix', issue_number=42),
-                      item(2, 'fix', issue_number=43)],
+            'items': [item(1, 'fix', issue_number=42)],
         })
-        self.assertIn('### Related Issues', text)
-        self.assertIn('- Closes #42', text)
-        self.assertIn('- Closes #43', text)
-
-    def test_items_without_issue_numbers_produce_no_related_section(self):
-        text = render.render_markdown({
-            'summary': 's', 'items': [item(1, 'fix')]})
-        self.assertNotIn('### Related Issues', text)
+        self.assertNotIn('#42', text)
+        self.assertNotIn('Closes', text)
 
     def test_positive_feedback_is_rendered(self):
         text = render.render_markdown({
@@ -281,10 +275,6 @@ class RenderItemTest(unittest.TestCase):
         lines = render.render_item(item(1, 'fix'))
         for emoji in render.SEVERITY_EMOJI.values():
             self.assertNotIn(emoji, lines[0])
-
-    def test_issue_number_is_linked_in_the_title(self):
-        lines = render.render_item(item(1, 'fix', issue_number=99))
-        self.assertIn('(#99)', lines[0])
 
     def test_optional_fields_are_rendered_when_present(self):
         text = '\n'.join(render.render_item(item(

@@ -146,8 +146,7 @@ caller CI (tests pass)                 human comment on a PR
               ├── review-pr-with-claude.sh              (with force set)
               ├── extract-review-json.py  response -> JSON
               ├── render-review.py    JSON -> markdown
-              ├── render-unparsed-review.py   unrecoverable response -> comment
-              └── create-review-issues.py   actionable items -> issues
+              └── render-unparsed-review.py   unrecoverable response -> comment
 ```
 
 A large diff is the case this chain is shaped around. The turn budget
