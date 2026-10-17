@@ -39,12 +39,13 @@ SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
 
 # How the fallback validator checks each JSON Schema type. bool is a
 # subclass of int, and jsonschema does not count true as an integer, so
-# it is excluded by hand.
+# it is excluded by hand; it does count 1.0, so that is admitted.
 JSON_TYPES = {
     'object': lambda v: isinstance(v, dict),
     'array': lambda v: isinstance(v, list),
     'string': lambda v: isinstance(v, str),
-    'integer': lambda v: isinstance(v, int) and not isinstance(v, bool),
+    'integer': lambda v: ((isinstance(v, int) and not isinstance(v, bool))
+                          or (isinstance(v, float) and v.is_integer())),
     'number': lambda v: (isinstance(v, (int, float))
                          and not isinstance(v, bool)),
     'boolean': lambda v: isinstance(v, bool),
@@ -67,8 +68,12 @@ BROKEN_MENTION = '@\u200bshakenfist-bot'
 
 # An HTML character reference. GitHub decodes these before it links
 # mentions, so &#64;alice, &commat;alice and @&#97;lice all notify
-# alice.
-CHARACTER_REFERENCE = r'&(?:#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);'
+# alice. A numeric one is matched without its semicolon too, as HTML
+# decodes &#64alice even though CommonMark should not: breaking too
+# much costs nothing. Its digits are taken whole, as a decoder takes
+# them, so &#641 is never read as &#64 followed by a 1.
+CHARACTER_REFERENCE = (r'&(?:#[0-9]+(?![0-9]);?|#[xX][0-9A-Fa-f]+(?![0-9A-Fa-f]);?'
+                       r'|[A-Za-z][A-Za-z0-9]*;)')
 
 # An @ GitHub would turn into a mention: one followed by a letter or
 # digit, and not preceded by one, which would make it an email address.

@@ -130,6 +130,12 @@ class ValidateReviewCases:
         self.assert_invalid({
             'summary': 's', 'items': [item(1, 'fix', severity='urgent')]})
 
+    def test_accepts_an_integer_valued_float_id(self):
+        # JSON does not tell 1 from 1.0, and neither does jsonschema.
+        valid, error = self.module.validate_review(
+            {'summary': 's', 'items': [item(1.0, 'fix')]})
+        self.assertTrue(valid, error)
+
     def test_rejects_an_id_that_is_not_an_integer(self):
         for bad in ('1', 1.5, True):
             self.assert_invalid(
@@ -227,6 +233,11 @@ class FallbackValidateReviewTest(ValidateReviewCases, unittest.TestCase):
         def walk(node, path):
             unknown = set(node) - known
             self.assertFalse(unknown, f'{path} uses {sorted(unknown)}')
+            # The fallback compares enum members with Python's ==,
+            # which matches true to 1 where jsonschema does not. That
+            # is the same answer only while every member is a string.
+            for member in node.get('enum', []):
+                self.assertIsInstance(member, str, f'{path} enum')
             # The fallback handles additionalProperties: false, not a
             # schema for the extra properties.
             if 'additionalProperties' in node:
@@ -549,6 +560,28 @@ class BreakMentionsTest(unittest.TestCase):
             with self.subTest(at=at):
                 self.assertEqual(render.break_mentions(f'ask {at}alice'),
                                  f'ask {at}\u200balice')
+
+    def test_a_numeric_reference_without_its_semicolon_is_broken(self):
+        # HTML decodes these, though CommonMark should not; breaking
+        # them costs nothing either way.
+        for at in ('&#64', '&#064', '&#x40', '&#X40'):
+            with self.subTest(at=at):
+                self.assertEqual(render.break_mentions(f'ask {at}zoe'),
+                                 f'ask {at}\u200bzoe')
+        self.assertEqual(render.break_mentions('ask &#64alice'),
+                         'ask &#64\u200balice')
+        self.assertEqual(render.break_mentions('ask @&#97lice'),
+                         'ask @\u200b&#97lice')
+
+    def test_a_reference_is_read_with_all_its_digits(self):
+        # A decoder takes every digit, so these are U+0281 and U+040A,
+        # not an @ and a digit; inserting a space after the @ they are
+        # not would turn them into one. Only a run that nothing
+        # alphanumeric follows tempts the pattern to stop short.
+        for text in ('ask &#641lice', 'ask &#x40alice', 'ask &#641, ok',
+                     'ask &#x40a, ok'):
+            with self.subTest(text=text):
+                self.assertEqual(render.break_mentions(text), text)
 
     def test_a_name_starting_with_a_character_reference_is_broken(self):
         self.assertEqual(render.break_mentions('ask @&#97;lice'),

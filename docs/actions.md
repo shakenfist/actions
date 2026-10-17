@@ -346,7 +346,11 @@ render as code means parsing markdown exactly as it does, and the pull
 request chooses the text being parsed.
 The price is a zero-width space in a decorator quoted in a code sample.
 The bot's own mention is broken in any capitalisation, for the
-trigger-phrase reason above.
+trigger-phrase reason above. The machine-readable JSON block at the
+end of the comment is broken along with the rest, so it stays valid
+JSON but is not byte-identical to the review the model wrote: a
+consumer that needs the original text, such as a path containing
+`@scope`, should strip U+200B from its strings.
 
 The same explanation is not posted twice: each of these comments
 carries an HTML marker naming its reason, and a handler that finds its

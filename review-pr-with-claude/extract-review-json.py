@@ -93,12 +93,15 @@ CLOSERS = {'{': '}', '[': ']'}
 SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
 
 # How each JSON Schema type is checked. bool is a subclass of int, and
-# the schema's integer does not admit true, so it is excluded by hand.
+# the schema's integer does not admit true, so it is excluded by hand;
+# a float with no fractional part, such as 1.0, is an integer to
+# jsonschema, so it is admitted.
 JSON_TYPES = {
     'object': lambda v: isinstance(v, dict),
     'array': lambda v: isinstance(v, list),
     'string': lambda v: isinstance(v, str),
-    'integer': lambda v: isinstance(v, int) and not isinstance(v, bool),
+    'integer': lambda v: ((isinstance(v, int) and not isinstance(v, bool))
+                          or (isinstance(v, float) and v.is_integer())),
     'number': lambda v: (isinstance(v, (int, float))
                          and not isinstance(v, bool)),
     'boolean': lambda v: isinstance(v, bool),

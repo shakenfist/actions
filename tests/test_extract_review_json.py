@@ -777,7 +777,8 @@ class ItemAcceptanceMatchesTheSchemaTest(unittest.TestCase):
         render = load_script(
             'review-pr-with-claude/render-review.py', 'render_review')
         self.assertEqual(extract.JSON_TYPES.keys(), render.JSON_TYPES.keys())
-        for value in (None, True, False, 0, 1, 1.5, '', 'x', [], {}):
+        for value in (None, True, False, 0, 1, 0.0, 1.0, 1.5, '', 'x', [],
+                      {}):
             for name, check in extract.JSON_TYPES.items():
                 self.assertEqual(check(value), render.JSON_TYPES[name](value),
                                  (name, value))
@@ -819,22 +820,30 @@ class ItemAcceptanceMatchesTheSchemaTest(unittest.TestCase):
         # Every way an item can differ in what it requires, judged by
         # both this script and the validator downstream. Optional
         # fields are left alone: items_are_usable() lets a bad one
-        # through on purpose.
+        # through on purpose. Both validator branches are asked, as
+        # which one a review meets depends on the runner.
         render = load_script(
             'review-pr-with-claude/render-review.py', 'render_review')
+        with unittest.mock.patch.dict(sys.modules, {'jsonschema': None}):
+            fallback = load_script('review-pr-with-claude/render-review.py',
+                                   'render_review_without_jsonschema')
+        self.assertTrue(render.HAS_JSONSCHEMA)
+        self.assertFalse(fallback.HAS_JSONSCHEMA)
         candidates = [item(1), 'not an object', dict(item(1), id='one'),
                       dict(item(1), id=True), dict(item(1), id=1.5),
+                      dict(item(1), id=1.0),
                       dict(item(1), title=7), dict(item(1), action='escalate'),
                       dict(item(1), category='architecture')]
         for field in item(1):
             candidates.append(
                 {k: v for k, v in item(1).items() if k != field})
-        for candidate in candidates:
-            valid, error = render.validate_review(
-                {'summary': 's', 'items': [candidate]})
-            self.assertEqual(
-                extract.items_are_usable([candidate]), valid,
-                f'{candidate!r}: {error}')
+        for module in (render, fallback):
+            for candidate in candidates:
+                valid, error = module.validate_review(
+                    {'summary': 's', 'items': [candidate]})
+                self.assertEqual(
+                    extract.items_are_usable([candidate]), valid,
+                    f'{module.__name__} {candidate!r}: {error}')
 
 
 if __name__ == '__main__':
