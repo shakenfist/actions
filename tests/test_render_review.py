@@ -513,42 +513,41 @@ class BreakMentionsTest(unittest.TestCase):
         body = text.split('```json', 1)[1]
         self.assertNotIn(render.BOT_MENTION, body)
 
-    def test_code_spans_and_fences_are_left_alone(self):
-        # GitHub links neither, and a zero-width space pasted into
-        # Python with the decorator is a syntax error nobody can see.
+    def test_mentions_inside_code_are_broken_too(self):
+        # Which text GitHub renders as code is not decided here, so
+        # nothing is spared for looking like code.
         text = render.break_mentions(
             'Use `@property`, then:\n\n```python\n@cached\n```\n'
             '~~~\n@also\n~~~\n\nand ask @ivan')
-        self.assertIn('`@property`', text)
-        self.assertIn('\n@cached\n', text)
-        self.assertIn('\n@also\n', text)
-        self.assertIn(self.BROKEN + 'ivan', text)
+        for name in ('property', 'cached', 'also', 'ivan'):
+            self.assertNotIn('@' + name, text)
+            self.assertIn(self.BROKEN + name, text)
 
-    def test_the_location_code_span_is_left_alone(self):
+    def test_markdown_that_only_looks_like_code_hides_nothing(self):
+        # Each of these reads as code to a naive scan and renders as
+        # prose, with the mention linked: an escaped backtick opens no
+        # span, a list item ends the fence inside it, and a backtick in
+        # an HTML attribute is part of the tag.
+        for text in ('\\`@alice\\`',
+                     '- x\n   ```\n@alice\n```',
+                     '<span title="`">@alice`</span>',
+                     '- ```\n  ```\n  @alice\n  ```'):
+            with self.subTest(text=text):
+                self.assertIn(self.BROKEN + 'alice', render.break_mentions(text))
+
+    def test_the_location_code_span_is_broken_too(self):
         text = render.render_markdown(self.review(location='pkg/@scope/x.js'))
-        self.assertIn('`pkg/@scope/x.js`', text)
-
-    def test_prose_after_a_closed_fence_is_broken(self):
-        text = render.break_mentions('```\n@a\n```\nthen @judy')
-        self.assertIn(self.BROKEN + 'judy', text)
-
-    def test_an_unmatched_backtick_does_not_hide_a_mention(self):
-        # No closing run of the same length, so this is not code.
-        text = render.break_mentions('a `` b @kim c ` d')
-        self.assertIn(self.BROKEN + 'kim', text)
-
-    def test_a_span_does_not_reach_past_a_blank_line(self):
-        text = render.break_mentions('a ` b\n\n@lee `')
-        self.assertIn(self.BROKEN + 'lee', text)
-
-    def test_a_deeply_indented_fence_is_not_taken_as_one(self):
-        # Four spaces after a paragraph is more of the paragraph, so a
-        # mention after it is linked and has to be broken.
-        text = render.break_mentions('para\n    ```\n@mallory\n')
-        self.assertIn(self.BROKEN + 'mallory', text)
+        self.assertIn('`pkg/' + self.BROKEN + 'scope/x.js`', text)
 
     def test_an_email_address_is_not_a_mention(self):
         self.assertEqual(render.break_mentions('mail a@b.com'), 'mail a@b.com')
+
+    def test_the_bot_mention_is_broken_even_where_github_would_not_link_it(self):
+        # contains() does not care that a letter before the @ makes it
+        # look like an email address.
+        text = render.break_mentions('see x@ShakenFist-Bot please re-review')
+        self.assertNotIn(render.BOT_MENTION, text.lower())
+        self.assertIn('x' + render.BROKEN_MENTION, text)
 
     def test_text_without_mentions_is_unchanged(self):
         text = 'Plain `code` and\n```\nblock\n```\nprose.'

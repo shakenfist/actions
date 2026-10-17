@@ -68,18 +68,6 @@ BROKEN_MENTION = '@\u200bshakenfist-bot'
 # digit, and not preceded by one, which would make it an email address.
 MENTION = re.compile(r'(?<![A-Za-z0-9])@(?=[A-Za-z0-9])')
 
-# A fence opens with three or more backticks or tildes, indented by at
-# most three spaces; four would be an indented code block or, after a
-# paragraph, more of the paragraph. A backtick fence's info string
-# cannot hold a backtick.
-FENCE_OPEN = re.compile(r'^ {0,3}(`{3,}(?=[^`]*$)|~{3,})')
-
-# An inline code span: a run of backticks, not part of a longer run,
-# closed by a run of the same length, and not reaching past a blank
-# line, which would end the paragraph it sits in.
-CODE_SPAN = re.compile(r'(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n).)+?(?<!`)\1(?!`)',
-                       re.DOTALL)
-
 SEVERITY_EMOJI = {
     'critical': '🔴',
     'high': '🟠',
@@ -205,48 +193,6 @@ def validate_review(review_data: dict) -> tuple[bool, str]:
         return False, str(e.message)
 
 
-def _code_segments(text: str):
-    """Yield (is_code, chunk) for text, split at fenced blocks and spans.
-
-    Joined back together the chunks are text unchanged. An unclosed
-    fence runs to the end, as GitHub renders it. Where this reading of
-    markdown is unsure it calls the text prose, so the error it can make
-    is breaking a mention inside code, never leaving one outside it.
-    """
-    prose = []
-    lines = text.splitlines(keepends=True)
-    index = 0
-    while index < len(lines):
-        opening = FENCE_OPEN.match(lines[index])
-        if not opening:
-            prose.append(lines[index])
-            index += 1
-            continue
-
-        yield from _span_segments(''.join(prose))
-        prose = []
-        marker = opening.group(1)
-        closing = re.compile(
-            r'^ {0,3}' + re.escape(marker[0]) + '{' + str(len(marker))
-            + r',}[ \t]*$')
-        end = index + 1
-        while end < len(lines) and not closing.match(lines[end].rstrip('\n')):
-            end += 1
-        yield True, ''.join(lines[index:end + 1])
-        index = end + 1
-    yield from _span_segments(''.join(prose))
-
-
-def _span_segments(text: str):
-    """Yield (is_code, chunk) for text, split at inline code spans."""
-    position = 0
-    for span in CODE_SPAN.finditer(text):
-        yield False, text[position:span.start()]
-        yield True, span.group(0)
-        position = span.end()
-    yield False, text[position:]
-
-
 def break_mentions(text: str) -> str:
     """Break the @mentions in text with a zero-width space.
 
@@ -255,19 +201,26 @@ def break_mentions(text: str) -> str:
     a bot, can be read as a command. Breaking it keeps the text legible
     and links nobody.
 
-    The bot's own mention is broken everywhere, in any capitalisation,
-    code included, for the reason render-unparsed-review.py gives: the
-    trigger workflows match their phrase with contains() anywhere in a
-    comment body, and that does not care what markdown would make of
-    it. Other mentions are left alone inside code spans and fences,
-    which GitHub does not link and where a zero-width space would
-    survive being copied into code -- a Python decorator, say.
+    Every mention is broken, code included. GitHub does not link one
+    inside a code span or fence, but telling what GitHub will render as
+    code means parsing markdown as GitHub does: list items and block
+    quotes end fences, a backslash or an HTML attribute stops a backtick
+    opening a span, and an HTML block is no code at all. A reading that
+    gets any of that wrong in the direction of code leaves a mention
+    live, and the text being read is the model's, so the pull request
+    can choose which reading to get wrong. The cost of breaking them all
+    is a zero-width space in a decorator quoted in a code sample, which
+    survives being copied out of it.
+
+    The bot's own mention is broken first, into BROKEN_MENTION, the
+    same form render-unparsed-review.py uses. The trigger workflows
+    match their phrase with contains() anywhere in a comment body,
+    ignoring case, so it is broken in any capitalisation and even where
+    a letter before the @ means GitHub would not link it.
     """
     text = re.sub(re.escape(BOT_MENTION), BROKEN_MENTION, text,
                   flags=re.IGNORECASE)
-    return ''.join(
-        chunk if is_code else MENTION.sub('@\u200b', chunk)
-        for is_code, chunk in _code_segments(text))
+    return MENTION.sub('@\u200b', text)
 
 
 def render_markdown(review_data: dict, embed_json: bool = False) -> str:

@@ -333,12 +333,14 @@ def salvage(text):
     So keep walking back until the recovered object could actually be
     posted.
 
-    That includes having found something. A cut after ``"items": []``
+    That includes having found something, unless the review is whole.
+    A cut after ``"items": []`` with the outer object still open
     recovers an object the schema accepts, and posting it would record
     the pull request as reviewed with a clean bill of health on the
     strength of a response that stopped before the first finding was
-    written. A genuinely clean review arrives complete and never comes
-    through here.
+    written. A whole review with no findings is a clean review with
+    something after it, and is returned for extract() to weigh like any
+    other findingless one.
 
     It also includes every recovered item being one the schema will
     accept. Stopping the walk one item too early loses that finding;
@@ -359,7 +361,7 @@ def salvage(text):
             data = json.loads(text[:cut] + closing, strict=False)
         except json.JSONDecodeError:
             continue
-        if (looks_like_a_review(data) and data['items']
+        if (looks_like_a_review(data) and (data['items'] or not stack)
                 and items_are_usable(data['items'])):
             return data, not stack
 
@@ -529,6 +531,7 @@ def extract(text):
 
     truncated = False
     findingless = None
+    salvaged_findingless = None
 
     for block, truncatable in candidates:
         try:
@@ -548,11 +551,20 @@ def extract(text):
             # This block may have been still being written when the
             # response ran out, so it is the answer if anything survives
             # it.
-            truncated = True
             recovered = _salvaged(block)
             if recovered is None:
+                truncated = True
                 continue
-            return recovered
+            if recovered[0]['items']:
+                return recovered
+            # Only a whole review salvages with no findings. Unfenced,
+            # every candidate runs to the end of the response, so this
+            # may be a restated example in front of a review that was
+            # cut off, which is why it counts for less than either a
+            # findingless block that parsed or a block that ran out.
+            if salvaged_findingless is None:
+                salvaged_findingless = recovered
+            continue
 
         if not looks_like_a_review(data):
             continue
@@ -572,6 +584,9 @@ def extract(text):
         # cut off. It just stopped too early for anything to survive,
         # which is still a size problem rather than a broken reviewer.
         raise TruncatedError('no complete JSON object could be recovered')
+
+    if salvaged_findingless is not None:
+        return salvaged_findingless
 
     raise ExtractionError('no JSON block held anything shaped like a review')
 
