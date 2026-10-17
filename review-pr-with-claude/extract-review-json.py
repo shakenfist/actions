@@ -349,6 +349,14 @@ def salvage(text):
     a single unusable trailing item costs every complete finding in
     front of it.
 
+    None of that applies to a whole review, which is returned as it
+    came whether its items are usable or not. Nothing was cut off, so
+    an item the schema rejects is one the model finished writing, and
+    walking back over it would drop that finding and blame truncation
+    for the loss -- a reviewer bug explained away as a large diff. The
+    same object in a closed fence fails validation and goes red, and
+    this has to agree with it.
+
     Raw newlines and tabs inside strings are let through, as they are for
     a repaired block: they are the model writing a string it finished,
     not a sign that it did not.
@@ -361,9 +369,12 @@ def salvage(text):
             data = json.loads(text[:cut] + closing, strict=False)
         except json.JSONDecodeError:
             continue
-        if (looks_like_a_review(data) and (data['items'] or not stack)
-                and items_are_usable(data['items'])):
-            return data, not stack
+        if not looks_like_a_review(data):
+            continue
+        if not stack:
+            return data, True
+        if data['items'] and items_are_usable(data['items']):
+            return data, False
 
     raise ExtractionError('no complete JSON object could be recovered')
 
@@ -524,6 +535,12 @@ def extract(text):
     prompt or schema problem rather than a size one. It is offered to
     repair(), and falls through to the unparseable path, and a red job,
     only if that does not recover a review with findings in it.
+
+    A whole review holding an item the schema rejects is returned only
+    when nothing else is, for render-review.py's validation to send to
+    the red path. It is also the shape of the prompt's example
+    restated, whose enums are placeholders, so it ranks below every
+    other outcome, truncation included.
     """
     candidates = candidate_blocks(text)
     if not candidates:
@@ -532,6 +549,7 @@ def extract(text):
     truncated = False
     findingless = None
     salvaged_findingless = None
+    invalid = None
 
     for block, truncatable in candidates:
         try:
@@ -554,6 +572,14 @@ def extract(text):
             recovered = _salvaged(block)
             if recovered is None:
                 truncated = True
+                continue
+            if not items_are_usable(recovered[0]['items']):
+                # Only a whole review comes back with an item the
+                # schema rejects. Unfenced, it may be the prompt's
+                # example in front of the real review, so it is the
+                # last resort rather than the answer.
+                if invalid is None:
+                    invalid = recovered
                 continue
             if recovered[0]['items']:
                 return recovered
@@ -587,6 +613,9 @@ def extract(text):
 
     if salvaged_findingless is not None:
         return salvaged_findingless
+
+    if invalid is not None:
+        return invalid
 
     raise ExtractionError('no JSON block held anything shaped like a review')
 

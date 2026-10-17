@@ -409,6 +409,19 @@ class ReviewOutcomeTest(unittest.TestCase):
         self.assertIn('Extraction: status=ok', result.stdout)
         self.assertIn('failed schema validation', summary)
 
+    def test_a_whole_review_with_an_unknown_action_is_red(self):
+        # The salvage predicate would reject this item, and used to
+        # walk back over it, posting the rest as partial and green.
+        items = [dict(self.ITEMS[1], id=1),
+                 dict(self.ITEMS[1], id=2, action='escalate')]
+        result, summary = self.run_reviewer(
+            json.dumps({'summary': 's', 'items': items})
+            + '\n\nHope that helps.')
+        self.assertEqual(result.returncode, 1,
+                         result.stdout + result.stderr)
+        self.assertIn('Extraction: status=ok', result.stdout)
+        self.assertIn('failed schema validation', summary)
+
 
 if __name__ == '__main__':
     unittest.main()

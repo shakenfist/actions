@@ -21,6 +21,7 @@ pull request content, so @mentions in it are broken before it is
 posted -- see break_mentions().
 """
 
+import html
 import json
 import re
 import sys
@@ -64,9 +65,18 @@ ANNOTATION_KEYWORDS = ('$schema', '$id', 'title', 'description')
 BOT_MENTION = '@shakenfist-bot'
 BROKEN_MENTION = '@\u200bshakenfist-bot'
 
+# An HTML character reference. GitHub decodes these before it links
+# mentions, so &#64;alice, &commat;alice and @&#97;lice all notify
+# alice.
+CHARACTER_REFERENCE = r'&(?:#[0-9]+|#[xX][0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]*);'
+
 # An @ GitHub would turn into a mention: one followed by a letter or
 # digit, and not preceded by one, which would make it an email address.
-MENTION = re.compile(r'(?<![A-Za-z0-9])@(?=[A-Za-z0-9])')
+# Either may be spelled as a character reference; which references are
+# an @ is left to _break_mention(), and any reference after one is
+# taken to be a letter, because breaking too much costs nothing.
+MENTION = re.compile(rf'(?<![A-Za-z0-9])(@|{CHARACTER_REFERENCE})'
+                     rf'(?=[A-Za-z0-9]|{CHARACTER_REFERENCE})')
 
 SEVERITY_EMOJI = {
     'critical': '🔴',
@@ -193,10 +203,16 @@ def validate_review(review_data: dict) -> tuple[bool, str]:
         return False, str(e.message)
 
 
+def _break_mention(match: re.Match) -> str:
+    if html.unescape(match.group(1)) != '@':
+        return match.group(0)
+    return match.group(1) + '\u200b'
+
+
 def break_mentions(text: str) -> str:
     """Break the @mentions in text with a zero-width space.
 
-    A review posted by the bot is model output shaped by the pull
+    What the bot posts from a review is model output shaped by the pull
     request, and an @mention in it notifies whoever it names -- or, for
     a bot, can be read as a command. Breaking it keeps the text legible
     and links nobody.
@@ -216,11 +232,13 @@ def break_mentions(text: str) -> str:
     same form render-unparsed-review.py uses. The trigger workflows
     match their phrase with contains() anywhere in a comment body,
     ignoring case, so it is broken in any capitalisation and even where
-    a letter before the @ means GitHub would not link it.
+    a letter before the @ means GitHub would not link it. The workflows
+    see the comment body undecoded, so a character reference there
+    fires nothing, and only needs breaking as a mention.
     """
     text = re.sub(re.escape(BOT_MENTION), BROKEN_MENTION, text,
                   flags=re.IGNORECASE)
-    return MENTION.sub('@\u200b', text)
+    return MENTION.sub(_break_mention, text)
 
 
 def render_markdown(review_data: dict, embed_json: bool = False) -> str:

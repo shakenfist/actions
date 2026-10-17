@@ -301,7 +301,13 @@ after an unfenced object, a closing fence on the brace's own line, a
 and the salvage walk-back finds it whole, with nothing left to close.
 That is posted as a complete review, without the partial warning, and
 if it then fails schema validation it goes red like any other complete
-review rather than green as a truncated one.
+review rather than green as a truncated one. That includes an item the
+walk-back would drop from a truncated review, such as one with an
+action the schema does not allow: a whole review keeps it, and
+validation rejects it. Unfenced, a whole review with such an item is
+also what the prompt's example looks like when the model restates it,
+so it is chosen only when no other candidate yields a review or reads
+as truncated.
 
 Invalid JSON in a closed fence is usually a model quoting a literal --
 a description discussing `packages = ["x"]` with the inner quotes left
@@ -332,9 +338,12 @@ already-reviewed check and the next review runs as normal.
 A review that does parse is model output shaped by the pull request
 too, so before it is posted every @mention in it is broken with a
 zero-width space, which reads the same and notifies nobody. That
-includes mentions inside code spans and fences, which GitHub does not
-link: deciding what GitHub will render as code means parsing markdown
-exactly as it does, and the pull request chooses the text being parsed.
+includes an @ spelled as an HTML character reference such as `&#64;`,
+and a name whose first letter is one, since GitHub decodes those
+before it links mentions. It also includes mentions inside code spans
+and fences, which GitHub does not link: deciding what GitHub will
+render as code means parsing markdown exactly as it does, and the pull
+request chooses the text being parsed.
 The price is a zero-width space in a decorator quoted in a code sample.
 The bot's own mention is broken in any capitalisation, for the
 trigger-phrase reason above.

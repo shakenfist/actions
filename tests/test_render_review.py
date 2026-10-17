@@ -542,6 +542,28 @@ class BreakMentionsTest(unittest.TestCase):
     def test_an_email_address_is_not_a_mention(self):
         self.assertEqual(render.break_mentions('mail a@b.com'), 'mail a@b.com')
 
+    def test_an_at_spelled_as_a_character_reference_is_broken(self):
+        # GitHub decodes references before it links mentions, so each
+        # of these notifies alice unless broken.
+        for at in ('&#64;', '&#064;', '&#x40;', '&#X40;', '&commat;'):
+            with self.subTest(at=at):
+                self.assertEqual(render.break_mentions(f'ask {at}alice'),
+                                 f'ask {at}\u200balice')
+
+    def test_a_name_starting_with_a_character_reference_is_broken(self):
+        self.assertEqual(render.break_mentions('ask @&#97;lice'),
+                         'ask @\u200b&#97;lice')
+        self.assertEqual(render.break_mentions('ask &#64;&#97;lice'),
+                         'ask &#64;\u200b&#97;lice')
+
+    def test_references_that_are_no_mention_are_left_alone(self):
+        # A letter before the reference makes an email address, and a
+        # reference that decodes to anything but @ is not one at all.
+        for text in ('mail a&#64;b.com', 'fish &amp;chips', '&lt;b&gt;',
+                     '&COMMAT;alice'):
+            with self.subTest(text=text):
+                self.assertEqual(render.break_mentions(text), text)
+
     def test_the_bot_mention_is_broken_even_where_github_would_not_link_it(self):
         # contains() does not care that a letter before the @ makes it
         # look like an email address.
