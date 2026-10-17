@@ -467,6 +467,94 @@ class RenderItemTest(unittest.TestCase):
         self.assertNotIn('ℹ️', text)
 
 
+class BreakMentionsTest(unittest.TestCase):
+    """Nothing the model writes can notify anyone, or fire a trigger."""
+
+    BROKEN = '@\u200b'
+
+    def review(self, **fields):
+        base = item(1, 'fix', 'Title by @alice', description='Ask @bob.',
+                    suggestion='Ping @carol', rationale='Per @dave')
+        base.update(fields)
+        return {
+            'summary': 'Summary for @erin',
+            'items': [base],
+            'positive_feedback': [
+                {'title': 'Thanks @frank', 'description': 'From @grace'}],
+            'test_coverage': {'adequate': False, 'missing': ['Ask @heidi']},
+        }
+
+    def test_mentions_in_every_rendered_field_are_broken(self):
+        text = render.render_markdown(self.review())
+        for name in ('alice', 'bob', 'carol', 'dave', 'erin', 'frank',
+                     'grace', 'heidi'):
+            self.assertNotIn('@' + name, text)
+            self.assertIn(self.BROKEN + name, text)
+
+    def test_the_bot_mention_is_broken_like_the_unparsed_renderer_does(self):
+        unparsed = load_script(
+            'review-pr-with-claude/render-unparsed-review.py',
+            'render_unparsed_review')
+        self.assertEqual(render.BOT_MENTION, unparsed.BOT_MENTION)
+        self.assertEqual(render.BROKEN_MENTION, unparsed.BROKEN_MENTION)
+
+    def test_the_bot_mention_is_broken_everywhere_in_any_case(self):
+        # The trigger workflows match with contains(), which ignores
+        # case and markdown alike, so code is no protection here.
+        text = render.render_markdown(
+            self.review(description='Run `@Shakenfist-Bot retest`.'),
+            embed_json=True)
+        self.assertNotIn(render.BOT_MENTION, text.lower())
+        self.assertIn(render.BROKEN_MENTION, text)
+
+    def test_mentions_in_the_embedded_json_cannot_fire_the_bot(self):
+        text = render.render_markdown(
+            self.review(summary='Ask @shakenfist-bot'), embed_json=True)
+        body = text.split('```json', 1)[1]
+        self.assertNotIn(render.BOT_MENTION, body)
+
+    def test_code_spans_and_fences_are_left_alone(self):
+        # GitHub links neither, and a zero-width space pasted into
+        # Python with the decorator is a syntax error nobody can see.
+        text = render.break_mentions(
+            'Use `@property`, then:\n\n```python\n@cached\n```\n'
+            '~~~\n@also\n~~~\n\nand ask @ivan')
+        self.assertIn('`@property`', text)
+        self.assertIn('\n@cached\n', text)
+        self.assertIn('\n@also\n', text)
+        self.assertIn(self.BROKEN + 'ivan', text)
+
+    def test_the_location_code_span_is_left_alone(self):
+        text = render.render_markdown(self.review(location='pkg/@scope/x.js'))
+        self.assertIn('`pkg/@scope/x.js`', text)
+
+    def test_prose_after_a_closed_fence_is_broken(self):
+        text = render.break_mentions('```\n@a\n```\nthen @judy')
+        self.assertIn(self.BROKEN + 'judy', text)
+
+    def test_an_unmatched_backtick_does_not_hide_a_mention(self):
+        # No closing run of the same length, so this is not code.
+        text = render.break_mentions('a `` b @kim c ` d')
+        self.assertIn(self.BROKEN + 'kim', text)
+
+    def test_a_span_does_not_reach_past_a_blank_line(self):
+        text = render.break_mentions('a ` b\n\n@lee `')
+        self.assertIn(self.BROKEN + 'lee', text)
+
+    def test_a_deeply_indented_fence_is_not_taken_as_one(self):
+        # Four spaces after a paragraph is more of the paragraph, so a
+        # mention after it is linked and has to be broken.
+        text = render.break_mentions('para\n    ```\n@mallory\n')
+        self.assertIn(self.BROKEN + 'mallory', text)
+
+    def test_an_email_address_is_not_a_mention(self):
+        self.assertEqual(render.break_mentions('mail a@b.com'), 'mail a@b.com')
+
+    def test_text_without_mentions_is_unchanged(self):
+        text = 'Plain `code` and\n```\nblock\n```\nprose.'
+        self.assertEqual(render.break_mentions(text), text)
+
+
 class LoadReviewTest(unittest.TestCase):
     """The input is model output, so it does not always parse."""
 

@@ -329,6 +329,14 @@ comment size limit, with the full text still in the step log. It is an
 ordinary comment rather than a review, so it does not satisfy the
 already-reviewed check and the next review runs as normal.
 
+A review that does parse is model output shaped by the pull request
+too, so before it is posted every @mention in it is broken with a
+zero-width space, which reads the same and notifies nobody. The bot's
+own mention is broken everywhere, in code included, in any
+capitalisation, for the trigger-phrase reason above; other mentions are
+left alone inside code spans and fences, which GitHub does not link and
+where a zero-width space would survive being copied into code.
+
 The same explanation is not posted twice: each of these comments
 carries an HTML marker naming its reason, and a handler that finds its
 own marker already on the pull request writes the job summary and skips
