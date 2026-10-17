@@ -266,7 +266,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
     # Called by relative path rather than @main, so a pull request
     # which changes the reviewer workflow is reviewed by its own
     # version. Note this only reaches one level: the workflow's inner

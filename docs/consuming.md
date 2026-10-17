@@ -349,14 +349,15 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: write
     uses: shakenfist/actions/.github/workflows/pr-auto-review.yml@main
 ```
 
 Keep the `permissions:` block: the reviewer authenticates with
 `github.token`, and that block is what gives the token its scope. As
 with [every reusable workflow here](#adding-shaken-fist-smoke-ci-to-your-repository),
-do not add `secrets: inherit`.
+do not add `secrets: inherit`. The reviewer files no issues, so a
+caller still granting `issues: write` can drop it; keeping it is
+harmless, since the reusable workflow narrows what it is given.
 
 A pull request is reviewed exactly once this way. The reviewer skips a
 pull request the bot has already looked at unless `force` is set, and
