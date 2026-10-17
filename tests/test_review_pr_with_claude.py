@@ -323,5 +323,92 @@ class ReviewerOutputsTest(unittest.TestCase):
         self.assertEqual(written, published)
 
 
+# Answers with the response held in FAKE_CLAUDE_RESPONSE, as the CLI
+# does for a run that finished.
+FAKE_CLAUDE_RESPONDING = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    import json, os, sys
+    sys.stdin.read()
+    with open(os.environ['FAKE_CLAUDE_RESPONSE']) as f:
+        response = f.read()
+    print(json.dumps({'type': 'result', 'subtype': 'success',
+                      'result': response, 'num_turns': 1}))
+    ''')
+
+
+class ReviewOutcomeTest(unittest.TestCase):
+    """Which outcome a review that will not validate ends in.
+
+    A salvaged review that fails schema validation goes to the green
+    "cut off" explanation, on the grounds that the response ran out of
+    room. A complete review that fails it is the prompt and the schema
+    disagreeing, which is red. So which of the two the extractor calls
+    a review decides whether a tooling bug is seen or explained away.
+    """
+
+    # Valid as far as the salvage predicate looks, but the severity is
+    # not one the schema allows, so validation rejects it.
+    ITEMS = [
+        {'id': 1, 'title': 't', 'category': 'bug', 'action': 'fix',
+         'severity': 'urgent'},
+        {'id': 2, 'title': 'u', 'category': 'bug', 'action': 'fix'},
+    ]
+
+    def run_reviewer(self, response):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        bin_dir = os.path.join(tmp.name, 'bin')
+        os.mkdir(bin_dir)
+        write_executable(os.path.join(bin_dir, 'gh'), FAKE_GH)
+        claude = os.path.join(bin_dir, 'fake-claude')
+        write_executable(claude, FAKE_CLAUDE_RESPONDING)
+        response_path = os.path.join(tmp.name, 'response.txt')
+        with open(response_path, 'w') as f:
+            f.write(response)
+        summary = os.path.join(tmp.name, 'summary')
+
+        env = dict(os.environ)
+        env.update({
+            'PATH': bin_dir + os.pathsep + env.get('PATH', ''),
+            'CLAUDE_BIN': claude,
+            'FAKE_CLAUDE_RESPONSE': response_path,
+            'FAKE_GH_LOG': os.path.join(tmp.name, 'gh.log'),
+            'GITHUB_REPOSITORY': 'shakenfist/example',
+            'GITHUB_STEP_SUMMARY': summary,
+            'INPUT_PR_NUMBER': '7',
+            'INPUT_MAX_TURNS': '',
+            'INPUT_FORCE': 'false',
+        })
+        result = subprocess.run(
+            ['bash', SCRIPT], cwd=tmp.name, env=env,
+            capture_output=True, text=True, timeout=60)
+        try:
+            with open(summary) as f:
+                summary_text = f.read()
+        except FileNotFoundError:
+            summary_text = ''
+        return result, summary_text
+
+    def test_an_invalid_salvaged_review_is_explained_green(self):
+        text = json.dumps({'summary': 's', 'items': self.ITEMS})
+        result, summary = self.run_reviewer(
+            '```json\n' + text[:text.index('{"id": 2')])
+        self.assertEqual(result.returncode, 0,
+                         result.stdout + result.stderr)
+        self.assertIn('Extraction: status=salvaged', result.stdout)
+        self.assertIn('cut off before it said anything', summary)
+
+    def test_an_invalid_whole_review_with_prose_after_it_is_red(self):
+        # Prose after the object used to make this a salvaged review,
+        # which sent a schema mismatch to the green explanation.
+        result, summary = self.run_reviewer(
+            json.dumps({'summary': 's', 'items': self.ITEMS})
+            + '\n\nHope that helps.')
+        self.assertEqual(result.returncode, 1,
+                         result.stdout + result.stderr)
+        self.assertIn('Extraction: status=ok', result.stdout)
+        self.assertIn('failed schema validation', summary)
+
+
 if __name__ == '__main__':
     unittest.main()

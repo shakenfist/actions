@@ -294,6 +294,15 @@ something invalid rather than running out of room. Only a fence left
 open, or an unfenced object running to the end of the response, is
 treated as having been cut off.
 
+Being treated as possibly cut off is not the same as being labelled
+partial. A complete review can sit in one of those shapes -- prose
+after an unfenced object, a closing fence on the brace's own line, a
+`~~~` fence, or a fence left open around an object that did close --
+and the salvage walk-back finds it whole, with nothing left to close.
+That is posted as a complete review, without the partial warning, and
+if it then fails schema validation it goes red like any other complete
+review rather than green as a truncated one.
+
 Invalid JSON in a closed fence is usually a model quoting a literal --
 a description discussing `packages = ["x"]` with the inner quotes left
 unescaped. Before giving up on it, the extractor escapes every quote
