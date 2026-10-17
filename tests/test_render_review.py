@@ -14,14 +14,30 @@ import contextlib
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
+import unittest.mock
 
 from tests.helpers import load_script
 
 
 render = load_script(
     'review-pr-with-claude/render-review.py', 'render_review')
+
+
+def load_without_jsonschema():
+    """Load the renderer as it runs where jsonschema is not installed.
+
+    A None entry in sys.modules makes the import raise ImportError,
+    which is the branch render-review.py takes to its own validator.
+    """
+    with unittest.mock.patch.dict(sys.modules, {'jsonschema': None}):
+        return load_script('review-pr-with-claude/render-review.py',
+                           'render_review_without_jsonschema')
+
+
+render_fallback = load_without_jsonschema()
 
 
 def item(item_id, action, title='A finding', **kwargs):
@@ -63,7 +79,88 @@ class StripNullsTest(unittest.TestCase):
         self.assertEqual(render.strip_nulls(7), 7)
 
 
-class ValidateReviewTest(unittest.TestCase):
+class ValidateReviewCases:
+    """What either validator has to accept and reject.
+
+    Run once against each branch of validate_review(), since which one
+    a review meets depends on whether the runner has jsonschema.
+    """
+
+    module = None
+
+    def assert_invalid(self, review):
+        valid, error = self.module.validate_review(review)
+        self.assertFalse(valid, review)
+        return error
+
+    def test_accepts_a_full_review(self):
+        valid, error = self.module.validate_review({
+            'summary': 's',
+            'caveat': 'c',
+            'items': [item(1, 'fix', severity='low', description='d',
+                           location='l', suggestion='s', rationale='r')],
+            'positive_feedback': [{'title': 't', 'description': 'd'}],
+            'test_coverage': {'adequate': False, 'missing': ['m']},
+        })
+        self.assertTrue(valid, error)
+
+    def test_accepts_a_minimal_review(self):
+        valid, error = self.module.validate_review(
+            {'summary': 'Looks fine', 'items': []})
+        self.assertTrue(valid, error)
+
+    def test_rejects_an_unknown_action(self):
+        error = self.assert_invalid(
+            {'summary': 's', 'items': [item(1, 'explode')]})
+        self.assertIn('explode', error)
+
+    def test_rejects_an_unknown_category(self):
+        self.assert_invalid({
+            'summary': 's', 'items': [item(1, 'fix', category='vibes')]})
+
+    def test_rejects_an_unknown_severity(self):
+        self.assert_invalid({
+            'summary': 's', 'items': [item(1, 'fix', severity='urgent')]})
+
+    def test_rejects_an_id_that_is_not_an_integer(self):
+        for bad in ('1', 1.5, True):
+            self.assert_invalid(
+                {'summary': 's', 'items': [item(bad, 'fix')]})
+
+    def test_rejects_an_item_that_is_not_an_object(self):
+        self.assert_invalid({'summary': 's', 'items': ['a finding']})
+
+    def test_rejects_a_missing_summary(self):
+        self.assert_invalid({'items': []})
+
+    def test_rejects_items_that_are_not_a_list(self):
+        self.assert_invalid({'summary': 's', 'items': 'nope'})
+
+    def test_rejects_an_item_missing_a_required_field(self):
+        self.assert_invalid({
+            'summary': 's',
+            'items': [{'id': 1, 'title': 't', 'category': 'bug'}],
+        })
+
+    def test_rejects_positive_feedback_without_a_title(self):
+        # render_markdown() indexes the title, so letting this through
+        # turns a bad review into a traceback instead of a red job.
+        self.assert_invalid({
+            'summary': 's', 'items': [],
+            'positive_feedback': [{'description': 'd'}]})
+
+    def test_rejects_test_coverage_of_the_wrong_shape(self):
+        self.assert_invalid({
+            'summary': 's', 'items': [],
+            'test_coverage': {'adequate': 'yes'}})
+        self.assert_invalid({
+            'summary': 's', 'items': [],
+            'test_coverage': {'missing': [1]}})
+
+
+class ValidateReviewTest(ValidateReviewCases, unittest.TestCase):
+    module = render
+
     def test_the_schema_sits_beside_the_script(self):
         # load_schema() returns None when review-schema.json is not next
         # to render-review.py, and validate_review() then returns valid
@@ -74,34 +171,68 @@ class ValidateReviewTest(unittest.TestCase):
         self.assertTrue(render.SCHEMA_PATH.exists(), render.SCHEMA_PATH)
         self.assertIsInstance(render.load_schema(), dict)
 
-    def test_accepts_a_minimal_valid_review(self):
-        valid, error = render.validate_review(
-            {'summary': 'Looks fine', 'items': []})
+
+class FallbackValidateReviewTest(ValidateReviewCases, unittest.TestCase):
+    """The validator used where jsonschema is not installed."""
+
+    module = render_fallback
+
+    def test_this_is_the_fallback_branch(self):
+        self.assertFalse(self.module.HAS_JSONSCHEMA)
+
+    def test_the_fallback_reads_the_schema_file(self):
+        # Widen the category enum in a copy of the schema, and the
+        # fallback has to follow it: nothing in the script restates it.
+        schema = self.module.load_schema()
+        item_schema = schema['properties']['items']['items']
+        item_schema['properties']['category']['enum'].append('vibes')
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, 'review-schema.json')
+        with open(path, 'w') as f:
+            json.dump(schema, f)
+
+        review = {'summary': 's', 'items': [item(1, 'fix', category='vibes')]}
+        self.assertFalse(self.module.validate_review(review)[0])
+        with unittest.mock.patch.object(
+                self.module, 'SCHEMA_PATH', render.Path(path)):
+            valid, error = self.module.validate_review(review)
         self.assertTrue(valid, error)
 
-    def test_rejects_an_unknown_action(self):
-        valid, error = render.validate_review({
-            'summary': 's',
-            'items': [item(1, 'explode')],
-        })
-        self.assertFalse(valid)
-        self.assertIn('explode', error)
+    def test_the_schema_uses_only_keywords_the_fallback_enforces(self):
+        # A keyword the fallback does not know -- minLength, say -- is a
+        # constraint it would skip without a word, which is exactly the
+        # drift between the two validators this exists to prevent.
+        known = set(self.module.FALLBACK_KEYWORDS
+                    + self.module.ANNOTATION_KEYWORDS)
 
-    def test_rejects_a_missing_summary(self):
-        valid, _ = render.validate_review({'items': []})
-        self.assertFalse(valid)
+        def walk(node, path):
+            unknown = set(node) - known
+            self.assertFalse(unknown, f'{path} uses {sorted(unknown)}')
+            for name, subschema in node.get('properties', {}).items():
+                walk(subschema, f'{path}.{name}')
+            if 'items' in node:
+                walk(node['items'], f'{path}[]')
 
-    def test_rejects_items_that_are_not_a_list(self):
-        valid, _ = render.validate_review(
-            {'summary': 's', 'items': 'nope'})
-        self.assertFalse(valid)
+        walk(self.module.load_schema(), 'schema')
 
-    def test_rejects_an_item_missing_a_required_field(self):
-        valid, _ = render.validate_review({
-            'summary': 's',
-            'items': [{'id': 1, 'title': 't', 'category': 'bug'}],
-        })
-        self.assertFalse(valid)
+    def test_an_invalid_review_is_a_clean_failure_not_a_traceback(self):
+        # Without jsonschema this used to validate, and then raise
+        # KeyError rendering the feedback's title.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, 'review.json')
+        with open(path, 'w') as f:
+            json.dump({'summary': 's', 'items': [],
+                       'positive_feedback': [{'description': 'd'}]}, f)
+        stderr = io.StringIO()
+        argv = ['render-review.py', path]
+        with contextlib.redirect_stderr(stderr):
+            with unittest.mock.patch.object(sys, 'argv', argv):
+                with self.assertRaises(SystemExit) as caught:
+                    self.module.main()
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn('Invalid review JSON', stderr.getvalue())
 
 
 class RenderMarkdownTest(unittest.TestCase):
