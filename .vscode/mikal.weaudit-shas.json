@@ -21,10 +21,6 @@
       "sha": "4e5b158307670d19c1fa45d791bd97803df1c3e0",
       "date": "2026-09-09"
     },
-    ".github/workflows/pr-re-review.yml": {
-      "sha": "68425cd384443ae15a909832693af1df01414c38",
-      "date": "2026-10-05"
-    },
     ".github/workflows/proxmox-substrate.yml": {
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
@@ -48,14 +44,6 @@
     ".pre-commit-config.yaml": {
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
-    },
-    "AGENTS.md": {
-      "sha": "d020328defd5ac671cd46207abd93527dfbd082f",
-      "date": "2026-10-14"
-    },
-    "README.md": {
-      "sha": "b2eefb54883f0989e1a5f3d45261ed3ea85a4bd8",
-      "date": "2026-10-14"
     },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",

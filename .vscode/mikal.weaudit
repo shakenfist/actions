@@ -401,10 +401,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/pr-re-review.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_smoke_cluster_inputs.py",
       "author": "mikal"
     },
@@ -506,14 +502,6 @@
     },
     {
       "path": "ansible/ci-image-desktop.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "AGENTS.md",
-      "author": "mikal"
-    },
-    {
-      "path": "README.md",
       "author": "mikal"
     },
     {
