@@ -9,13 +9,11 @@
 # containing the phrase -- including comments from people with no write
 # access at all.
 #
-# The trigger handling is pr-bot-trigger rather than inline shell. An
-# earlier version of this file open-coded it, and the copy drifted: it
-# reacted with +1 rather than rocket, worded its refusal differently,
-# never checked the trigger phrase itself so it could not tell "phrase
-# not matched" from "not authorized", and -- once pr-bot-trigger grew a
-# fork guard -- did not refuse fork pull requests at all. Using the
-# shared action is what keeps this file getting fixes made elsewhere.
+# The trigger handling is pr-bot-trigger rather than inline shell, and
+# the choice of commit to review is pr-review-ref, both taken at @main.
+# A copy of either would drift from the shared action and miss its
+# fixes, and pr-bot-trigger's include the refusal of fork pull
+# requests that the re-review job below depends on.
 name: PR Re-review
 
 permissions:
@@ -178,13 +176,10 @@ jobs:
       # load bearing rather than tidiness.
       #
       # persist-credentials: false because this working tree holds the
-      # pull request's code and the next step runs Claude Code over it
-      # with --dangerously-skip-permissions. The default leaves a
-      # write-scoped token in .git/config of exactly that tree.
+      # pull request's code and the reviewer reads it. The default
+      # leaves a write-scoped token in .git/config of exactly that tree.
       # review-pr-with-claude authenticates gh from GH_TOKEN and never
       # pushes, so it does not need the git credential helper.
-      # The retired pr-address-comments.yml always did this; this
-      # file did not.
       #
       # The merge ref is resolved rather than named, because a named one
       # is right only when GitHub's copy is both present and current, and
@@ -255,14 +250,13 @@ jobs:
       # on the trigger job above keeps it from re-firing this workflow.
       #
       # The cause comes from the resolve step rather than being asserted
-      # here. An earlier draft named a conflict with the base, which is
-      # the least likely of the three paths into this step and is the
-      # one the measurement above disproved: a reader seeing it on a
-      # pull request that merges cleanly would go looking for a conflict
-      # which is not there. The body is assembled with a heredoc because
-      # a multi-line --body argument keeps its newlines, and GitHub
-      # renders those as line breaks -- the notice arrived as five short
-      # broken lines rather than a paragraph.
+      # here. A conflict with the base is the least likely of the three
+      # paths into this step -- pr-review-ref's header has the
+      # measurement -- and a reader told of one on a pull request that
+      # merges cleanly would go looking for a conflict which is not
+      # there. The body is assembled with a heredoc because a multi-line
+      # --body argument keeps its newlines, and GitHub renders those as
+      # line breaks, which breaks one sentence into several short lines.
       - name: Say that the head was reviewed, not the merge result
         if: steps.ref.outputs.merged == 'false'
         env:
