@@ -124,9 +124,11 @@ class SalvageTest(unittest.TestCase):
     def test_recovers_items_completed_before_the_cut(self):
         text = json.dumps(REVIEW)
         truncated = text[:text.index('"Another finding"')] + '"Anoth'
-        data = extract.salvage(truncated)
+        data, whole = extract.salvage(truncated)
         self.assertEqual(data['summary'], 'Adds a thing')
         self.assertEqual([i['id'] for i in data['items']], [1])
+        # Brackets had to be closed to get here, so this is partial.
+        self.assertFalse(whole)
 
     def test_a_brace_inside_a_string_is_not_a_cut_point(self):
         # A description mentioning a brace must not be mistaken for
@@ -137,7 +139,7 @@ class SalvageTest(unittest.TestCase):
                       item(2)],
         }
         text = json.dumps(review)
-        data = extract.salvage(text[:text.index('{"id": 2')])
+        data, _ = extract.salvage(text[:text.index('{"id": 2')])
         self.assertEqual([i['id'] for i in data['items']], [1])
         self.assertIn('}]', data['items'][0]['description'])
 
@@ -146,17 +148,34 @@ class SalvageTest(unittest.TestCase):
         # title, category and action on every one of them. Better to
         # lose the unfinished finding than the whole review.
         text = json.dumps(REVIEW)
-        data = extract.salvage(text[:text.index('"Another finding"')])
+        data, _ = extract.salvage(text[:text.index('"Another finding"')])
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_trailing_prose_after_a_complete_object_is_dropped(self):
+        # And reported whole: nothing had to be closed, so nothing is
+        # missing from what was recovered.
         text = json.dumps(REVIEW) + '\n\nHope that helps!'
-        self.assertEqual(extract.salvage(text), REVIEW)
+        self.assertEqual(extract.salvage(text), (REVIEW, True))
+
+    def test_a_bracket_in_trailing_prose_does_not_hide_the_whole_object(self):
+        # A closer in the prose is a later cut point with an empty
+        # stack too, but it does not parse, so the walk goes on back to
+        # the one that closed the review.
+        text = json.dumps(REVIEW) + '\n\nSee [1] and {this}.'
+        self.assertEqual(extract.salvage(text), (REVIEW, True))
+
+    def test_an_item_walked_past_is_not_a_whole_review(self):
+        # The review closed, but the cut that recovered it is inside
+        # the items array, so a finding was dropped to get there.
+        unusable = {'id': 2, 'title': 'Half a finding', 'category': 'bug'}
+        review = {'summary': 's', 'items': [item(1), unusable]}
+        _, whole = extract.salvage(json.dumps(review))
+        self.assertFalse(whole)
 
     def test_recovers_when_the_cut_is_at_a_trailing_comma(self):
         text = json.dumps(REVIEW)
         truncated = text[:text.index('{"id": 2')]
-        data = extract.salvage(truncated)
+        data, _ = extract.salvage(truncated)
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_refuses_when_nothing_complete_arrived(self):
@@ -195,7 +214,7 @@ class SalvageTest(unittest.TestCase):
         # taking the complete finding in front of it with it.
         unusable = {'id': 2, 'title': 'Half a finding', 'category': 'bug'}
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(json.dumps(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_an_item_whose_required_field_has_the_wrong_type(self):
@@ -205,7 +224,7 @@ class SalvageTest(unittest.TestCase):
         # with it.
         unusable = dict(item(2), id='two')
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(json.dumps(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_an_item_with_an_unknown_action_is_walked_past(self):
@@ -214,7 +233,7 @@ class SalvageTest(unittest.TestCase):
         # invents vocabulary as readily as it truncates.
         unusable = dict(item(2), action='escalate')
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(json.dumps(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_an_item_with_an_unknown_category_is_walked_past(self):
@@ -223,7 +242,7 @@ class SalvageTest(unittest.TestCase):
         # merely for being present.
         unusable = dict(item(2), category='architecture')
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(json.dumps(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_the_walk_back_is_bounded(self):
@@ -372,6 +391,51 @@ class ExtractTest(unittest.TestCase):
         data, status = extract.extract(text)
         self.assertEqual(data, REVIEW)
         self.assertEqual(status, 'ok')
+
+    def assert_complete(self, response, expected=REVIEW, status='ok'):
+        data, got = extract.extract(response)
+        self.assertEqual(got, status)
+        self.assertEqual(data, expected)
+        # The caveat is what tells a reader findings are missing, and
+        # none are.
+        self.assertNotIn('caveat', data)
+
+    def test_an_unfenced_review_followed_by_prose_is_complete(self):
+        self.assert_complete(
+            'Here it is: ' + json.dumps(REVIEW, indent=2)
+            + '\n\nLet me know if you want more detail.')
+
+    def test_a_closing_fence_on_the_brace_line_is_complete(self):
+        # The line holding the closing fence is not a bare fence, so
+        # the block reads as one that never closed.
+        self.assert_complete(
+            '```json\n' + json.dumps(REVIEW, indent=2) + '```\n')
+
+    def test_a_tilde_fence_is_complete(self):
+        # Not a fence this script looks for, so the review is found by
+        # the brace fallback with the closing fence still after it.
+        self.assert_complete(
+            '~~~json\n' + json.dumps(REVIEW, indent=2) + '\n~~~\n')
+
+    def test_an_unclosed_fence_around_a_complete_object_is_complete(self):
+        self.assert_complete(
+            '```json\n' + json.dumps(REVIEW, indent=2)
+            + '\n\nThat is everything I found.\n')
+
+    def test_a_whole_review_needing_strict_false_is_repaired(self):
+        # A raw newline in a string is what a closed fence reports as
+        # repaired, so the same object followed by prose says the same.
+        text = json.dumps(REVIEW).replace('Adds a thing', 'Adds\na thing')
+        expected = dict(REVIEW, summary='Adds\na thing')
+        self.assert_complete(text + '\n\nDone.', expected, 'repaired')
+
+    def test_a_whole_review_needing_repair_is_repaired(self):
+        # A fence that never closed, around a complete object with a
+        # stray quote in it and nothing after it.
+        data, status = extract.extract('```json\n' + RepairTest.QUOTED)
+        self.assertEqual(status, 'repaired')
+        self.assertEqual(len(data['items']), 1)
+        self.assertNotIn('caveat', data)
 
     def test_a_prose_brace_does_not_hide_an_unfenced_review(self):
         # No fence at all, and a JSON snippet quoted ahead of the

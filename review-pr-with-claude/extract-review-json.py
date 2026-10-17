@@ -21,6 +21,14 @@ open brackets, and keeps what survives. A salvaged review gets a
 renders at the top of the posted comment so nobody mistakes a partial
 review for a complete one.
 
+The same walk finds a review that is not truncated at all, only
+followed by something: prose after an unfenced object, a closing
+fence written on the brace's own line, a ``~~~`` fence this script
+does not look for, or a fence that never closed around an object that
+did. Those end at a cut that closes the outermost object with nothing
+left open, so nothing was lost, and they are reported as complete
+rather than given the caveat.
+
 A response is only treated as truncated when it could actually have
 been cut off: a fence left open, or an unfenced object running to the
 end of the text. JSON that will not parse inside a fence that closed
@@ -267,8 +275,13 @@ def _cut_points(text):
 def salvage(text):
     """Recover a review from a truncated response.
 
-    Returns the parsed object, or raises ExtractionError when no prefix
-    of the text closes into something shaped like a review.
+    Returns (data, whole), or raises ExtractionError when no prefix of
+    the text closes into something shaped like a review. ``whole`` is
+    True when the cut that recovered it closed the outermost object, so
+    nothing had to be closed on its behalf: the review arrived complete
+    and what was wrong was whatever followed it. That is not
+    truncation, and labelling it so tells the reader findings are
+    missing when none are.
 
     Parsing is not enough on its own. Truncation before the first item
     closed leaves a prefix that parses -- ``summary`` and a completed
@@ -299,8 +312,6 @@ def salvage(text):
     candidates = list(_cut_points(text))[-MAX_SALVAGE_CANDIDATES:]
 
     for cut, stack in reversed(candidates):
-        # An empty stack means this cut closed the outermost object,
-        # so the only thing wrong was whatever followed it.
         closing = ''.join(CLOSERS[opener] for opener in reversed(stack))
         try:
             data = json.loads(text[:cut] + closing, strict=False)
@@ -308,7 +319,7 @@ def salvage(text):
             continue
         if (looks_like_a_review(data) and data['items']
                 and items_are_usable(data['items'])):
-            return data
+            return data, not stack
 
     raise ExtractionError('no complete JSON object could be recovered')
 
@@ -387,8 +398,28 @@ def repair(text):
     return ''.join(out)
 
 
+def _parses_strictly(text):
+    """True when text opens with a value the strict JSON parser accepts.
+
+    Whatever follows that value is ignored, which is the point: this
+    asks whether a review that arrived whole, with something after it,
+    needed strict=False's leniency to parse.
+    """
+    try:
+        json.JSONDecoder().raw_decode(text.lstrip())
+    except json.JSONDecodeError:
+        return False
+    return True
+
+
 def _salvaged(block):
-    """Return the review a truncated block salvages into, or None.
+    """Return (review, status) for a block that could have been cut off.
+
+    Returns None when nothing survives it. status is 'salvaged' when
+    brackets had to be closed to recover the review, and otherwise what
+    extract() reports for the same object in a closed fence: 'ok' if it
+    parses as it came, 'repaired' if it needed repair() or the raw
+    newlines strict=False lets through.
 
     A truncated block can be malformed too, and an unescaped quote
     throws _cut_points() out of step with the strings, so the cuts it
@@ -397,14 +428,18 @@ def _salvaged(block):
     closes a string left open at the end of the text, and the walk back
     discards that unfinished item like any other.
     """
-    try:
-        return salvage(block)
-    except ExtractionError:
-        pass
-    try:
-        return salvage(repair(block))
-    except ExtractionError:
-        return None
+    for text, repaired in ((block, False), (repair(block), True)):
+        try:
+            data, whole = salvage(text)
+        except ExtractionError:
+            continue
+        if not whole:
+            data['caveat'] = SALVAGE_CAVEAT
+            return data, 'salvaged'
+        if repaired or not _parses_strictly(text):
+            return data, 'repaired'
+        return data, 'ok'
+    return None
 
 
 def _repaired(block):
@@ -428,7 +463,10 @@ def extract(text):
     status is 'ok' for a review that parsed as it came, 'salvaged' when
     the response was truncated and the review was recovered from the
     part that arrived intact, and 'repaired' when a complete block of
-    malformed JSON parsed once its stray quotes were escaped.
+    malformed JSON parsed once its stray quotes were escaped. A whole
+    review with something after it is 'ok' or 'repaired', never
+    'salvaged': only a review that needed brackets closed is missing
+    anything.
 
     Candidates are tried in order and the first one that yields a
     review wins, so a truncated last block still beats a complete
@@ -465,14 +503,14 @@ def extract(text):
                 if data is not None:
                     return data, 'repaired'
                 continue
-            # This block was still being written when the response ran
-            # out, so it is the answer if anything survives it.
+            # This block may have been still being written when the
+            # response ran out, so it is the answer if anything survives
+            # it.
             truncated = True
-            data = _salvaged(block)
-            if data is None:
+            recovered = _salvaged(block)
+            if recovered is None:
                 continue
-            data['caveat'] = SALVAGE_CAVEAT
-            return data, 'salvaged'
+            return recovered
 
         if not looks_like_a_review(data):
             continue
