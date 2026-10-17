@@ -41,6 +41,8 @@ MINIMUM = "ansible_version.full is version('2.19.0', '>=')"
 LFS_PULL_TASK = 'Fetch the git-lfs content for instar-testdata'
 FETCH_TASK = "Fetch instar's resparsify script"
 RESPARSIFY_TASK = 'Resparsify instar-testdata images'
+REFRESH_TASK = 'Refresh the instar-testdata index after resparsifying'
+INDEX_CHECK_TASK = 'Confirm the instar-testdata index matches the working tree'
 # develop by name: instar has no main, and raw.githubusercontent.com
 # serves the default branch for a ref that does not exist.
 RESPARSIFY_URL = 'https://raw.githubusercontent.com/shakenfist/instar/develop/tools/ci/resparsify-testdata.sh'
@@ -154,6 +156,25 @@ class InstarTestdataTests(unittest.TestCase):
         self.assertLess(find_task(self.plays, SCRUB_TASKS[1]), fetch)
         self.assertLess(fetch, resparsify)
         self.assertLess(resparsify, find_task(self.plays, SCRUB_TASKS[2]))
+
+    def test_index_is_refreshed_after_the_last_rewrite(self):
+        # The resparsify gives every image a new inode and timestamps, so
+        # unless the index is refreshed after it, every runner's first git
+        # reset rewrites every image. Nothing may touch the tree between
+        # the refresh and the check that the index is clean, and the check
+        # must come before the disk is unmounted for publishing.
+        resparsify = find_task(self.plays, RESPARSIFY_TASK)
+        refresh = find_task(self.plays, REFRESH_TASK)
+        check = find_task(self.plays, INDEX_CHECK_TASK)
+        self.assertEqual(resparsify + 1, refresh)
+        self.assertEqual(refresh + 1, check)
+        self.assertLess(check, find_task(self.plays, UNMOUNT_TASK))
+        task = all_tasks(self.plays)[refresh]
+        self.assertIn('git update-index --refresh', task['shell'])
+        self.assertEqual('debian', task.get('become_user'))
+        task = all_tasks(self.plays)[check]
+        self.assertEqual('git diff-files --quiet', task['command'])
+        self.assertEqual('debian', task.get('become_user'))
 
     def test_token_is_checked_before_the_instance_is_created(self):
         self.assertLess(

@@ -547,7 +547,10 @@ own `tools/ci/resparsify-testdata.sh`, fetched from instar's `develop`
 branch on each build, so the disk is rewritten exactly as instar's jobs
 would rewrite it; `custom/` is left alone because tests assert about
 those files. A failed fetch, or a script that finds no images, fails
-the build. The tree is owned by the `debian` user, created that way by
+the build. The git index is then refreshed and checked clean: the
+resparsify gives every image a new inode and timestamps, and an index
+still holding the old ones makes each runner's first `git reset`
+rewrite all of them. The tree is owned by the `debian` user, created that way by
 running the clone as `debian` rather than by a recursive chown
 afterwards.
 
