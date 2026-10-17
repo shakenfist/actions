@@ -309,6 +309,51 @@
       command: /usr/local/bin/resparsify-testdata.sh /srv/ci/cached/instar-testdata
       become_user: debian
 
+    # The resparsify replaces every image with a new file (cp, then mv),
+    # so each one now has a different inode and timestamps from the ones
+    # the clone recorded in the index. git then treats all of them as
+    # possibly changed, and the first git reset on every runner rewrites
+    # every image, about 4.7 GiB, before the job has fetched anything.
+    # That made instar's prepare step slower with this disk than with a
+    # fresh clone. Refreshing records the stat data the images have now,
+    # and a runner's copy-on-write overlay of this disk keeps the same
+    # inodes, timestamps and owner, so the index stays clean there.
+    #
+    # That holds only while two things do, and neither can be checked
+    # from here. git compares the owner's uid and gid, so the runner's
+    # debian user must have the same ones as the builder's (the uid is
+    # also what the runner's mount check requires). And git compares
+    # ctime, so nothing on the runner may chown, chmod or otherwise touch
+    # the images' inodes before the job's reset. Break either and the
+    # rewrite comes back with no error, only a slow prepare step.
+    #
+    # The sleep keeps the index from being written in the same second
+    # as the last image, which git would treat as racily clean and check
+    # again on first use. --refresh hashes each stat-dirty file through
+    # the LFS clean filter, which needs neither the network nor the
+    # removed credential, and exits non-zero if any content differs from
+    # the index: a resparsify that changed a file's content fails here.
+    - name: Refresh the instar-testdata index after resparsifying
+      shell: |
+        set -euo pipefail
+        sleep 1
+        git update-index --refresh
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+        executable: /bin/bash
+      become_user: debian
+
+    # A runner can only skip rewriting an image if the index agrees with
+    # it, so check that nothing is left stat-dirty. Every task after this
+    # one, up to the unmount, must only read the tree: a write would make
+    # the index stale again after it has been checked.
+    - name: Confirm the instar-testdata index matches the working tree
+      command: git diff-files --quiet
+      args:
+        chdir: /srv/ci/cached/instar-testdata
+      become_user: debian
+      changed_when: false
+
     # Checks. Each one is about what publishing a bad disk would cost,
     # because the label is attached to every runner that asks for it.
     # The head is a process substitution rather than a pipe so that,
