@@ -60,7 +60,8 @@ them.
 | `deploy-proxmox-on-shakenfist` | Deploys a single-node Proxmox VE hypervisor, with a booted SPICE guest and an API token, in the runner's own namespace |
 
 **Reusable workflows** are invoked as whole jobs, and bring their own
-runner and permissions.
+runner. The caller grants the token scope: a reusable workflow's
+`permissions:` block can only narrow what the calling job gives it.
 
 | Workflow | Purpose |
 |---|---|
