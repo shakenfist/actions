@@ -96,6 +96,88 @@ of its own wiring: a job that passes `confirmed` on through
 value and is skipped quietly. One output is much easier to wire
 correctly than four, which is the improvement.
 
+## pr-review-ref
+
+Decides which commit a requested re-review checks out, and afterwards
+confirms that the checkout is that commit. It is called twice in one
+job, once on each side of `actions/checkout`. The shared
+`pr-re-review.yml` template in shakenfist/development is its caller;
+the logic is `tools/pr-review-ref.sh`, resolved through
+`github.action_path`, so it always comes from the same ref as the
+`action.yml`, and `tests/test_pr_review_ref.py` runs it.
+
+**Usage:**
+
+```yaml
+- name: Resolve the ref to review
+  id: ref
+  # Three API calls a try, six tries five seconds apart.
+  timeout-minutes: 5
+  uses: shakenfist/actions/pr-review-ref@main
+  with:
+    mode: resolve
+    pr-number: ${{ github.event.issue.number }}
+
+- uses: actions/checkout@v7
+  with:
+    ref: ${{ steps.ref.outputs.ref }}
+    fetch-depth: 0
+    persist-credentials: false
+
+- name: Confirm the checkout is the validated commit
+  id: confirm
+  # Two git commands.
+  timeout-minutes: 2
+  uses: shakenfist/actions/pr-review-ref@main
+  with:
+    mode: confirm
+    head-sha: ${{ steps.ref.outputs.head-sha }}
+    merged: ${{ steps.ref.outputs.merged }}
+```
+
+Resolve waits at most 25 seconds between its tries, and confirm makes
+no API calls, so anything past the timeouts above is a hang. Resolve
+reads the pull request
+and its merge ref with `github.token`, so the job needs
+`contents: read` and `pull-requests: read`. Confirm is not given the
+token, because it runs over the pull request's tree.
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `mode` | Yes | - | `resolve` before the checkout, `confirm` after it. Anything else fails |
+| `pr-number` | For `resolve` | `''` | The pull request to be reviewed |
+| `head-sha` | For `confirm` | `''` | The resolve step's `head-sha` output |
+| `merged` | For `confirm` | `''` | The resolve step's `merged` output |
+
+**Outputs:**
+
+| Name | Set by | Description |
+|------|--------|-------------|
+| `ref` | `resolve` | `refs/pull/<n>/merge` when the merge commit merges the current head, `refs/pull/<n>/head` otherwise |
+| `head-sha` | `resolve` | The head sha that was validated |
+| `merged` | `resolve` | `true` for the merge ref, `false` for the head fallback |
+| `reason` | `resolve` | When `merged` is `false`: `absent`, `stale` or `unreadable` |
+| `cause` | `confirm` | `moved` when the head moved between resolve and the checkout; empty otherwise |
+
+A named merge ref is right only while GitHub's copy is present and
+current, and after a push it is briefly neither: GitHub recomputes the
+merge commit asynchronously, so for a while the published ref merges
+the previous head, and a review of it is a careful review of superseded
+code. Resolve therefore checks that the merge commit's second parent is
+the pull request's head, retries six times five seconds apart, and
+otherwise falls back to the head ref, saying why in `reason` so the
+caller can tell the requester which ref was reviewed.
+
+Resolve hands the checkout a ref *name*, and a push between the two
+moves what that name reaches, on either path. Confirm compares
+`HEAD^2` on the merge path, or `HEAD` on the head path, with
+`head-sha`, and fails if they differ. Only that failure sets
+`cause=moved`, because it is the one a requester fixes by asking again;
+a non-merge commit on the merge path, or a missing `head-sha` or
+`merged`, is a defect in the calling workflow and fails without it.
+
 ## review-pr-with-claude
 
 Runs an automated code review on a pull request using Claude Code.
