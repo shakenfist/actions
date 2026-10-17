@@ -666,7 +666,11 @@ missing guard is correct), and that the prune job refuses to run on
 any ref but `main`. For `pr-bot-trigger` it runs the shipped confirm
 and branch-name scripts, and holds each of the two reports that tell a
 requester their request will not run to the step it follows, because
-losing either brings back a reaction followed by nothing.
+losing either brings back a reaction followed by nothing. It runs the
+fork and permission checks too, against a stub `gh` that answers the
+way the API does, so that a fork, a deleted fork, a `read` or `triage`
+collaborator and a failed API call are each refused, and `maintain`,
+which the API reports as `write`, is accepted.
 `.vscode/review-scope.toml` is checked too --
 every pattern in it must match a tracked file, and the two files its
 header argues are out of scope must stay out -- because a typo there
