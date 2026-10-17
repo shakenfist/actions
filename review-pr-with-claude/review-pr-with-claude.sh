@@ -55,16 +55,6 @@ if [ -n "${max_turns}" ] && [ "${max_turns}" != "auto" ] && \
     max_turns=''
 fi
 
-# CI mode is always true when running as an action
-ci_mode=true
-
-# No colors in CI
-RED=''
-GREEN=''
-YELLOW=''
-BLUE=''
-NC=''
-
 # Create output directory
 output_dir=$(mktemp -d)
 cleanup() {
@@ -72,11 +62,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# CI mode output helper
+# Report a result both to the log and, when running in Actions, as a
+# step output, which action.yml publishes so a caller can tell a review
+# that was posted from a green run that posted nothing. Newlines are
+# flattened because each line of GITHUB_OUTPUT is a separate key=value:
+# the claude_* values come from the CLI's envelope, and a stray newline
+# in one would otherwise set a second output.
 ci_output() {
     local key="$1"
-    local value="$2"
+    local value="${2//$'\n'/ }"
     echo "${key}=${value}"
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+        printf '%s=%s\n' "${key}" "${value}" >> "${GITHUB_OUTPUT}"
+    fi
 }
 
 # Write lines to the job's check summary, when running in Actions.
@@ -441,6 +439,7 @@ if [ -n "${existing_review}" ]; then
     else
         echo "Bot has already reviewed this PR"
         ci_output "review_skipped" "already_reviewed"
+        ci_output "review_posted" "false"
         exit 0
     fi
 fi

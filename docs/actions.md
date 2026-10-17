@@ -133,6 +133,22 @@ needs the input to be there. A value that is not a positive integer of
 at most four digits -- including `0`, which the CLI rejects -- is
 ignored, with a warning, in favour of scaling.
 
+**Outputs:**
+
+| Name | Description |
+|------|-------------|
+| `review-posted` | `true` when a review was posted; `false` on every green path that posted nothing, and on a red one that got as far as running the reviewer |
+| `review-skipped` | Why nothing was posted on a green path: `already_reviewed`, `diff_too_large`, `turn_budget_exhausted` or `truncated_unusable`. Empty otherwise |
+| `review-truncated` | `true` when the response was cut off, whether or not a partial review was salvaged from it |
+| `claude-turns`, `claude-duration-ms`, `claude-cost-usd` | What the reviewer run used, or `unknown` |
+| `claude-subtype` | How the run ended, as the CLI reports it (`success`, `error_max_turns`, `error_during_execution`), or `unknown` |
+
+Read `review-posted` rather than the step's outcome to know whether the
+pull request was reviewed: as the table below shows, most of the ways
+of not producing a review finish green. `pr-auto-review.yml` does not
+pass these on, so they are available only to a job that uses the
+action directly.
+
 ### When the reviewer cannot produce a review
 
 The reviewer is not a required check anywhere in the fleet, so a red
@@ -203,7 +219,8 @@ comments, so on a very long thread an older explanation can scroll out
 of view and be posted again.
 
 A green job means the reviewer reached a known endpoint. It does not
-mean the pull request was reviewed -- read the comment.
+mean the pull request was reviewed -- read the comment, or the
+`review-posted` output.
 
 ## setup-test-environment
 

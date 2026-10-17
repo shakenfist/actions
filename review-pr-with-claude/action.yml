@@ -23,10 +23,45 @@ inputs:
     required: false
     default: 'false'
 
+outputs:
+  review-posted:
+    description: >
+      'true' when a review was posted to the pull request. Every green
+      run that posted nothing sets 'false', and so does a red one that
+      got as far as running the reviewer, so a caller can tell "the
+      job passed" apart from "the pull request was reviewed".
+    value: ${{ steps.review.outputs.review_posted }}
+  review-skipped:
+    description: >
+      Why no review was posted, on the green paths that post none:
+      already_reviewed, diff_too_large, turn_budget_exhausted or
+      truncated_unusable. Empty otherwise.
+    value: ${{ steps.review.outputs.review_skipped }}
+  review-truncated:
+    description: >
+      'true' when the response was cut off: the posted review is then
+      partial, or nothing could be salvaged. Empty otherwise.
+    value: ${{ steps.review.outputs.review_truncated }}
+  claude-turns:
+    description: 'Turns the reviewer used, or "unknown"'
+    value: ${{ steps.review.outputs.claude_turns }}
+  claude-duration-ms:
+    description: 'How long the reviewer ran, in milliseconds, or "unknown"'
+    value: ${{ steps.review.outputs.claude_duration_ms }}
+  claude-cost-usd:
+    description: 'What the reviewer run cost in US dollars, or "unknown"'
+    value: ${{ steps.review.outputs.claude_cost_usd }}
+  claude-subtype:
+    description: >
+      How the reviewer run ended, as the CLI reports it: success,
+      error_max_turns or error_during_execution, or "unknown".
+    value: ${{ steps.review.outputs.claude_subtype }}
+
 runs:
   using: "composite"
   steps:
     - name: Run automated reviewer
+      id: review
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
