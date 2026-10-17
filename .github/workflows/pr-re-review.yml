@@ -148,9 +148,14 @@ jobs:
     timeout-minutes: 60
     # Two re-review requests in quick succession would otherwise run
     # concurrently on the scarce runner and post two reviews on the same
-    # pull request. The automatic lane -- the reusable pr-auto-review.yml
-    # workflow in shakenfist/actions, called from this project's CI
-    # workflow -- carries the same guard.
+    # pull request. The group is this lane's own. The automatic lane --
+    # the reusable pr-auto-review.yml workflow in shakenfist/actions,
+    # called from this project's CI workflow -- has a separate one, so
+    # the two can run at once. That is deliberate: the automatic review
+    # does not force, so it skips a pull request the bot has already
+    # reviewed, and the two overlap only when a re-review is asked for
+    # while the first review is still running. A group shared across
+    # both would let either cancel the other.
     concurrency:
       group: pr-re-review-${{ github.event.issue.number }}
       cancel-in-progress: true
