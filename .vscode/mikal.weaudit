@@ -601,15 +601,7 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ci_instar_testdata.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_cache_action_archives.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-instar-testdata.yml",
       "author": "mikal"
     },
     {
