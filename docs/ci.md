@@ -666,7 +666,18 @@ missing guard is correct), and that the prune job refuses to run on
 any ref but `main`. For `pr-bot-trigger` it runs the shipped confirm
 and branch-name scripts, and holds each of the two reports that tell a
 requester their request will not run to the step it follows, because
-losing either brings back a reaction followed by nothing.
+losing either brings back a reaction followed by nothing. It runs the
+fork and permission checks too, with the environment their own `env:`
+blocks give them, against a stub `gh` that answers the way the API
+does, so that a fork, a deleted fork, a `read` or `triage`
+collaborator and a failed API call are each refused, and `maintain`,
+which the API reports as `write`, is accepted.
+For the two review workflows it pins that every `claude-code` job is
+held to same-repository pull requests, and one started by a comment to
+a commenter `pr-bot-trigger` authorized, that only `pr-re-review.yml`
+forces a second review, that the re-review trigger ignores comments
+from bots, that no checkout there leaves the token in `.git/config`,
+and that the re-review disables git hooks straight after its checkout.
 `.vscode/review-scope.toml` is checked too --
 every pattern in it must match a tracked file, and the two files its
 header argues are out of scope must stay out -- because a typo there

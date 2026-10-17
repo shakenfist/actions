@@ -17,9 +17,11 @@ syntax.
 """
 
 import fnmatch
+import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -46,6 +48,17 @@ def workflows():
             path = os.path.join(WORKFLOW_DIR, name)
             with open(path) as f:
                 yield name, f.read()
+
+
+def job_needs(job):
+    """The jobs a job depends on, as a list whichever form `needs:` takes.
+
+    `needs: build` is as valid as `needs: [build]`, and `in` against the
+    string form is a substring test, under which a job needing
+    `trigger-re-review` would also count as needing `re-review`.
+    """
+    needs = job.get('needs') or []
+    return [needs] if isinstance(needs, str) else needs
 
 
 class DispatchTargetTest(unittest.TestCase):
@@ -426,6 +439,204 @@ class RefusedBranchNameTest(unittest.TestCase):
         self.assertNotIn('PR_REF', str(tell))
 
 
+# Answers `gh api PATH [--jq EXPR]` from FAKE_GH_RESPONSES, a JSON map of
+# path to {"status": ..., "body": ...}, the way gh does: a 200 has the jq
+# expression applied, an HTTP error writes its body to *stdout* and exits
+# 1 (measured against the real API), and a status of null is a request
+# that got no answer at all. Only the jq the shipped steps use is
+# understood -- a path, optionally `// empty` -- and anything else, or a
+# path nobody provided, exits 99, so a step that changes what it asks
+# fails its test rather than reading an answer meant for another call.
+FAKE_GH = """\
+import json, os, re, sys
+
+args = sys.argv[1:]
+with open(os.environ['FAKE_GH_RESPONSES']) as f:
+    responses = json.load(f)
+if args[:1] != ['api'] or len(args) < 2 or args[1] not in responses:
+    sys.stderr.write('fake gh: nothing to answer %r with\\n' % args)
+    sys.exit(99)
+response = responses[args[1]]
+if response['status'] is None:
+    sys.stderr.write('error connecting to api.github.com\\n')
+    sys.exit(1)
+if response['status'] != 200:
+    sys.stdout.write(json.dumps(response['body']))
+    sys.stderr.write('gh: %s (HTTP %d)\\n' % (response['body']['message'], response['status']))
+    sys.exit(1)
+value = response['body']
+if '--jq' in args:
+    expression = args[args.index('--jq') + 1]
+    match = re.fullmatch(r'((?:\\.[A-Za-z_]\\w*)+)( // empty)?', expression)
+    if not match:
+        sys.stderr.write('fake gh: cannot evaluate --jq %r\\n' % expression)
+        sys.exit(99)
+    for key in match.group(1).split('.')[1:]:
+        value = value.get(key) if isinstance(value, dict) else None
+    # Not `in (None, False)`: 0 == False, and jq's // empty keeps a 0.
+    if match.group(2) and (value is None or value is False):
+        sys.exit(0)
+print(value if isinstance(value, str) else json.dumps(value))
+"""
+
+# What the runner substitutes for the expressions in the steps run below.
+STEP_CONTEXT = {
+    'github.repository': 'shakenfist/actions',
+    'github.event.issue.number': '42',
+    'github.event.comment.user.login': 'alice',
+    'github.token': 'x',
+}
+
+
+def run_shipped_step(step, responses):
+    """Run a shipped composite step's script against FAKE_GH.
+
+    Returns the exit status and what the step wrote to GITHUB_OUTPUT.
+    The runner expands expressions before bash sees the script, so they
+    are substituted from STEP_CONTEXT here; an expression the context
+    does not hold fails the test rather than being guessed at, because
+    a comparison against `github.repository` is the thing under test.
+    The step's environment is its own `env:` block expanded the same
+    way, not one the test supplies, so a step that renames or rewires a
+    variable is run with what the runner would hand it.
+    """
+    def substitute(match):
+        name = match.group(1).strip()
+        if name not in STEP_CONTEXT:
+            raise AssertionError('the step uses ${{ %s }}, which STEP_CONTEXT does not provide' % name)
+        return STEP_CONTEXT[name]
+
+    def expand(text):
+        return re.sub(r'\$\{\{([^}]*)\}\}', substitute, str(text))
+
+    script = expand(step['run'])
+    step_env = {name: expand(value) for name, value in (step.get('env') or {}).items()}
+    with tempfile.TemporaryDirectory() as tmp:
+        gh = os.path.join(tmp, 'gh')
+        with open(gh, 'w') as f:
+            f.write('#!%s\n%s' % (sys.executable, FAKE_GH))
+        os.chmod(gh, 0o755)
+        answers = os.path.join(tmp, 'responses.json')
+        with open(answers, 'w') as f:
+            json.dump(responses, f)
+        output = os.path.join(tmp, 'gh-output')
+        open(output, 'w').close()
+        # Nothing of the job running the tests reaches the step: a
+        # step appending to GITHUB_ENV would otherwise change that job.
+        run_env = {k: v for k, v in os.environ.items() if not k.startswith('GITHUB_')}
+        run_env.update(GITHUB_OUTPUT=output, FAKE_GH_RESPONSES=answers, PATH='%s:%s' % (tmp, os.environ['PATH']))
+        run_env.update(step_env)
+        # The command line `shell: bash` runs a composite step with.
+        result = subprocess.run(
+            ['bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c', script], env=run_env, check=False,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        with open(output) as f:
+            return result.returncode, f.read()
+
+
+def pr_bot_trigger_step(step_id):
+    with open(os.path.join(REPO_ROOT, 'pr-bot-trigger', 'action.yml')) as f:
+        steps = yaml.safe_load(f)['runs']['steps']
+    return {s.get('id'): s for s in steps}[step_id]
+
+
+class OriginCheckTest(unittest.TestCase):
+    """Run pr-bot-trigger's fork check for real.
+
+    ForkGuardTest pins that the comparison exists and that `authorized`
+    folds it in; this pins that it gives the right answer. A check that
+    calls any head repository this one would defeat the fork guard for
+    every bot workflow in the fleet, and still pass a text search.
+    """
+
+    PULL = 'repos/shakenfist/actions/pulls/42'
+
+    def setUp(self):
+        self.step = pr_bot_trigger_step('check_origin')
+
+    def run_origin(self, status, body):
+        return run_shipped_step(self.step, {self.PULL: {'status': status, 'body': body}})
+
+    def test_only_a_head_in_this_repository_is_same_repo(self):
+        cases = {
+            'shakenfist/actions': 'head_repo=shakenfist/actions\nsame_repo=true\n',
+            'someone/actions': 'head_repo=someone/actions\nsame_repo=false\n',
+            # A match on part of the name is not a match.
+            'someone/shakenfist-actions': 'head_repo=someone/shakenfist-actions\nsame_repo=false\n',
+            # .head.repo is null once the fork is deleted.
+            None: 'head_repo=\nsame_repo=false\n',
+        }
+        for head_repo, want in cases.items():
+            with self.subTest(head_repo=head_repo):
+                repo = {'full_name': head_repo} if head_repo else None
+                returncode, written = self.run_origin(200, {'head': {'ref': 'main', 'repo': repo}})
+                self.assertEqual(returncode, 0)
+                self.assertEqual(written, want)
+
+    def test_an_api_failure_fails_the_step(self):
+        # Neither answer is safe to guess, so the step must stop and
+        # write nothing a later step could read as a verdict.
+        for status in (404, None):
+            with self.subTest(status=status):
+                returncode, written = self.run_origin(status, {'message': 'Not Found'})
+                self.assertNotEqual(returncode, 0)
+                self.assertEqual(written, '')
+
+
+class PermissionCheckTest(unittest.TestCase):
+    """Run pr-bot-trigger's commenter permission check for real.
+
+    The action means "write access or more" (its `authorized` output and
+    its refusal message both say so). It reads `.permission`, which
+    GitHub documents as the legacy base role: admin, write, read or none,
+    with maintain reported as write and triage as read; role_name carries
+    the real role. So maintain is authorized by way of that mapping and
+    triage is refused, which is the intent -- and a step that switched to
+    role_name would quietly start refusing maintainers, which ROLES below
+    catches. Measured on shakenfist/actions on 2026-10-17: an admin is
+    reported as admin, and a non-collaborator on a public repository as
+    read rather than none. Nobody there holds maintain or triage, so
+    their mapping is GitHub's documentation rather than a measurement.
+    """
+
+    PERMISSION = 'repos/shakenfist/actions/collaborators/alice/permission'
+
+    # The role a collaborator holds, the .permission GitHub reports for
+    # it, and whether the action should accept them.
+    ROLES = {
+        'admin': ('admin', True),
+        'maintain': ('write', True),
+        'write': ('write', True),
+        'triage': ('read', False),
+        'read': ('read', False),
+        'none': ('none', False),
+    }
+
+    def setUp(self):
+        self.step = pr_bot_trigger_step('check_permission')
+
+    def run_permission(self, status, body):
+        return run_shipped_step(self.step, {self.PERMISSION: {'status': status, 'body': body}})
+
+    def test_only_write_access_and_above_is_permitted(self):
+        for role, (permission, permitted) in self.ROLES.items():
+            with self.subTest(role=role):
+                returncode, written = self.run_permission(200, {'permission': permission, 'role_name': role})
+                self.assertEqual(returncode, 0)
+                self.assertEqual(written, 'permitted=%s\n' % ('true' if permitted else 'false'))
+
+    def test_an_api_failure_is_not_permission(self):
+        # The step deliberately carries on with "none" so the requester
+        # is told they are refused. gh writes a 404's body to stdout, so
+        # what it reads then is that body with "none" appended, which
+        # must refuse just the same.
+        for status in (404, None):
+            with self.subTest(status=status):
+                returncode, written = self.run_permission(status, {'message': 'Not Found'})
+                self.assertEqual(returncode, 0)
+                self.assertEqual(written, 'permitted=false\n')
+
+
 class ToolScriptReferenceTest(unittest.TestCase):
     """A `run:` step naming a script under tools/ must find it there.
 
@@ -665,7 +876,7 @@ class LaneConditionTest(unittest.TestCase):
         # ten others.
         found = False
         for name, job in self.ci['jobs'].items():
-            if 'check_paths' not in (job.get('needs') or []):
+            if 'check_paths' not in job_needs(job):
                 continue
             found = True
             with self.subTest(job=name):
@@ -711,7 +922,7 @@ class LaneConditionTest(unittest.TestCase):
         # and not repeating it is the point.
         gitleaks = self.ci['jobs']['gitleaks']
         self.assertNotIn(
-            'check_paths', gitleaks.get('needs') or [],
+            'check_paths', job_needs(gitleaks),
             'gitleaks must not depend on check_paths: prose is where a '
             'secret or a smuggled character lands, so the scanner has to '
             'read what the filter skips')
@@ -754,6 +965,138 @@ class LaneConditionTest(unittest.TestCase):
                 'actions/checkout', step.get('uses', ''),
                 'check_paths carries no fork guard, which is only safe '
                 'while it does not check the branch out')
+
+
+class ReviewWorkflowGuardTest(unittest.TestCase):
+    """The review lanes' guards fail silently when they rot.
+
+    Both workflows put a pull request's code on a claude-code runner and
+    run Claude Code over it with --dangerously-skip-permissions. Losing
+    any term pinned here raises no error: the lane starts reviewing fork
+    code, re-fires on its own comments, reviews a pull request twice, or
+    leaves a token in the tree the reviewer reads.
+    """
+
+    AUTO = 'pr-auto-review.yml'
+    RE_REVIEW = 'pr-re-review.yml'
+    FORK_GUARD = 'github.event.pull_request.head.repo.full_name == github.repository'
+
+    def setUp(self):
+        self.workflows = {}
+        for name in (self.AUTO, self.RE_REVIEW):
+            with open(os.path.join(WORKFLOW_DIR, name)) as f:
+                self.workflows[name] = yaml.safe_load(f)
+
+    def claude_jobs(self, name):
+        jobs = {}
+        for job_name, job in self.workflows[name]['jobs'].items():
+            labels = job.get('runs-on')
+            # A label list is the only form whose runner can be read here;
+            # an expression or a group would slip past every check below.
+            self.assertTrue(isinstance(labels, list) and all(isinstance(label, str) for label in labels),
+                            '%s in %s does not name its runner as a list of labels' % (job_name, name))
+            if 'claude-code' in labels:
+                jobs[job_name] = job
+        self.assertTrue(jobs, '%s has no claude-code job' % name)
+        return jobs
+
+    def terms(self, condition):
+        """The terms an `if:` requires, which only holds without a disjunction.
+
+        Comparing whole terms rather than searching for text is what
+        stops a negated guard, or one compared against the wrong value,
+        from passing.
+        """
+        self.assertNotIn('||', condition, 'a disjunction would let the job run without its guard')
+        return [term.strip() for term in condition.split('&&')]
+
+    def assert_bot_trigger_output(self, job, output, action_output):
+        """The job output has to be pr-bot-trigger's verdict, not a value the job made up."""
+        source = re.fullmatch(r'\$\{\{\s*steps\.([\w-]+)\.outputs\.%s\s*\}\}' % re.escape(action_output),
+                              str((job.get('outputs') or {}).get(output, '')).strip())
+        self.assertIsNotNone(source, '%s is not read from a pr-bot-trigger output' % output)
+        step = {s.get('id'): s for s in job['steps']}[source.group(1)]
+        self.assertEqual(step.get('uses'), 'shakenfist/actions/pr-bot-trigger@main')
+
+    def steps_using(self, name, action):
+        return [(job_name, step)
+                for job_name, job in self.workflows[name]['jobs'].items()
+                for step in job.get('steps', [])
+                if step.get('uses', '').split('@')[0] == action]
+
+    def test_every_claude_code_job_is_same_repository_only(self):
+        for name in (self.AUTO, self.RE_REVIEW):
+            jobs = self.workflows[name]['jobs']
+            for job_name, job in self.claude_jobs(name).items():
+                with self.subTest(workflow=name, job=job_name):
+                    terms = self.terms(job.get('if', ''))
+                    if self.FORK_GUARD in terms:
+                        continue
+                    # Otherwise the job is gated on a trigger job, which
+                    # has to vouch for the commenter as well as the origin:
+                    # either alone lets someone run a forced review.
+                    needed = [match.group(1) for match in
+                              (re.fullmatch(r"needs\.([\w-]+)\.outputs\.same_repo == 'true'", term)
+                               for term in terms) if match]
+                    self.assertEqual(
+                        len(needed), 1, '%s runs a pull request through Claude Code on a write-scoped '
+                        'runner without a same-repository condition' % job_name)
+                    trigger = needed[0]
+                    self.assertIn("needs.%s.outputs.authorized == 'true'" % trigger, terms,
+                                  '%s does not require the commenter to be authorized' % job_name)
+                    self.assertIn(trigger, job_needs(job))
+                    self.assert_bot_trigger_output(jobs[trigger], 'same_repo', 'same-repo')
+                    self.assert_bot_trigger_output(jobs[trigger], 'authorized', 'authorized')
+
+    def test_only_a_human_request_forces_a_second_review(self):
+        # review-pr-with-claude skips a pull request the bot has already
+        # reviewed unless forced. The automatic lane must not force, or
+        # every push is reviewed again; the re-review lane must, or
+        # asking for a re-review does nothing.
+        automatic = self.steps_using(self.AUTO, 'shakenfist/actions/review-pr-with-claude')
+        self.assertEqual(len(automatic), 1)
+        self.assertNotIn('force', automatic[0][1].get('with') or {})
+        requested = self.steps_using(self.RE_REVIEW, 'shakenfist/actions/review-pr-with-claude')
+        self.assertEqual(len(requested), 1)
+        self.assertIn((requested[0][1].get('with') or {}).get('force'), ('true', True))
+
+    def test_the_re_review_trigger_ignores_bot_comments(self):
+        # The automated review is model-generated text posted as the bot,
+        # and the trigger is a contains() over the whole comment body, so
+        # a review that quotes the phrase would fire another review.
+        triggers = self.steps_using(self.RE_REVIEW, 'shakenfist/actions/pr-bot-trigger')
+        self.assertEqual(len(triggers), 1)
+        terms = self.terms(self.workflows[self.RE_REVIEW]['jobs'][triggers[0][0]].get('if', ''))
+        self.assertIn("github.event.comment.user.type != 'Bot'", terms)
+
+    def test_no_claude_code_checkout_persists_credentials(self):
+        # The default writes the job's token into .git/config of the tree
+        # the reviewer then reads with its permissions skipped.
+        for name in (self.AUTO, self.RE_REVIEW):
+            claude_jobs = self.claude_jobs(name)
+            checkouts = [(job_name, step) for job_name, step in self.steps_using(name, 'actions/checkout')
+                         if job_name in claude_jobs]
+            self.assertTrue(checkouts, '%s checks nothing out on a claude-code runner' % name)
+            for job_name, step in checkouts:
+                with self.subTest(workflow=name, job=job_name):
+                    self.assertIn((step.get('with') or {}).get('persist-credentials'), (False, 'false'))
+
+    def test_hooks_are_disabled_straight_after_the_re_review_checkout(self):
+        # pr-re-review.yml claims this control, and places it immediately
+        # after the checkout so that any step added later inherits it. It
+        # is per repository rather than --global because the claude-code
+        # pool is shared between repositories.
+        found = False
+        for job_name, job in self.claude_jobs(self.RE_REVIEW).items():
+            steps = job.get('steps', [])
+            for index, step in enumerate(steps):
+                if step.get('uses', '').split('@')[0] != 'actions/checkout':
+                    continue
+                found = True
+                following = steps[index + 1] if index + 1 < len(steps) else {}
+                with self.subTest(job=job_name):
+                    self.assertEqual(following.get('run', '').strip(), 'git config core.hooksPath /dev/null')
+        self.assertTrue(found, '%s checks nothing out on a claude-code runner' % self.RE_REVIEW)
 
 
 class PruneGuardTest(unittest.TestCase):
