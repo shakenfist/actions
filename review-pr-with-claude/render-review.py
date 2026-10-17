@@ -15,9 +15,14 @@ Options:
     --validate      Validate the JSON against the schema without rendering.
 
 If output.md is not specified, writes to stdout.
+
+Everything in the review but its headings is model output shaped by
+pull request content, so @mentions in it are broken before it is
+posted -- see break_mentions().
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -30,6 +35,49 @@ except ImportError:
 
 
 SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
+
+# How the fallback validator checks each JSON Schema type. bool is a
+# subclass of int, and jsonschema does not count true as an integer, so
+# it is excluded by hand.
+JSON_TYPES = {
+    'object': lambda v: isinstance(v, dict),
+    'array': lambda v: isinstance(v, list),
+    'string': lambda v: isinstance(v, str),
+    'integer': lambda v: isinstance(v, int) and not isinstance(v, bool),
+    'number': lambda v: (isinstance(v, (int, float))
+                         and not isinstance(v, bool)),
+    'boolean': lambda v: isinstance(v, bool),
+    'null': lambda v: v is None,
+}
+
+# The keywords the fallback validator enforces. Annotations are listed
+# so that they are known to be safe to ignore; anything else in the
+# schema is a constraint the fallback would silently skip, which a test
+# checks for rather than leaving the two validators to drift apart.
+FALLBACK_KEYWORDS = ('type', 'required', 'enum', 'properties', 'items')
+ANNOTATION_KEYWORDS = ('$schema', '$id', 'title', 'description')
+
+# The bot's mention, and the form render-unparsed-review.py breaks it
+# into: a zero-width space after the @, which reads the same and links
+# nothing.
+BOT_MENTION = '@shakenfist-bot'
+BROKEN_MENTION = '@\u200bshakenfist-bot'
+
+# An @ GitHub would turn into a mention: one followed by a letter or
+# digit, and not preceded by one, which would make it an email address.
+MENTION = re.compile(r'(?<![A-Za-z0-9])@(?=[A-Za-z0-9])')
+
+# A fence opens with three or more backticks or tildes, indented by at
+# most three spaces; four would be an indented code block or, after a
+# paragraph, more of the paragraph. A backtick fence's info string
+# cannot hold a backtick.
+FENCE_OPEN = re.compile(r'^ {0,3}(`{3,}(?=[^`]*$)|~{3,})')
+
+# An inline code span: a run of backticks, not part of a longer run,
+# closed by a run of the same length, and not reaching past a blank
+# line, which would end the paragraph it sits in.
+CODE_SPAN = re.compile(r'(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n).)+?(?<!`)\1(?!`)',
+                       re.DOTALL)
 
 SEVERITY_EMOJI = {
     'critical': '🔴',
@@ -92,30 +140,56 @@ def strip_nulls(value):
     return value
 
 
+def _schema_errors(value, schema: dict, path: str):
+    """Yield an error message for each way value fails schema.
+
+    A stdlib reading of the subset of JSON Schema in FALLBACK_KEYWORDS,
+    which is every constraint review-schema.json uses, so a review
+    without jsonschema installed is held to the same schema as one with
+    it -- read from the same file rather than restated here.
+    """
+    json_type = schema.get('type')
+    if json_type is not None:
+        types = json_type if isinstance(json_type, list) else [json_type]
+        if not any(JSON_TYPES[t](value) for t in types):
+            yield f'{path}: {value!r} is not of type {json_type!r}'
+            # The other keywords assume the type, and a wrong one says
+            # all there is to say.
+            return
+
+    if 'enum' in schema and value not in schema['enum']:
+        yield f'{path}: {value!r} is not one of {schema["enum"]!r}'
+
+    if isinstance(value, dict):
+        for field in schema.get('required', []):
+            if field not in value:
+                yield f'{path}: {field!r} is a required property'
+        for field, subschema in schema.get('properties', {}).items():
+            if field in value:
+                yield from _schema_errors(
+                    value[field], subschema, f'{path}.{field}')
+
+    if isinstance(value, list) and 'items' in schema:
+        for index, entry in enumerate(value):
+            yield from _schema_errors(
+                entry, schema['items'], f'{path}[{index}]')
+
+
 def validate_review(review_data: dict) -> tuple[bool, str]:
     """Validate review data against the schema.
 
-    Returns (is_valid, error_message).
+    Returns (is_valid, error_message). Without jsonschema the schema is
+    checked by _schema_errors() instead, which enforces every keyword
+    the schema uses.
     """
-    if not HAS_JSONSCHEMA:
-        # Basic validation without jsonschema
-        if 'summary' not in review_data:
-            return False, "Missing required field: 'summary'"
-        if 'items' not in review_data:
-            return False, "Missing required field: 'items'"
-        if not isinstance(review_data['items'], list):
-            return False, "'items' must be an array"
-        for i, item in enumerate(review_data['items']):
-            for field in ['id', 'title', 'category', 'action']:
-                if field not in item:
-                    return False, f"Item {i}: missing required field '{field}'"
-            if item['action'] not in ['fix', 'document', 'consider', 'none']:
-                return False, f"Item {i}: invalid action '{item['action']}'"
-        return True, ''
-
     schema = load_schema()
     if schema is None:
         # Fails open -- see load_schema() for why that is a bypass.
+        return True, ''
+
+    if not HAS_JSONSCHEMA:
+        for error in _schema_errors(review_data, schema, 'review'):
+            return False, error
         return True, ''
 
     try:
@@ -123,6 +197,71 @@ def validate_review(review_data: dict) -> tuple[bool, str]:
         return True, ''
     except jsonschema.ValidationError as e:
         return False, str(e.message)
+
+
+def _code_segments(text: str):
+    """Yield (is_code, chunk) for text, split at fenced blocks and spans.
+
+    Joined back together the chunks are text unchanged. An unclosed
+    fence runs to the end, as GitHub renders it. Where this reading of
+    markdown is unsure it calls the text prose, so the error it can make
+    is breaking a mention inside code, never leaving one outside it.
+    """
+    prose = []
+    lines = text.splitlines(keepends=True)
+    index = 0
+    while index < len(lines):
+        opening = FENCE_OPEN.match(lines[index])
+        if not opening:
+            prose.append(lines[index])
+            index += 1
+            continue
+
+        yield from _span_segments(''.join(prose))
+        prose = []
+        marker = opening.group(1)
+        closing = re.compile(
+            r'^ {0,3}' + re.escape(marker[0]) + '{' + str(len(marker))
+            + r',}[ \t]*$')
+        end = index + 1
+        while end < len(lines) and not closing.match(lines[end].rstrip('\n')):
+            end += 1
+        yield True, ''.join(lines[index:end + 1])
+        index = end + 1
+    yield from _span_segments(''.join(prose))
+
+
+def _span_segments(text: str):
+    """Yield (is_code, chunk) for text, split at inline code spans."""
+    position = 0
+    for span in CODE_SPAN.finditer(text):
+        yield False, text[position:span.start()]
+        yield True, span.group(0)
+        position = span.end()
+    yield False, text[position:]
+
+
+def break_mentions(text: str) -> str:
+    """Break the @mentions in text with a zero-width space.
+
+    A review posted by the bot is model output shaped by the pull
+    request, and an @mention in it notifies whoever it names -- or, for
+    a bot, can be read as a command. Breaking it keeps the text legible
+    and links nobody.
+
+    The bot's own mention is broken everywhere, in any capitalisation,
+    code included, for the reason render-unparsed-review.py gives: the
+    trigger workflows match their phrase with contains() anywhere in a
+    comment body, and that does not care what markdown would make of
+    it. Other mentions are left alone inside code spans and fences,
+    which GitHub does not link and where a zero-width space would
+    survive being copied into code -- a Python decorator, say.
+    """
+    text = re.sub(re.escape(BOT_MENTION), BROKEN_MENTION, text,
+                  flags=re.IGNORECASE)
+    return ''.join(
+        chunk if is_code else MENTION.sub('@\u200b', chunk)
+        for is_code, chunk in _code_segments(text))
 
 
 def render_markdown(review_data: dict, embed_json: bool = False) -> str:
@@ -278,7 +417,10 @@ def render_markdown(review_data: dict, embed_json: bool = False) -> str:
         lines.append('')
         lines.append('</details>')
 
-    return '\n'.join(lines)
+    # Over the whole comment rather than field by field, so that what
+    # is code is judged in context: the location sits in a code span
+    # only once it is rendered, and the embedded JSON inside a fence.
+    return break_mentions('\n'.join(lines))
 
 
 def render_item(item: dict) -> list[str]:

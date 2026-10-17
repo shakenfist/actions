@@ -168,6 +168,15 @@ something invalid rather than running out of room. Only a fence left
 open, or an unfenced object running to the end of the response, is
 treated as having been cut off.
 
+Being treated as possibly cut off is not the same as being labelled
+partial. A complete review can sit in one of those shapes -- prose
+after an unfenced object, a closing fence on the brace's own line, a
+`~~~` fence, or a fence left open around an object that did close --
+and the salvage walk-back finds it whole, with nothing left to close.
+That is posted as a complete review, without the partial warning, and
+if it then fails schema validation it goes red like any other complete
+review rather than green as a truncated one.
+
 Invalid JSON in a closed fence is usually a model quoting a literal --
 a description discussing `packages = ["x"]` with the inner quotes left
 unescaped. Before giving up on it, the extractor escapes every quote
@@ -193,6 +202,14 @@ bot so a quoted trigger phrase cannot fire, and cuts it to fit GitHub's
 comment size limit, with the full text still in the step log. It is an
 ordinary comment rather than a review, so it does not satisfy the
 already-reviewed check and the next review runs as normal.
+
+A review that does parse is model output shaped by the pull request
+too, so before it is posted every @mention in it is broken with a
+zero-width space, which reads the same and notifies nobody. The bot's
+own mention is broken everywhere, in code included, in any
+capitalisation, for the trigger-phrase reason above; other mentions are
+left alone inside code spans and fences, which GitHub does not link and
+where a zero-width space would survive being copied into code.
 
 The same explanation is not posted twice: each of these comments
 carries an HTML marker naming its reason, and a handler that finds its
