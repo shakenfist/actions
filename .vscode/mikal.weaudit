@@ -161,10 +161,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_sync_docs.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-make-inventory.py",
       "author": "mikal"
     },

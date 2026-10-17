@@ -493,10 +493,6 @@
       "sha": "3bcad1457330a23921317d011b59e91f37340f19",
       "date": "2026-10-10"
     },
-    "tools/ci_sync_docs.sh": {
-      "sha": "70c3e4991523188a348ff5a0e718abf61deb3efa",
-      "date": "2026-09-10"
-    },
     "tools/clone_with_depends.py": {
       "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
       "date": "2026-09-10"
