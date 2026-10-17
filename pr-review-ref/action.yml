@@ -1,0 +1,92 @@
+name: 'PR review ref'
+description: >-
+  Decide which commit a requested re-review of a pull request checks out,
+  and afterwards confirm that the checkout is that commit. Use it twice in
+  one job: with mode "resolve" before actions/checkout, whose ref: takes
+  this action's ref output, and with mode "confirm" straight after the
+  checkout, passing the resolve step's head-sha and merged outputs. Resolve
+  prefers GitHub's merge of the pull request into its base, but only once
+  that merge commit is confirmed to merge the current head; otherwise it
+  falls back to the head itself. Confirm fails the job when what was
+  checked out is not what resolve validated. The logic is
+  tools/pr-review-ref.sh, resolved through github.action_path, so it comes
+  from the same ref as this action.yml. Resolve reads the pull request and
+  its merge ref through the API with github.token, which needs
+  contents: read and pull-requests: read; confirm makes no API calls and
+  is not given the token. Composite-action steps cannot carry timeouts, so
+  put timeout-minutes on each step that uses this action.
+
+inputs:
+  mode:
+    description: '"resolve" before the checkout, or "confirm" after it.'
+    required: true
+  pr-number:
+    description: 'resolve: the number of the pull request to be reviewed.'
+    required: false
+    default: ''
+  head-sha:
+    description: "confirm: the resolve step's head-sha output."
+    required: false
+    default: ''
+  merged:
+    description: "confirm: the resolve step's merged output."
+    required: false
+    default: ''
+
+outputs:
+  ref:
+    description: >-
+      resolve: the ref to check out, refs/pull/<n>/merge when the merge
+      commit merges the current head, and refs/pull/<n>/head otherwise.
+    value: ${{ steps.resolve.outputs.ref }}
+  head-sha:
+    description: 'resolve: the head sha that was validated, for confirm.'
+    value: ${{ steps.resolve.outputs.head_sha }}
+  merged:
+    description: >-
+      resolve: "true" when ref is the merge ref, and "false" when it is the
+      head fallback.
+    value: ${{ steps.resolve.outputs.merged }}
+  reason:
+    description: >-
+      resolve, when merged is "false": why the merge ref was not used.
+      "absent" when GitHub published none, "stale" when it still merged an
+      earlier head after every retry, and "unreadable" when its merge
+      commit could not be read.
+    value: ${{ steps.resolve.outputs.reason }}
+  cause:
+    description: >-
+      confirm: "moved" when the checkout failed confirmation because the
+      head moved between resolve and the checkout, the one failure a
+      requester can fix by asking again. Empty on success and on every
+      other failure, which is a defect in the calling workflow.
+    value: ${{ steps.confirm.outputs.cause }}
+
+runs:
+  using: "composite"
+  steps:
+    # Inputs reach the script through env:, never interpolated into a
+    # command line: an input carrying a quote or a shell metacharacter
+    # would otherwise run as shell here.
+    - name: Resolve the ref to review
+      id: resolve
+      if: inputs.mode == 'resolve'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: '"${GITHUB_ACTION_PATH}/../tools/pr-review-ref.sh" resolve'
+
+    # Every mode but resolve comes here, so a mistyped one fails in the
+    # script rather than skipping both steps and confirming nothing. It
+    # runs over the pull request's tree, so it gets no token.
+    - name: Confirm the checkout is the validated commit
+      id: confirm
+      if: inputs.mode != 'resolve'
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        MERGED: ${{ inputs.merged }}
+      run: '"${GITHUB_ACTION_PATH}/../tools/pr-review-ref.sh" "${MODE}"'
