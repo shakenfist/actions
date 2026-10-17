@@ -363,16 +363,13 @@ if [ "${diff_fetch_ok}" = "false" ]; then
             "$(cat << 'COMMENT_EOF'
 The PR diff exceeds GitHub's 20,000-line cap on
 ``GET /repos/{owner}/{repo}/pulls/{number}`` and the reviewer
-could not fetch it for analysis.
+could not fetch it for analysis. The reviewer has no other way
+to get the diff, so asking for another review will end here too.
 
-Options for getting an automated review:
+Options:
 
 * **Split the PR.** Smaller PRs review faster and are easier
   for humans to read too.
-* **Run the reviewer manually.** A maintainer can invoke
-  ``shakenfist/actions/review-pr-with-claude`` against the
-  branch with a locally-generated diff (``git diff
-  develop...HEAD``) and post the result.
 * **Skip automated review.** Land relying on the merge-queue
   CI and human review.
 COMMENT_EOF
