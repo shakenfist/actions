@@ -9,10 +9,6 @@
       "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
       "date": "2026-09-27"
     },
-    ".github/workflows/ci.yml": {
-      "sha": "88d12c3f55d0f4e5d35355950ae8f851a683d4dc",
-      "date": "2026-10-10"
-    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "22c9962827b30e9fd4c606a7e3365bb81412761a",
       "date": "2026-10-03"
@@ -56,10 +52,6 @@
     "AGENTS.md": {
       "sha": "d020328defd5ac671cd46207abd93527dfbd082f",
       "date": "2026-10-14"
-    },
-    "PUSH-AUDIT.md": {
-      "sha": "f749600bfd0e76413cfdc248c13b608ad9a4a49e",
-      "date": "2026-10-10"
     },
     "README.md": {
       "sha": "b2eefb54883f0989e1a5f3d45261ed3ea85a4bd8",
@@ -229,17 +221,9 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
-    "docs/actions.md": {
-      "sha": "ff872cc6baa5a11a542170fbb81acf1aa189e3ed",
-      "date": "2026-10-16"
-    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
-    },
-    "docs/consuming.md": {
-      "sha": "9cadc769c96d5ed4e7909c71825691cce30d7007",
-      "date": "2026-10-14"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
@@ -253,37 +237,13 @@
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
     },
-    "pr-bot-trigger/action.yml": {
-      "sha": "3d9e93ee5e11d171ea5119405a0b265e978a3a9b",
-      "date": "2026-10-16"
-    },
     "renovate.json": {
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
-      "date": "2026-09-07"
-    },
-    "review-pr-with-claude/action.yml": {
-      "sha": "80c734cd819db949388f2976fcadaef7003f1cdc",
-      "date": "2026-09-07"
-    },
-    "review-pr-with-claude/create-review-issues.py": {
-      "sha": "d361f1309338099b9280abb7a395228251120978",
       "date": "2026-09-07"
     },
     "review-pr-with-claude/extract-review-json.py": {
       "sha": "2fcc9819219c7623abf13c842ca2d3db1323f283",
       "date": "2026-09-25"
-    },
-    "review-pr-with-claude/render-review.py": {
-      "sha": "fdc6746c850520c6753fff7ecbb8ed8200ec009b",
-      "date": "2026-09-07"
-    },
-    "review-pr-with-claude/render-unparsed-review.py": {
-      "sha": "534dde87ee8d0f0d8461b2ec06cd1625e3043bb3",
-      "date": "2026-09-25"
-    },
-    "review-pr-with-claude/review-schema.json": {
-      "sha": "55fd23eec6e2678d4010d5044463796e387efb80",
-      "date": "2026-09-07"
     },
     "setup-kerbside-environment/action.yml": {
       "sha": "8cb3b36dccfb1924ec15b5635bbce759e924acd6",
@@ -353,10 +313,6 @@
       "sha": "a8ac5d22512f67f9c4602cfa5d42b224d777f17d",
       "date": "2026-10-10"
     },
-    "tests/test_create_review_issues.py": {
-      "sha": "f09bf2f1fdb6d67e00b6b988904d1987d443222e",
-      "date": "2026-09-07"
-    },
     "tests/test_documentation_links.py": {
       "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
       "date": "2026-09-07"
@@ -380,10 +336,6 @@
     "tests/test_proxmox_shell_validation.py": {
       "sha": "f6635a8138ed046ef6f7d72aa90d915dbe8086b4",
       "date": "2026-09-25"
-    },
-    "tests/test_render_review.py": {
-      "sha": "b0463699eba93deed6751d8a26a40764b7e8c1e4",
-      "date": "2026-09-07"
     },
     "tests/test_render_unparsed_review.py": {
       "sha": "fdc7bb260f7b53af5b35b953694ef726a0b59740",

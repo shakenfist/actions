@@ -21,15 +21,7 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_create_review_issues.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_documentation_links.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_render_review.py",
       "author": "mikal"
     },
     {
@@ -70,22 +62,6 @@
     },
     {
       "path": "deploy-kerbside-on-shakenfist",
-      "author": "mikal"
-    },
-    {
-      "path": "review-pr-with-claude/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "review-pr-with-claude/create-review-issues.py",
-      "author": "mikal"
-    },
-    {
-      "path": "review-pr-with-claude/render-review.py",
-      "author": "mikal"
-    },
-    {
-      "path": "review-pr-with-claude/review-schema.json",
       "author": "mikal"
     },
     {
@@ -333,10 +309,6 @@
       "author": "mikal"
     },
     {
-      "path": "review-pr-with-claude/render-unparsed-review.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_render_unparsed_review.py",
       "author": "mikal"
     },
@@ -453,10 +425,6 @@
       "author": "mikal"
     },
     {
-      "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
       "author": "mikal"
     },
@@ -505,10 +473,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/ci.yml",
-      "author": "mikal"
-    },
-    {
       "path": "build-smoke-cluster/action.yml",
       "author": "mikal"
     },
@@ -549,19 +513,11 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
       "path": "README.md",
       "author": "mikal"
     },
     {
       "path": ".github/workflows/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/actions.md",
       "author": "mikal"
     },
     {
@@ -582,14 +538,6 @@
     },
     {
       "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "pr-bot-trigger/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "pr-bot-trigger",
       "author": "mikal"
     },
     {
