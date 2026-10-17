@@ -34,11 +34,13 @@ GitHub limitation, not an oversight, and it is written up in
 [docs/ci.md](docs/ci.md).
 
 That still holds for every action whose files come from the caller's
-checkout. The exception is an action that resolves its own files through
-`github.action_path` -- today only `deploy-proxmox-on-shakenfist` --
-which a relative `uses:` here exercises at the pull request's version;
-see "Path-filtered lane -- `proxmox-substrate.yml`" in
-[docs/ci.md](docs/ci.md).
+checkout. An action that resolves its own files through
+`github.action_path` can be exercised at the pull request's version by
+a relative `uses:` here, but only where a workflow does so:
+`deploy-proxmox-on-shakenfist` is (see "Path-filtered lane --
+`proxmox-substrate.yml`" in [docs/ci.md](docs/ci.md)), while
+`review-pr-with-claude` and `pr-review-ref` are not, and the latter's
+pre-merge coverage is `tests/test_pr_review_ref.py` alone.
 
 What you can do:
 

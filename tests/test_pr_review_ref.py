@@ -217,7 +217,24 @@ class ResolveTest(unittest.TestCase):
         run = self.resolve({PULL: [pull()], MERGE_REF: [merge_ref(MERGE)],
                             commit(MERGE): [ok({'parents': [{'sha': HEAD}]})]})
         self.assertEqual(run.returncode, 0, run.stdout)
-        self.assertEqual(run.written()['merged'], 'false')
+        # Not stale, which would tell the requester it merges an earlier
+        # head.
+        self.assertEqual(run.written(), {'head_sha': HEAD, 'ref': 'refs/pull/42/head', 'merged': 'false',
+                                         'reason': 'unreadable'})
+        self.assertIn('which is not a merge', run.stdout)
+
+    def test_a_merge_ref_naming_no_commit_is_not_read(self):
+        # --jq prints "null" for an absent .object.sha and exits 0. No
+        # commit is asked for, so none appears in the log as missing.
+        cases = {'no object': {}, 'no sha': {'object': {}}, 'short sha': {'object': {'sha': MERGE[:7]}}}
+        for name, body in cases.items():
+            with self.subTest(case=name):
+                run = self.resolve({PULL: [pull()], MERGE_REF: [ok(body)]})
+                self.assertEqual(run.returncode, 0, run.stdout)
+                self.assertEqual(run.written(), {'head_sha': HEAD, 'ref': 'refs/pull/42/head', 'merged': 'false',
+                                                 'reason': 'unreadable'})
+                self.assertFalse([call for call in run.gh_calls if '/commits/' in call], run.gh_calls)
+                self.assertIn('not a commit', run.stdout)
 
     def test_an_unreadable_pull_request_fails_rather_than_guessing(self):
         run = self.resolve({PULL: [NOT_FOUND]})
@@ -225,7 +242,9 @@ class ResolveTest(unittest.TestCase):
         self.assertEqual(run.outputs, '')
 
     def test_a_head_that_is_not_a_sha_fails(self):
-        for head_sha in ('HEAD', 'A' * 40, '%s; rm -rf /' % HEAD):
+        # A short sha is hex but can never equal a merge commit's
+        # parent, so it would end as a race that never happened.
+        for head_sha in ('HEAD', 'A' * 40, '%s; rm -rf /' % HEAD, HEAD[:7], HEAD + 'a'):
             with self.subTest(head_sha=head_sha):
                 run = self.resolve({PULL: [pull(head_sha=head_sha)]})
                 self.assertNotEqual(run.returncode, 0)
@@ -324,6 +343,7 @@ class ConfirmTest(unittest.TestCase):
             'merged neither true nor false': (self.merge, self.head, ''),
             'merged in the wrong case': (self.merge, self.head, 'TRUE'),
             'no validated head': (self.head, '', 'false'),
+            'a validated head that is not a full sha': (self.head, self.head[:7], 'false'),
         }
         for name, (checked_out, head_sha, merged) in cases.items():
             with self.subTest(case=name):

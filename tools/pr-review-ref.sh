@@ -59,6 +59,19 @@ output() {
     echo "$1" >> "${GITHUB_OUTPUT}"
 }
 
+# A full 40-character sha, which is all GitHub serves. Lowercase hex
+# alone is not enough: a truncated value never equals the full sha it is
+# compared against, so it would surface later as a race that never
+# happened rather than as the defect it is.
+is_sha() {
+    case "$1" in
+        *[!0-9a-f]*)
+            return 1
+            ;;
+    esac
+    [ "${#1}" -eq 40 ]
+}
+
 resolve() {
     # The pull request number and repository go into API paths.
     case "${PR_NUMBER:-}" in
@@ -89,14 +102,12 @@ resolve() {
     # literal "null", which would compare equal to the "null" a
     # single-parent commit yields for .parents[1].sha -- two absent
     # values agreeing is not a match.
-    case "${head_sha}" in
-        '' | *[!0-9a-f]*)
-            echo "The pull request reports its head as '${head_sha}',"
-            echo "which is not a sha. Failing rather than comparing"
-            echo "it against a merge commit's parent."
-            exit 1
-            ;;
-    esac
+    if ! is_sha "${head_sha}"; then
+        echo "The pull request reports its head as '${head_sha}',"
+        echo "which is not a sha. Failing rather than comparing"
+        echo "it against a merge commit's parent."
+        exit 1
+    fi
     echo "Pull request head is ${head_sha}"
     output "head_sha=${head_sha}"
 
@@ -116,10 +127,21 @@ resolve() {
                 --jq '.object.sha' 2>/dev/null); then
             reason=absent
             echo "Attempt ${attempt}: no merge ref published"
+        elif ! is_sha "${merge_sha}"; then
+            # --jq prints "null" for an absent field and exits 0, and
+            # reading commits/null would log a 404 for a commit nobody
+            # named.
+            reason=unreadable
+            echo "Attempt ${attempt}: merge ref names '${merge_sha}', not a commit"
         elif ! parent=$(gh api "repos/${REPO}/commits/${merge_sha}" \
                 --jq '.parents[1].sha' 2>/dev/null); then
             reason=unreadable
             echo "Attempt ${attempt}: cannot read merge commit ${merge_sha}"
+        elif ! is_sha "${parent}"; then
+            # Not stale: a stale merge commit merges an earlier head,
+            # and this one merges nothing.
+            reason=unreadable
+            echo "Attempt ${attempt}: merge ref names ${merge_sha}, which is not a merge"
         elif [ "${parent}" = "${head_sha}" ]; then
             merged=true
             break
@@ -171,11 +193,13 @@ confirm() {
             exit 1
             ;;
     esac
-    # An empty HEAD_SHA is a defect in the caller, not a race, so it
-    # must not reach the comparison below and be reported as one.
-    if [ -z "${HEAD_SHA:-}" ]; then
-        echo "No validated head sha was given, so there is nothing to"
-        echo "confirm the checkout against."
+    # A HEAD_SHA which is not a sha -- empty from a misspelt output,
+    # say -- is a defect in the caller, not a race, so it must not reach
+    # the comparison below and be reported as one.
+    if ! is_sha "${HEAD_SHA:-}"; then
+        echo "The validated head sha given is '${HEAD_SHA:-}', which is"
+        echo "not a sha, so there is nothing to confirm the checkout"
+        echo "against."
         exit 1
     fi
     if [ "${reviewed}" != "${HEAD_SHA}" ]; then

@@ -690,11 +690,12 @@ For the two review workflows it pins that every `claude-code` job is
 held to same-repository pull requests, and one started by a comment to
 a commenter `pr-bot-trigger` authorized, that only `pr-re-review.yml`
 forces a second review, that the re-review trigger ignores comments
-from bots and from the `shakenfist-bot` account, that no checkout there leaves the token in `.git/config`,
-that the re-review disables git hooks straight after its checkout, and
-that it calls `pr-review-ref` to resolve before the checkout and to
-confirm, unconditionally and with what resolve validated, straight
-after the hooks step.
+from bots and from the `shakenfist-bot` account, that no checkout
+there leaves the token in `.git/config`, that the re-review disables
+git hooks straight after its checkout, and that it calls
+`pr-review-ref` to resolve before the checkout and to confirm,
+unconditionally and with what resolve validated, straight after the
+hooks step.
 `.vscode/review-scope.toml` is checked too --
 every pattern in it must match a tracked file, and the two files its
 header argues are out of scope must stay out -- because a typo there

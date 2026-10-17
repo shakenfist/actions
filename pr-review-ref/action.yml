@@ -14,7 +14,7 @@ description: >-
   its merge ref through the API with github.token, which needs
   contents: read and pull-requests: read; confirm makes no API calls and
   is not given the token. Composite-action steps cannot carry timeouts, so
-  put timeout-minutes on the job.
+  put timeout-minutes on each step that uses this action.
 
 inputs:
   mode:

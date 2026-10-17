@@ -137,10 +137,9 @@ the logic is `tools/pr-review-ref.sh`, resolved through
 
 Resolve waits at most 25 seconds between its tries, and confirm makes
 no API calls, so anything past the timeouts above is a hang. Resolve
-reads the pull request
-and its merge ref with `github.token`, so the job needs
-`contents: read` and `pull-requests: read`. Confirm is not given the
-token, because it runs over the pull request's tree.
+reads the pull request and its merge ref with `github.token`, so the
+job needs `contents: read` and `pull-requests: read`. Confirm is not
+given the token, because it runs over the pull request's tree.
 
 **Inputs:**
 
