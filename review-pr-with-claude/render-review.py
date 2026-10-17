@@ -31,6 +31,28 @@ except ImportError:
 
 SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
 
+# How the fallback validator checks each JSON Schema type. bool is a
+# subclass of int, and jsonschema does not count true as an integer, so
+# it is excluded by hand.
+JSON_TYPES = {
+    'object': lambda v: isinstance(v, dict),
+    'array': lambda v: isinstance(v, list),
+    'string': lambda v: isinstance(v, str),
+    'integer': lambda v: isinstance(v, int) and not isinstance(v, bool),
+    'number': lambda v: (isinstance(v, (int, float))
+                         and not isinstance(v, bool)),
+    'boolean': lambda v: isinstance(v, bool),
+    'null': lambda v: v is None,
+}
+
+# The keywords the fallback validator enforces. Annotations are listed
+# so that they are known to be safe to ignore; anything else in the
+# schema is a constraint the fallback would silently skip, which a test
+# checks for rather than leaving the two validators to drift apart.
+FALLBACK_KEYWORDS = ('type', 'required', 'enum', 'properties',
+                     'additionalProperties', 'items')
+ANNOTATION_KEYWORDS = ('$schema', '$id', 'title', 'description')
+
 SEVERITY_EMOJI = {
     'critical': '🔴',
     'high': '🟠',
@@ -90,30 +112,63 @@ def strip_nulls(value):
     return value
 
 
+def _schema_errors(value, schema: dict, path: str):
+    """Yield an error message for each way value fails schema.
+
+    A stdlib reading of the subset of JSON Schema in FALLBACK_KEYWORDS,
+    which is every constraint review-schema.json uses, so a review
+    without jsonschema installed is held to the same schema as one with
+    it -- read from the same file rather than restated here.
+    """
+    json_type = schema.get('type')
+    if json_type is not None:
+        types = json_type if isinstance(json_type, list) else [json_type]
+        if not any(JSON_TYPES[t](value) for t in types):
+            yield f'{path}: {value!r} is not of type {json_type!r}'
+            # The other keywords assume the type, and a wrong one says
+            # all there is to say.
+            return
+
+    if 'enum' in schema and value not in schema['enum']:
+        yield f'{path}: {value!r} is not one of {schema["enum"]!r}'
+
+    if isinstance(value, dict):
+        for field in schema.get('required', []):
+            if field not in value:
+                yield f'{path}: {field!r} is a required property'
+        for field, subschema in schema.get('properties', {}).items():
+            if field in value:
+                yield from _schema_errors(
+                    value[field], subschema, f'{path}.{field}')
+        # Only false is handled: a schema for the extra properties is
+        # not something review-schema.json uses.
+        if schema.get('additionalProperties') is False:
+            for field in value:
+                if field not in schema.get('properties', {}):
+                    yield (f'{path}: additional property {field!r} '
+                           'is not allowed')
+
+    if isinstance(value, list) and 'items' in schema:
+        for index, entry in enumerate(value):
+            yield from _schema_errors(
+                entry, schema['items'], f'{path}[{index}]')
+
+
 def validate_review(review_data: dict) -> tuple[bool, str]:
     """Validate review data against the schema.
 
-    Returns (is_valid, error_message).
+    Returns (is_valid, error_message). Without jsonschema the schema is
+    checked by _schema_errors() instead, which enforces every keyword
+    the schema uses.
     """
-    if not HAS_JSONSCHEMA:
-        # Basic validation without jsonschema
-        if 'summary' not in review_data:
-            return False, "Missing required field: 'summary'"
-        if 'items' not in review_data:
-            return False, "Missing required field: 'items'"
-        if not isinstance(review_data['items'], list):
-            return False, "'items' must be an array"
-        for i, item in enumerate(review_data['items']):
-            for field in ['id', 'title', 'category', 'action']:
-                if field not in item:
-                    return False, f"Item {i}: missing required field '{field}'"
-            if item['action'] not in ['fix', 'document', 'consider', 'none']:
-                return False, f"Item {i}: invalid action '{item['action']}'"
-        return True, ''
-
     schema = load_schema()
     if schema is None:
         # Fails open -- see load_schema() for why that is a bypass.
+        return True, ''
+
+    if not HAS_JSONSCHEMA:
+        for error in _schema_errors(review_data, schema, 'review'):
+            return False, error
         return True, ''
 
     try:

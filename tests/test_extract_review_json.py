@@ -664,7 +664,9 @@ class ItemAcceptanceMatchesTheSchemaTest(unittest.TestCase):
     survive render-review.py's validation. If this script's idea of
     that drifts from review-schema.json, the walk stops either too
     early -- losing findings that would have posted -- or too late,
-    which discards the whole salvaged review.
+    which discards the whole salvaged review. So the rules are read
+    from the schema rather than copied from it, and what is pinned here
+    is that reading.
     """
 
     def schema(self):
@@ -674,31 +676,58 @@ class ItemAcceptanceMatchesTheSchemaTest(unittest.TestCase):
         with open(path) as f:
             return json.load(f)
 
-    def test_the_required_fields_match(self):
-        item_schema = self.schema()['properties']['items']['items']
-        self.assertEqual(
-            sorted(extract.ITEM_REQUIRED_FIELDS),
-            sorted(item_schema['required']))
+    def test_the_rules_are_read_from_the_shipped_schema(self):
+        self.assertEqual(extract.ITEM_RULES, extract.item_rules(self.schema()))
+        self.assertEqual(list(extract.REVIEW_REQUIRED_FIELDS),
+                         self.schema()['required'])
 
-    def test_the_required_field_types_match(self):
-        json_types = {int: 'integer', str: 'string'}
-        item_schema = self.schema()['properties']['items']['items']
-        for field, field_type in extract.ITEM_REQUIRED_FIELDS.items():
+    def test_the_rules_follow_whatever_the_schema_says(self):
+        schema = {'properties': {'items': {'items': {
+            'required': ['name', 'kind', 'free'],
+            'properties': {
+                'name': {'type': 'string'},
+                'kind': {'type': 'string', 'enum': ['a', 'b']},
+                'other': {'type': 'integer'},
+            },
+        }}}}
+        self.assertEqual(extract.item_rules(schema), {
+            'name': ('string', None),
+            'kind': ('string', ['a', 'b']),
+            'free': (None, None),
+        })
+
+    def test_items_are_judged_by_the_rules_not_a_copy(self):
+        # Widen the schema's category enum, and an item using the new
+        # value has to become usable without anything else changing.
+        schema = self.schema()
+        item_schema = schema['properties']['items']['items']
+        item_schema['properties']['category']['enum'].append('architecture')
+        candidate = dict(item(1), category='architecture')
+        self.assertFalse(extract.items_are_usable([candidate]))
+        with unittest.mock.patch.object(
+                extract, 'ITEM_RULES', extract.item_rules(schema)):
+            self.assertTrue(extract.items_are_usable([candidate]))
+
+    def test_usable_items_are_exactly_the_ones_that_validate(self):
+        # Every way an item can differ in what it requires, judged by
+        # both this script and the validator downstream. Optional
+        # fields are left alone: items_are_usable() lets a bad one
+        # through on purpose.
+        render = load_script(
+            'review-pr-with-claude/render-review.py', 'render_review')
+        candidates = [item(1), 'not an object', dict(item(1), id='one'),
+                      dict(item(1), id=True), dict(item(1), id=1.5),
+                      dict(item(1), title=7), dict(item(1), action='escalate'),
+                      dict(item(1), category='architecture')]
+        for field in item(1):
+            candidates.append(
+                {k: v for k, v in item(1).items() if k != field})
+        for candidate in candidates:
+            valid, error = render.validate_review(
+                {'summary': 's', 'items': [candidate]})
             self.assertEqual(
-                item_schema['properties'][field]['type'],
-                json_types[field_type], field)
-
-    def test_the_action_enum_matches(self):
-        item_schema = self.schema()['properties']['items']['items']
-        self.assertEqual(
-            sorted(extract.ITEM_ACTIONS),
-            sorted(item_schema['properties']['action']['enum']))
-
-    def test_the_category_enum_matches(self):
-        item_schema = self.schema()['properties']['items']['items']
-        self.assertEqual(
-            sorted(extract.ITEM_CATEGORIES),
-            sorted(item_schema['properties']['category']['enum']))
+                extract.items_are_usable([candidate]), valid,
+                f'{candidate!r}: {error}')
 
 
 if __name__ == '__main__':

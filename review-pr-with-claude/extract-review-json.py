@@ -84,22 +84,53 @@ SALVAGE_CAVEAT = (
 
 CLOSERS = {'{': '}', '[': ']'}
 
-# What every recovered item needs before the review is worth keeping.
-# These mirror review-schema.json, which render-review.py validates
-# against: a salvaged review that fails that validation is discarded
-# whole, so the walk-back has to stop somewhere the validator will
-# accept rather than merely somewhere the JSON parser will. Drift
-# between the two is pinned by a test rather than by a shared import,
+# The schema render-review.py validates against. A salvaged review that
+# fails that validation is discarded whole, so the walk-back has to stop
+# somewhere the validator will accept rather than merely somewhere the
+# JSON parser will -- which is why what an item needs is read from the
+# schema itself rather than copied from it. It is read with the stdlib,
 # because this script deliberately runs without jsonschema.
-ITEM_REQUIRED_FIELDS = {
-    'id': int,
-    'title': str,
-    'category': str,
-    'action': str,
+SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
+
+# How each JSON Schema type is checked. bool is a subclass of int, and
+# the schema's integer does not admit true, so it is excluded by hand.
+JSON_TYPES = {
+    'object': lambda v: isinstance(v, dict),
+    'array': lambda v: isinstance(v, list),
+    'string': lambda v: isinstance(v, str),
+    'integer': lambda v: isinstance(v, int) and not isinstance(v, bool),
+    'number': lambda v: (isinstance(v, (int, float))
+                         and not isinstance(v, bool)),
+    'boolean': lambda v: isinstance(v, bool),
+    'null': lambda v: v is None,
 }
-ITEM_ACTIONS = ('fix', 'document', 'consider', 'none')
-ITEM_CATEGORIES = ('security', 'bug', 'performance', 'documentation',
-                   'style', 'testing', 'other')
+
+
+def item_rules(schema):
+    """Return {field: (type, enum)} for the fields every item requires.
+
+    Read from the schema's items entry: its required list, and the
+    declared type and enum of each field in it, either of which is None
+    when the schema does not constrain it. Only the required fields are
+    taken, for the reason given in items_are_usable().
+    """
+    item_schema = schema['properties']['items']['items']
+    properties = item_schema.get('properties', {})
+    return {
+        field: (properties.get(field, {}).get('type'),
+                properties.get(field, {}).get('enum'))
+        for field in item_schema.get('required', [])
+    }
+
+
+def _load_schema():
+    with open(SCHEMA_PATH) as f:
+        return json.load(f)
+
+
+SCHEMA = _load_schema()
+REVIEW_REQUIRED_FIELDS = tuple(SCHEMA.get('required', []))
+ITEM_RULES = item_rules(SCHEMA)
 
 
 # What may follow a JSON value, which is how a quote that ends a string
@@ -162,35 +193,46 @@ def _fenced_blocks(text):
 def looks_like_a_review(data):
     """True when a parsed object could be a review.
 
-    The schema requires a summary and an items array, so an object
-    without both cannot become a posted review no matter what else is
-    recovered alongside it.
+    An object missing a field the schema requires at the top level --
+    a summary, or the items array, which has to be a list for the
+    walk-back to look inside it -- cannot become a posted review no
+    matter what else is recovered alongside it.
     """
-    return (isinstance(data, dict) and 'summary' in data
+    return (isinstance(data, dict)
+            and all(field in data for field in REVIEW_REQUIRED_FIELDS)
             and isinstance(data.get('items'), list))
+
+
+def _matches(value, json_type):
+    """True when value is of json_type, a type name or a list of them."""
+    if json_type is None:
+        return True
+    if isinstance(json_type, list):
+        return any(_matches(value, t) for t in json_type)
+    return JSON_TYPES[json_type](value)
 
 
 def items_are_usable(items):
     """True when every recovered item will survive schema validation.
 
-    What is checked is the required fields -- present, and of the type
-    the schema declares -- and the two enums. An optional field of the
-    wrong type still gets through and still fails validation
-    downstream, which is deliberate: that is the model writing nonsense
-    rather than a response stopping early, and walking back over it
-    would drop good findings to hide a reviewer bug that should be
-    seen.
+    What is checked is the required fields, as the schema declares
+    them in ITEM_RULES -- present, of the declared type, and within the
+    enum where there is one. An optional field of the wrong type still
+    gets through and still fails validation downstream, which is
+    deliberate: that is the model writing nonsense rather than a
+    response stopping early, and walking back over it would drop good
+    findings to hide a reviewer bug that should be seen.
     """
     for entry in items:
         if not isinstance(entry, dict):
             return False
-        for field, field_type in ITEM_REQUIRED_FIELDS.items():
-            if not isinstance(entry.get(field), field_type):
+        for field, (json_type, enum) in ITEM_RULES.items():
+            if field not in entry:
                 return False
-        if entry['action'] not in ITEM_ACTIONS:
-            return False
-        if entry['category'] not in ITEM_CATEGORIES:
-            return False
+            if not _matches(entry[field], json_type):
+                return False
+            if enum is not None and entry[field] not in enum:
+                return False
     return True
 
 
