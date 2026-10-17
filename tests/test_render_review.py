@@ -19,6 +19,10 @@ import tempfile
 import unittest
 import unittest.mock
 
+# Imported here, unused, so that a missing jsonschema fails the suite
+# rather than leaving ValidateReviewTest to exercise the fallback twice.
+import jsonschema  # noqa: F401
+
 from tests.helpers import load_script
 
 
@@ -160,6 +164,9 @@ class ValidateReviewCases:
 
 class ValidateReviewTest(ValidateReviewCases, unittest.TestCase):
     module = render
+
+    def test_this_is_the_jsonschema_branch(self):
+        self.assertTrue(self.module.HAS_JSONSCHEMA)
 
     def test_the_schema_sits_beside_the_script(self):
         # load_schema() returns None when review-schema.json is not next

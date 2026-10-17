@@ -554,14 +554,20 @@ pre-commit install          # optional, to run on every commit
 pre-commit run --all-files
 ```
 
-The unit tests run standalone too, and need PyYAML and Jinja2:
+The unit tests run standalone too, and need PyYAML, Jinja2 and
+jsonschema:
 
 ```bash
-sudo apt-get install -y python3-yaml python3-jinja2
+sudo apt-get install -y python3-yaml python3-jinja2 python3-jsonschema
 python3 -m unittest discover -s tests -t . --verbose
 ```
 
-PyYAML and Jinja2 are the suite's only dependencies. Jinja2 is there
+These three are the suite's only dependencies. jsonschema is there
+because `render-review.py` validates a review with it when it is
+installed and with its own walk of the schema when it is not, and the
+tests run both branches: the fallback with the import blocked, the
+other by importing jsonschema outright, so a missing package fails the
+suite instead of quietly testing the fallback twice. Jinja2 is there
 for `tools/ci-apply-deploy-profile.py`, which renders deploy profiles on
 the runner with the system `python3`; the runner images carry both as
 dependencies of the apt `ansible` package. Both are hard requirements
