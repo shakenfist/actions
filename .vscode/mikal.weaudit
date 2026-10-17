@@ -569,10 +569,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_workflow_references.py",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci-prune-reviews.sh",
       "author": "mikal"
     },

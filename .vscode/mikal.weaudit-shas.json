@@ -413,10 +413,6 @@
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
     },
-    "tests/test_workflow_references.py": {
-      "sha": "417ef99b958e9128afe480b94713676655b395e1",
-      "date": "2026-10-16"
-    },
     "tools/ansible-syntax-check.sh": {
       "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
       "date": "2026-09-16"
