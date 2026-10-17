@@ -26,6 +26,8 @@ Handles `@shakenfist-bot` trigger comments on pull requests. This action:
 ```yaml
 - uses: shakenfist/actions/pr-bot-trigger@main
   id: trigger
+  # A handful of API calls, so anything longer is a hang.
+  timeout-minutes: 10
   with:
     trigger-phrase: 'please retest'
     reaction: 'rocket'
@@ -104,6 +106,9 @@ Runs an automated code review on a pull request using Claude Code.
 
 ```yaml
 - uses: shakenfist/actions/review-pr-with-claude@main
+  # A review takes three to six minutes. Without this a wedged run
+  # holds a scarce claude-code runner for GitHub's six hour default.
+  timeout-minutes: 60
   with:
     pr-number: ${{ github.event.issue.number }}
 ```
