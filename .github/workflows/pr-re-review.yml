@@ -35,9 +35,14 @@ jobs:
     # model-generated text posted to the pull request, and a review
     # that mentions a trigger phrase would re-fire the lane.
     # contains() does not care that the phrase is inside a quote.
+    # The type test catches github-actions[bot]. shakenfist-bot is a
+    # User-type account with admin rights, so a comment it posts
+    # through a token passes both that test and pr-bot-trigger's
+    # permission check, and needs its login named.
     if: |
       github.event.issue.pull_request &&
       github.event.comment.user.type != 'Bot' &&
+      github.event.comment.user.login != 'shakenfist-bot' &&
       contains(github.event.comment.body, '@shakenfist-bot please re-review')
     runs-on: [self-hosted, static]
     # Just a few gh API calls, so anything beyond this is a hang.

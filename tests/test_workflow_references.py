@@ -1068,6 +1068,11 @@ class ReviewWorkflowGuardTest(unittest.TestCase):
         self.assertEqual(len(triggers), 1)
         terms = self.terms(self.workflows[self.RE_REVIEW]['jobs'][triggers[0][0]].get('if', ''))
         self.assertIn("github.event.comment.user.type != 'Bot'", terms)
+        # shakenfist-bot is a User-type admin account, so a comment it
+        # posts through a token passes the type test above and
+        # pr-bot-trigger's permission check alike. Only its login keeps
+        # text it posts from firing a forced review.
+        self.assertIn("github.event.comment.user.login != 'shakenfist-bot'", terms)
 
     def test_no_claude_code_checkout_persists_credentials(self):
         # The default writes the job's token into .git/config of the tree

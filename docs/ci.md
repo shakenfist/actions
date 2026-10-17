@@ -154,6 +154,9 @@ Both match their phrase with `contains()` on the whole comment body, so
 writing one of them inside a sentence about it -- or inside a quote --
 fires it. They ignore comments posted by a bot, so a review summary
 quoting a phrase back onto a pull request cannot re-trigger the lane.
+`pr-re-review.yml` also ignores the `shakenfist-bot` account, which
+GitHub reports as a user with admin rights rather than as a bot, so
+the type test alone would let text it posts request a forced review.
 
 **Fork pull requests are refused**, by `pr-bot-trigger` rather than by
 each workflow. Its `pr-ref` output is `.head.ref`, a branch name in the
@@ -687,7 +690,7 @@ For the two review workflows it pins that every `claude-code` job is
 held to same-repository pull requests, and one started by a comment to
 a commenter `pr-bot-trigger` authorized, that only `pr-re-review.yml`
 forces a second review, that the re-review trigger ignores comments
-from bots, that no checkout there leaves the token in `.git/config`,
+from bots and from the `shakenfist-bot` account, that no checkout there leaves the token in `.git/config`,
 that the re-review disables git hooks straight after its checkout, and
 that it calls `pr-review-ref` to resolve before the checkout and to
 confirm, unconditionally and with what resolve validated, straight
