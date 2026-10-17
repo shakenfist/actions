@@ -1098,6 +1098,41 @@ class ReviewWorkflowGuardTest(unittest.TestCase):
                     self.assertEqual(following.get('run', '').strip(), 'git config core.hooksPath /dev/null')
         self.assertTrue(found, '%s checks nothing out on a claude-code runner' % self.RE_REVIEW)
 
+    REF_ACTION = 'shakenfist/actions/pr-review-ref'
+
+    def test_the_re_review_resolves_and_confirms_through_pr_review_ref(self):
+        # The resolve and confirm logic is tools/pr-review-ref.sh, run in
+        # tests/test_pr_review_ref.py. That is only worth anything while
+        # this workflow calls it the way those tests assume: resolve
+        # before the checkout, which takes its ref, and an unconditional
+        # confirm straight after the hooks step, handed what resolve
+        # validated. A confirm with an if: leaves one path unconfirmed,
+        # and one fed a misspelt output compares against nothing.
+        with open(os.path.join(REPO_ROOT, 'pr-review-ref', 'action.yml')) as f:
+            declared = yaml.safe_load(f)['outputs']
+        for job_name, job in self.claude_jobs(self.RE_REVIEW).items():
+            steps = job.get('steps', [])
+            calls = [(index, step) for index, step in enumerate(steps)
+                     if step.get('uses', '').split('@')[0] == self.REF_ACTION]
+            with self.subTest(job=job_name):
+                self.assertEqual([step['uses'] for _, step in calls], ['%s@main' % self.REF_ACTION] * 2)
+                (resolve_at, resolve), (confirm_at, confirm) = calls
+                self.assertEqual(resolve['with']['mode'], 'resolve')
+                self.assertEqual(confirm['with']['mode'], 'confirm')
+                checkout = steps[resolve_at + 1]
+                self.assertEqual(checkout.get('uses', '').split('@')[0], 'actions/checkout')
+                self.assertEqual(checkout['with']['ref'], '${{ steps.%s.outputs.ref }}' % resolve['id'])
+                self.assertEqual(confirm_at, resolve_at + 3, 'confirm must follow the checkout and the hooks step')
+                self.assertNotIn('if', confirm)
+                self.assertEqual(confirm['with']['head-sha'], '${{ steps.%s.outputs.head-sha }}' % resolve['id'])
+                self.assertEqual(confirm['with']['merged'], '${{ steps.%s.outputs.merged }}' % resolve['id'])
+                # Every output the job reads from either call is one the
+                # action declares: a misspelt one reads empty.
+                text = json.dumps(steps)
+                for step in (resolve, confirm):
+                    for output in re.findall(r'steps\.%s\.outputs\.([\w-]+)' % re.escape(step['id']), text):
+                        self.assertIn(output, declared)
+
 
 class PruneGuardTest(unittest.TestCase):
     def test_prune_only_runs_on_the_default_branch(self):

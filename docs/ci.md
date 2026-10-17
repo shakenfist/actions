@@ -213,13 +213,24 @@ One convention is knowingly not met. AGENTS.md says not to write more
 than about five lines of shell inline in a workflow step -- put it in a
 script under `tools/` so it can be run and tested outside CI. Both
 bot-triggered workflows breach it: `pr-retest.yml` in its dispatch step
-and its confirmation comment, and `pr-re-review.yml` in the steps that
-resolve which ref to review and confirm the checkout is the commit that
-was validated. They are the fleet's shared templates, and every line
-this repository rewrites is a line that stops matching the other
-repositories running the same workflow, which costs more than it saves
-while the templates are still the source of truth. Recorded here rather
-than left as a silent conflict between the convention and the file.
+and its confirmation comment, and `pr-re-review.yml` in its output
+check and the comments it posts. They are the fleet's shared
+templates, and every line this repository rewrites is a line that stops
+matching the other repositories running the same workflow, which costs
+more than it saves while the templates are still the source of truth.
+Recorded here rather than left as a silent conflict between the
+convention and the file.
+
+The decision logic is the exception, because there the cost runs the
+other way. Which ref a re-review checks out, and the confirmation that
+the checkout is that ref, are the `pr-review-ref` action: the template
+calls it at `@main`, so its copies in other repositories run
+`tools/pr-review-ref.sh` from here without checking this repository
+out, and `tests/test_pr_review_ref.py` runs that script against a stub
+`gh` and scratch git repositories. A stale merge ref accepted, or a
+confirmation that compares nothing, would be a careful review of the
+wrong commit with nothing in the run to show it, so it is tested once,
+here, rather than copied untested into every repository.
 
 Both also state the fork guard twice: the job doing the work requires
 `pr-bot-trigger`'s `same-repo` output as well as `authorized`, which
@@ -677,7 +688,10 @@ held to same-repository pull requests, and one started by a comment to
 a commenter `pr-bot-trigger` authorized, that only `pr-re-review.yml`
 forces a second review, that the re-review trigger ignores comments
 from bots, that no checkout there leaves the token in `.git/config`,
-and that the re-review disables git hooks straight after its checkout.
+that the re-review disables git hooks straight after its checkout, and
+that it calls `pr-review-ref` to resolve before the checkout and to
+confirm, unconditionally and with what resolve validated, straight
+after the hooks step.
 `.vscode/review-scope.toml` is checked too --
 every pattern in it must match a tracked file, and the two files its
 header argues are out of scope must stay out -- because a typo there
