@@ -381,15 +381,7 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci-apply-deploy-profile.py",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/shakenfist-ci-failure-loki.cwd",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ci_apply_deploy_profile.py",
       "author": "mikal"
     },
     {
@@ -417,31 +409,11 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci-deploy-cluster.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/sync_component_docs.py",
       "author": "mikal"
     },
     {
-      "path": "tools/deploy-collection.sh",
-      "author": "mikal"
-    },
-    {
       "path": "docs/component-docs.md",
-      "author": "mikal"
-    },
-    {
-      "path": "build-smoke-cluster/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "build-smoke-cluster",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ci_redeploy_check.py",
       "author": "mikal"
     },
     {
