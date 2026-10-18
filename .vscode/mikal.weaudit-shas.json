@@ -201,10 +201,6 @@
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
       "date": "2026-09-07"
     },
-    "review-pr-with-claude/extract-review-json.py": {
-      "sha": "2fcc9819219c7623abf13c842ca2d3db1323f283",
-      "date": "2026-09-25"
-    },
     "setup-kerbside-environment/action.yml": {
       "sha": "8cb3b36dccfb1924ec15b5635bbce759e924acd6",
       "date": "2026-10-10"
@@ -276,10 +272,6 @@
     "tests/test_documentation_links.py": {
       "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
       "date": "2026-09-07"
-    },
-    "tests/test_extract_review_json.py": {
-      "sha": "931046d9d97e51628b277472fd7910cfd575772e",
-      "date": "2026-09-25"
     },
     "tests/test_mesh_interface.py": {
       "sha": "df93f0d1c703c5a38b2745105b409c945564091f",
