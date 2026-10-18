@@ -717,3 +717,65 @@ reasons is re-run in CI, and the gate job is then re-run, which is the
 path above. An input that skipped the check would be one more thing
 the reviewer approving the `release` environment has to notice, on a
 deployment review page that does not show CI status.
+
+## check-dist
+
+Fails when a built wheel contains something that must not ship. For every
+`*.whl` directly under `path`, it reads the member names through
+`zipfile` and fails if any member sits in a directory named `tests` or
+ending in `_tests`, or matches a `forbid` glob. Only directory
+components count, so `pkg/contests.py` and `pkg/tests.py` pass while
+`pkg/tests/test_x.py` and `pkg/corpus_tests/x.ovf` fail. Every offending
+member is printed, grouped by wheel, followed by a hint.
+
+The usual cause is `include-package-data`, which defaults to true under
+`pyproject.toml`. `setuptools_scm`'s file finder then offers every
+git-tracked file as package data, so a `packages.find` exclude drops the
+tests *package* and the tests come back as *data*. Setting
+`include-package-data = false` under `[tool.setuptools]` is the usual
+fix.
+
+Finding no wheel under `path`, or a `.whl` that is not a zip, is a
+failure with a one-line `::error::` message, never a traceback. On
+success it prints each wheel with its member count. The logic is
+`tools/check-dist.py`, standard library only, resolved through
+`github.action_path`; `tests/test_check_dist.py` runs it. It needs no
+token and no permissions.
+
+**Usage:**
+
+In a release workflow's `build` job, after `twine check`:
+
+```yaml
+- name: Build
+  run: python3 -m build
+- name: Check the metadata
+  run: twine check dist/*
+- name: Check the wheel contents
+  timeout-minutes: 2
+  uses: shakenfist/actions/check-dist@main
+```
+
+And in a CI job, straight after the build:
+
+```yaml
+- name: Build
+  run: python3 -m build --outdir dist/
+- name: Check the wheel contents
+  timeout-minutes: 2
+  uses: shakenfist/actions/check-dist@main
+  with:
+    path: dist/
+    forbid: |
+      *.pem
+      pkg/data/private/*
+```
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `path` | No | `dist/` | Directory holding the built wheels. Only `*.whl` directly in it are checked, not those in subdirectories |
+| `forbid` | No | `''` | Extra `fnmatch` globs, one per line, matched against each member's full path inside the wheel. A `*` matches across `/` |
+
+There are no outputs. A failure is the step's non-zero exit.
