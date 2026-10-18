@@ -26,7 +26,24 @@
     state: present
     await: true
     await_timeout: 600
+    # What is left of the calling play's capacity_wait_budget, which the
+    # kerbside-*.yml playbooks set. A play which sets no budget, or sets
+    # it to 0, sends no capacity_wait at all: it behaves exactly as it did
+    # before, and still works against a collection without the option.
+    # A homelab overlay which imports kerbside-single-node.yml gets that
+    # playbook's budget, and passes capacity_wait_budget=0 to opt out.
+    capacity_wait: >-
+      {{ ([capacity_wait_budget | int - sf_capacity_waited | default(0) | int, 0] | max)
+      if capacity_wait_budget | default(0) | int > 0 else omit }}
   register: new_instance
+
+# A fact rather than an include var, so that the total carries over from
+# one include of this file to the next.
+- name: Count the time this create waited for capacity
+  set_fact:
+    sf_capacity_waited: >-
+      {{ sf_capacity_waited | default(0) | int
+      + new_instance.capacity_waited.seconds | default(0) | int }}
 
 - name: Log environment instance
   debug:

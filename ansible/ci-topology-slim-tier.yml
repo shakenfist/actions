@@ -7,6 +7,13 @@
     base_image_user: "ubuntu"
     ssh_private_key: "/srv/github/id_ci"
 
+    # Seconds this run may spend in total waiting out the cluster's
+    # transient capacity refusals, across every create below. Each create
+    # gets what is left of it, and sf_capacity_waited counts what has been
+    # spent. Override with --extra-vars capacity_wait_budget=N; 0 turns the
+    # wait off. See "Waiting for capacity" in docs/ansible.md.
+    capacity_wait_budget: 600
+
   tasks:
     # Derive a short per-run suffix for under-cloud instance names so that
     # under-cloud logs (libvirt, qemu, syslog) can be grepped back to the
@@ -14,6 +21,8 @@
     - name: Compute under-cloud instance name suffix
       set_fact:
         instance_suffix: "{{ identifier[-5:] }}"
+        # What the creates below have spent of capacity_wait_budget.
+        sf_capacity_waited: 0
 
     - name: Create a network for virtual network mesh traffic
       shakenfist.shakenfist.sf_network:
@@ -49,7 +58,12 @@
         state: present
         await: true
         await_timeout: 600
+        capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
       register: primary
+
+    - name: Count the time primary waited for capacity
+      set_fact:
+        sf_capacity_waited: "{{ sf_capacity_waited | int + primary.capacity_waited.seconds | default(0) | int }}"
 
     - name: Add primary to ansible
       add_host:
@@ -84,7 +98,12 @@
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
+        capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
       register: sf1
+
+    - name: Count the time sf1 waited for capacity
+      set_fact:
+        sf_capacity_waited: "{{ sf_capacity_waited | int + sf1.capacity_waited.seconds | default(0) | int }}"
 
     - name: Add sf-1 to ansible
       add_host:
@@ -114,7 +133,12 @@
         user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
         namespace: "{{identifier}}"
         state: present
+        capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
       register: sf2
+
+    - name: Count the time sf2 waited for capacity
+      set_fact:
+        sf_capacity_waited: "{{ sf_capacity_waited | int + sf2.capacity_waited.seconds | default(0) | int }}"
 
     - name: Add sf-2 to ansible
       add_host:
