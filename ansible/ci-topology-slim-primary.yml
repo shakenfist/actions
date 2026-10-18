@@ -15,6 +15,28 @@
     # wait off. See "Waiting for capacity" in docs/ansible.md.
     capacity_wait_budget: 600
 
+    # RAM for each of sf-1 to sf-5, in MiB. The primary stays at 4096.
+    #
+    # 8 GB is a trial, down from 12 GB. Over shakenfist's merge queue runs of
+    # 2026-10-12 to 2026-10-18 (about 28 per job), the host-side RSS of these
+    # nodes peaked at 4.2-8.3 GB (p50 5.9 GB, p90 8.5 GB), and that RSS
+    # includes the nested guests and the node's own page cache, both of
+    # which shrink to fit a smaller node. Five nodes at 12 GB made each run
+    # claim 83,559 MB on sfcbr, so only two of the five slim-primary jobs
+    # fitted at once; at 8 GB the claim is about 59,000 MB and three fit.
+    #
+    # Inside the nested cloud this halves guest headroom: a plain hypervisor
+    # idles with about 4.4 GB free above its 2 GB reservation, and sf-1, the
+    # network node, has about 2.5 GB above a reservation clamped to half the
+    # node. That still fits node lifecycle's two 1 GB guests pinned to every
+    # hypervisor, sf-1 included, but not by much.
+    #
+    # The trial is judged on the smoke tests' pass rate and duration against
+    # the week above. If guests are OOM-killed or the suites slow down, put
+    # this back to 12288. The slim-tier topology's nodes reach 11.4 GB and
+    # are deliberately not part of the trial.
+    sf_node_ram_mb: 8192
+
     # DELIBERATELY MISSING NODE -- DO NOT "FIX" THIS BY CREATING IT.
     #
     # sf-absent is listed as a hypervisor in the deploy inventory (via
@@ -101,7 +123,7 @@
       shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-1"
         cpu: 4
-        ram: 12288
+        ram: "{{ sf_node_ram_mb }}"
         disks:
           - "100@{{base_image}}"
           - "60@sf://label/ci-images/dependencies"
@@ -136,7 +158,7 @@
       shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-2"
         cpu: 4
-        ram: 12288
+        ram: "{{ sf_node_ram_mb }}"
         disks:
           - "100@{{base_image}}"
           - "60@sf://label/ci-images/dependencies"
@@ -171,7 +193,7 @@
       shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-3"
         cpu: 4
-        ram: 12288
+        ram: "{{ sf_node_ram_mb }}"
         disks:
           - "100@{{base_image}}"
           - "60@sf://label/ci-images/dependencies"
@@ -206,7 +228,7 @@
       shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-4"
         cpu: 4
-        ram: 12288
+        ram: "{{ sf_node_ram_mb }}"
         disks:
           - "100@{{base_image}}"
           - "60@sf://label/ci-images/dependencies"
@@ -241,7 +263,7 @@
       shakenfist.shakenfist.sf_instance:
         name: "t-{{instance_suffix}}-5"
         cpu: 4
-        ram: 12288
+        ram: "{{ sf_node_ram_mb }}"
         disks:
           - "100@{{base_image}}"
           - "60@sf://label/ci-images/dependencies"
