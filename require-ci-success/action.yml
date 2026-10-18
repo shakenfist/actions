@@ -1,0 +1,45 @@
+name: 'Require CI success'
+description: >-
+  Fail unless the named CI workflows succeeded on a commit, so that a
+  release cannot publish code CI did not pass. A run counts only if it was
+  a push to the default branch or a merge queue run for it, and only its
+  latest attempt is judged. A commit no named workflow ran on is crossed
+  to its first parent only when it changed nothing but review marks
+  (REVIEWS.md and .vscode/*.weaudit*), and never when it is a merge. There
+  is no override: re-run the failed CI, then re-run this job. The logic is
+  tools/require-ci-success.py, resolved through github.action_path, so it
+  comes from the same ref as this action.yml. The token needs
+  actions: read and contents: read. Composite-action steps cannot carry
+  timeouts, so put timeout-minutes on the step that uses this action.
+
+inputs:
+  workflows:
+    description: >-
+      The workflow files that must have succeeded, one per line, as named
+      in .github/workflows/ (for example ci.yml). Blank lines are ignored;
+      naming none is an error.
+    required: true
+  sha:
+    description: 'The commit to check. Defaults to the commit the workflow runs on.'
+    required: false
+    default: ${{ github.sha }}
+  token:
+    description: 'A token with actions: read and contents: read on this repository.'
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    # Inputs reach the script through env:, never interpolated into a
+    # command line: an input carrying a quote or a shell metacharacter
+    # would otherwise run as shell here. -I keeps the script from
+    # importing anything from the working directory, which is the
+    # caller's checkout.
+    - name: Require CI success on the commit
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        WORKFLOWS: ${{ inputs.workflows }}
+        COMMIT_SHA: ${{ inputs.sha }}
+      run: 'python3 -I "${GITHUB_ACTION_PATH}/../tools/require-ci-success.py"'
