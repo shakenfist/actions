@@ -22,13 +22,20 @@ the main caller.
 `tools/ci-make-inventory.py` turns into the deploy inventory, so one
 code path covers every node count.
 
-`slim-primary` is a 4 vCPU / 4 GB primary and five 4 vCPU hypervisors,
+`slim-primary` is a 4 vCPU / 4 GiB primary and five 4 vCPU hypervisors,
 sf-1 to sf-5. The hypervisors' RAM is `sf_node_ram_mb` at the top of
-the playbook: 8 GB since October 2026, as a trial down from 12 GB so
+the playbook: 8 GiB since October 2026, as a trial down from 12 GiB so
 that three of shakenfist's slim-primary merge queue jobs fit on the
 under-cloud at once rather than two. The comment beside the value has
-the measurements behind it and what would end the trial. `slim-tier`'s
-nodes stay at 12 GB.
+the measurements behind it and what would end the trial.
+
+The trial reaches every caller of `slim-primary`, not only shakenfist's
+merge queue: the canary and any other repository or branch that builds
+the topology get 8 GiB nodes on their next run, since a merge to `main`
+is a deploy. No caller can opt out, so if one starts OOM-killing guests,
+the fix is a commit here putting `sf_node_ram_mb` back to 12288.
+`slim-tier`'s nodes stay at 12 GiB, as do those of
+`ci-topology-slim-primary-released.yml`, which no workflow runs.
 
 ## Instance readiness
 
