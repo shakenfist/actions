@@ -196,10 +196,11 @@ COMMENT_EOF
 }
 
 # The response stopped mid-JSON early enough that nothing survived the
-# salvage pass, or that what survived is not a whole review. Same
-# family as running out of turns: the reviewer ran out of room, which
-# is a fact about the size of this pull request rather than a broken
-# tool, so it finishes green with an explanation.
+# salvage pass, or that no finding survived dropping the parts of it
+# that do not match the schema. Same family as running out of turns:
+# the reviewer ran out of room, which is a fact about the size of this
+# pull request rather than a broken tool, so it finishes green with an
+# explanation.
 review_truncated_unavailable() {
     review_unavailable "truncated_unusable" \
         "Automated review was cut off before it said anything" \
@@ -741,20 +742,38 @@ if ! python3 "${render_script}" --validate "${review_json_file}"; then
     cat "${review_json_file}"
     dump_response
 
-    # A salvaged review that will not validate is the response having
-    # been cut off, not the schema and the prompt disagreeing. Saying
-    # "tooling problem" there sends a human looking for a bug that is
-    # not present, so route it where the truncation cases go.
-    if [ "${review_truncated}" = "true" ]; then
-        review_truncated_unavailable
-    fi
-
-    post_unparsed_review "the review JSON does not match review-schema.json"
-    review_failed "Automated review failed schema validation" \
-        "The reviewer returned JSON that does not match \
+    # A whole review that will not validate is the prompt and the
+    # schema disagreeing, which is a tooling problem and red.
+    if [ "${review_truncated}" != "true" ]; then
+        post_unparsed_review "the review JSON does not match review-schema.json"
+        review_failed "Automated review failed schema validation" \
+            "The reviewer returned JSON that does not match \
 review-schema.json (outcome: ${result_subtype}). The prompt, the \
 schema and the renderer have to agree, so this is a tooling problem \
 rather than a problem with the PR.${unparsed_note}"
+    fi
+
+    # A salvaged one already has every finding's required fields, so
+    # what fails is nearly always an optional field the model got wrong
+    # or a bad positive_feedback or test_coverage entry. Drop just those
+    # parts and post the rest, saying what went in the review's caveat,
+    # and fall back to the cut-off explanation only when no finding
+    # survives.
+    if ! prune_note=$(python3 "${render_script}" --prune \
+            "${review_json_file}"); then
+        echo "${prune_note}"
+        review_truncated_unavailable
+    fi
+    echo "${prune_note}"
+    if ! python3 "${render_script}" --validate "${review_json_file}"; then
+        review_failed "Automated review failed schema validation" \
+            "A partial review still did not match review-schema.json \
+after the parts that failed it were dropped. The pruning and the \
+validation disagree, so this is a tooling problem rather than a \
+problem with the PR."
+    fi
+    step_summary "### :warning: Partial review posted with parts dropped" \
+        '' "${prune_note}"
 fi
 echo "JSON validation passed"
 

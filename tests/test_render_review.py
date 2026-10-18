@@ -639,5 +639,105 @@ class LoadReviewTest(unittest.TestCase):
         self.assertIn('is not valid JSON', stderr.getvalue())
 
 
+class PruneReviewTest(unittest.TestCase):
+    """What a salvaged review that fails the schema is posted as."""
+
+    def prune(self, review):
+        pruned, dropped = render.prune_review(review)
+        if pruned is not None:
+            # Whatever is kept has to pass the validator the shell
+            # checks it with afterwards, under either branch.
+            self.assertEqual(render.validate_review(pruned), (True, ''))
+            self.assertEqual(render_fallback.validate_review(pruned), (True, ''))
+        return pruned, dropped
+
+    def test_a_valid_review_is_kept_whole(self):
+        review = {'summary': 's', 'items': [item(1, 'fix')],
+                  'positive_feedback': [{'title': 't', 'description': 'd'}]}
+        self.assertEqual(self.prune(review), (review, []))
+
+    def test_a_bad_optional_field_is_dropped_from_its_finding(self):
+        pruned, dropped = self.prune({'summary': 's', 'items': [
+            item(1, 'fix', severity='urgent'), item(2, 'none')]})
+        self.assertEqual(pruned['items'], [item(1, 'fix'), item(2, 'none')])
+        self.assertEqual(dropped, ['review.items[0].severity'])
+
+    def test_a_finding_failing_a_required_field_is_dropped_whole(self):
+        pruned, dropped = self.prune({'summary': 's', 'items': [
+            item(1, 'fix', category='vibes', severity='urgent'), item(2, 'none')]})
+        self.assertEqual(pruned['items'], [item(2, 'none')])
+        # Not the severity as well: it went with the finding.
+        self.assertEqual(dropped, ['review.items[0]'])
+
+    def test_an_undeclared_field_is_dropped_without_its_name(self):
+        pruned, dropped = self.prune({'summary': 's', 'items': [
+            item(1, 'fix', **{'@alice': 'x'})]})
+        self.assertEqual(pruned['items'], [item(1, 'fix')])
+        self.assertEqual(dropped, ['an undeclared field in review.items[0]'])
+
+    def test_bad_feedback_and_coverage_entries_are_dropped(self):
+        pruned, dropped = self.prune({
+            'summary': 's', 'items': [item(1, 'fix')],
+            'positive_feedback': [{'title': 't', 'description': 'd'}, {'title': 't'}],
+            'test_coverage': {'adequate': 'yes', 'missing': ['a', 2]},
+        })
+        self.assertEqual(pruned['positive_feedback'], [{'title': 't', 'description': 'd'}])
+        self.assertEqual(pruned['test_coverage'], {'missing': ['a']})
+        self.assertEqual(dropped, ['review.positive_feedback[1]', 'review.test_coverage.adequate',
+                                   'review.test_coverage.missing[1]'])
+
+    def test_an_optional_field_of_the_wrong_type_is_dropped_whole(self):
+        pruned, dropped = self.prune({'summary': 's', 'items': [item(1, 'fix')],
+                                      'positive_feedback': 'lots'})
+        self.assertNotIn('positive_feedback', pruned)
+        self.assertEqual(dropped, ['review.positive_feedback'])
+
+    def test_a_bad_summary_leaves_nothing_to_post(self):
+        pruned, dropped = self.prune({'summary': 3, 'items': [item(1, 'fix')]})
+        self.assertIsNone(pruned)
+        self.assertEqual(dropped, ['review.summary'])
+
+    def test_no_surviving_finding_leaves_nothing_to_post(self):
+        pruned, dropped = self.prune({'summary': 's', 'items': [item('x', 'fix')]})
+        self.assertIsNone(pruned)
+        self.assertEqual(dropped, ['review.items[0]'])
+
+    def test_repeated_parts_are_counted(self):
+        self.assertEqual(
+            render.describe_dropped(['a', 'b', 'a']), 'a (2 times), b')
+
+    def run_prune_file(self, review):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, 'review.json')
+        with open(path, 'w') as f:
+            json.dump(review, f)
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as caught:
+                render.prune_file(render.Path(path))
+        with open(path) as f:
+            written = json.load(f)
+        return caught.exception.code, stdout.getvalue(), written
+
+    def test_the_warning_joins_the_caveat(self):
+        code, stdout, written = self.run_prune_file({
+            'summary': 's', 'caveat': 'Cut off.',
+            'items': [item(1, 'fix', severity='urgent')]})
+        self.assertEqual(code, 0)
+        self.assertEqual(stdout, 'Dropped: review.items[0].severity\n')
+        self.assertEqual(written['caveat'], 'Cut off. ' + render.PRUNED_CAVEAT.format(
+            dropped='review.items[0].severity'))
+        self.assertIn('**Incomplete review.** Cut off. Parts of what survived',
+                      render.render_markdown(written))
+
+    def test_nothing_to_post_leaves_the_file_alone(self):
+        review = {'summary': 3, 'items': [item(1, 'fix')]}
+        code, stdout, written = self.run_prune_file(review)
+        self.assertEqual(code, 1)
+        self.assertIn('Nothing usable', stdout)
+        self.assertEqual(written, review)
+
+
 if __name__ == '__main__':
     unittest.main()
