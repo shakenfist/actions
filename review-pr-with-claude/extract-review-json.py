@@ -84,12 +84,13 @@ SALVAGE_CAVEAT = (
 
 CLOSERS = {'{': '}', '[': ']'}
 
-# The schema render-review.py validates against. A salvaged review that
-# fails that validation is discarded whole, so the walk-back has to stop
-# somewhere the validator will accept rather than merely somewhere the
-# JSON parser will -- which is why what an item needs is read from the
-# schema itself rather than copied from it. It is read with the stdlib,
-# because this script deliberately runs without jsonschema.
+# The schema render-review.py validates against. A salvaged finding that
+# fails that validation is dropped rather than posted, so the walk-back
+# has to stop somewhere the validator will accept rather than merely
+# somewhere the JSON parser will -- which is why what an item needs is
+# read from the schema itself rather than copied from it. It is read
+# with the stdlib, because this script deliberately runs without
+# jsonschema.
 SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
 
 # How each JSON Schema type is checked. bool is a subclass of int, and
@@ -221,10 +222,11 @@ def items_are_usable(items):
     What is checked is the required fields, as the schema declares
     them in ITEM_RULES -- present, of the declared type, and within the
     enum where there is one. An optional field of the wrong type still
-    gets through and still fails validation downstream, which is
-    deliberate: that is the model writing nonsense rather than a
-    response stopping early, and walking back over it would drop good
-    findings to hide a reviewer bug that should be seen.
+    gets through, which is deliberate: that is the model writing
+    nonsense rather than a response stopping early, and walking back
+    over it would drop the good findings after it too. Downstream, a
+    salvaged review loses just that field, named in its caveat, and a
+    whole one goes red.
     """
     for entry in items:
         if not isinstance(entry, dict):
@@ -347,10 +349,9 @@ def salvage(text):
 
     It also includes every recovered item being one the schema will
     accept. Stopping the walk one item too early loses that finding;
-    stopping it one item too late fails validation downstream, and a
-    salvaged review that fails validation is thrown away in full -- so
-    a single unusable trailing item costs every complete finding in
-    front of it.
+    stopping it one item too late keeps one that validation downstream
+    drops again, and reports the loss as parts of the review not
+    matching the schema when what happened is that it was cut off.
 
     None of that applies to a whole review, which is returned as it
     came whether its items are usable or not. Nothing was cut off, so

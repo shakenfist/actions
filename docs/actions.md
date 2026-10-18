@@ -274,14 +274,15 @@ the job summary rather than only in the step log.
 | Turn budget exhausted with no review produced | Green | A comment on the PR saying so, and suggesting a re-review or a smaller PR |
 | A complete review whose JSON was malformed by an unescaped `"` or a raw newline inside a string | Green | The review is repaired and posted as normal |
 | Response truncated mid-JSON, with at least one complete finding | Green | The findings that completed are posted, headed by a warning that the review is partial |
-| Response truncated before any finding completed | Green | A comment on the PR saying so; there is nothing to salvage |
+| Response truncated mid-JSON, and part of what completed fails schema validation | Green | The parts that fail are dropped and the rest posted as above, with the warning also naming what was dropped; see below |
+| Response truncated before any finding completed, or no finding survives that dropping | Green | A comment on the PR saying so; there is nothing to salvage |
 | Response held no JSON review, and the turn budget was exhausted | Green | As the turn-budget row above: a comment on the PR, since the reviewer ran out of room rather than going wrong |
 | Response held no JSON review, with turns to spare | Red | The reviewer or the prompt is at fault, not the PR. The response is posted to the PR as it came, marked as unparsed, so its findings are not lost |
 | The CLI wrote something that is not a JSON envelope | Red | The CLI failed; nothing can be read out of it |
 | The SDK errored | Red | Same -- a tooling problem worth a human's attention |
 | A review that was not truncated failed schema validation | Red | A tooling problem too, and like an unparseable one its response is posted to the PR as it came |
 
-The first seven are ordinary outcomes of reviewing a large change, and
+The first eight are ordinary outcomes of reviewing a large change, and
 the money is spent by the time they are reached, so they buy an
 explanation on the pull request instead of a red X. The last four mean
 this repository, or the tooling under it, is broken.
@@ -317,6 +318,21 @@ JSON structure or prose, and accepts raw newlines inside strings. The
 result is posted only if it parses into a review with at least one
 valid finding; anything that repair does not fix is a tooling problem
 and goes red.
+
+A salvaged review is checked against the schema like any other, but
+failing it is not treated as a tooling problem. The salvage only keeps
+findings whose required fields are present and valid, so what fails is
+almost always the model writing a bad optional field -- a severity the
+schema does not allow, say -- or a bad `positive_feedback` or
+`test_coverage` entry. `render-review.py --prune` drops just the parts
+that fail, using the same schema-derived validator, keeps every finding
+that passes, and adds a sentence to the partial-review warning naming
+what it dropped by its place in the review (`review.items[0].severity`,
+`review.positive_feedback[1]`), never by its text. The job summary says
+the same. A finding whose required fields fail is dropped whole, and if
+the summary fails or no finding is left the outcome is the cut-off
+comment instead. A review that was not truncated is never pruned: it
+fails validation red, as the table says.
 
 A truncated response can carry the same stray quote, and there it does
 more damage: the salvage walk-back tracks strings to find where it can

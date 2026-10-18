@@ -7,12 +7,16 @@ it to a nicely formatted markdown comment suitable for posting on a PR.
 Usage:
     render-review.py [--embed-json] <input.json> [output.md]
     render-review.py --validate <input.json>
+    render-review.py --prune <input.json>
 
 Options:
     --embed-json    Include the raw JSON in a collapsed <details> section
                     at the end of the markdown, so the review can be
                     recovered from the posted comment by machine.
     --validate      Validate the JSON against the schema without rendering.
+    --prune         Drop the parts of a salvaged review that fail the
+                    schema, in place, and say so in its caveat. Exits 1
+                    when no finding survives.
 
 If output.md is not specified, writes to stdout.
 
@@ -182,6 +186,99 @@ def _schema_errors(value, schema: dict, path: str):
         for index, entry in enumerate(value):
             yield from _schema_errors(
                 entry, schema['items'], f'{path}[{index}]')
+
+
+def _prune(value, schema: dict, path: str, dropped: list[str]):
+    """Return value less the parts of it that fail schema, or raise.
+
+    An optional property or an array entry that fails is removed, and
+    its path appended to dropped. ValueError means value itself cannot
+    be kept: its type or enum is wrong, or a required property fails.
+    Whether anything fails is _schema_errors()'s call, so what is kept
+    passes the validator the review is held to.
+    """
+    if not any(_schema_errors(value, schema, path)):
+        return value
+
+    if isinstance(value, dict) and schema.get('type') == 'object':
+        properties = schema.get('properties', {})
+        required = schema.get('required', [])
+        kept = {}
+        for field, entry in value.items():
+            if field not in properties:
+                if schema.get('additionalProperties') is False:
+                    # The name is the model's text, so it is not
+                    # repeated in the warning.
+                    dropped.append(f'an undeclared field in {path}')
+                else:
+                    kept[field] = entry
+                continue
+            # Collected apart, because a part dropped from inside a
+            # property that is then dropped whole is not worth naming.
+            inner: list[str] = []
+            try:
+                kept[field] = _prune(entry, properties[field], f'{path}.{field}', inner)
+            except ValueError:
+                inner = [f'{path}.{field}']
+            dropped.extend(inner)
+        # Including a required property just dropped as failing.
+        if any(field not in kept for field in required):
+            raise ValueError(path)
+        return kept
+
+    if isinstance(value, list) and 'items' in schema:
+        kept_entries = []
+        for index, entry in enumerate(value):
+            inner = []
+            try:
+                kept_entries.append(_prune(entry, schema['items'], f'{path}[{index}]', inner))
+            except ValueError:
+                inner = [f'{path}[{index}]']
+            dropped.extend(inner)
+        return kept_entries
+
+    raise ValueError(path)
+
+
+def prune_review(review_data: dict) -> tuple[dict | None, list[str]]:
+    """Drop the parts of a salvaged review that fail the schema.
+
+    Returns (review, dropped), where dropped names each part removed.
+    The review is None when what is left cannot be posted: the review
+    itself fails, or no finding survives, which is the bar
+    extract-review-json.py holds a salvaged review to before pruning.
+
+    Only a salvaged review is pruned. One that arrived whole and fails
+    validation is the prompt and the schema disagreeing, and dropping
+    parts of it would hide that.
+    """
+    schema = load_schema()
+    dropped: list[str] = []
+    if schema is None:
+        # Fails open, as validate_review() does.
+        return review_data, dropped
+    try:
+        pruned = _prune(review_data, schema, 'review', dropped)
+    except ValueError:
+        return None, dropped
+    if not pruned.get('items'):
+        return None, dropped
+    return pruned, dropped
+
+
+def describe_dropped(dropped: list[str]) -> str:
+    """Join dropped into a phrase, counting the parts named twice."""
+    counts: dict[str, int] = {}
+    for part in dropped:
+        counts[part] = counts.get(part, 0) + 1
+    return ', '.join(part if count == 1 else f'{part} ({count} times)'
+                     for part, count in counts.items())
+
+
+# Appended to a pruned review's caveat, which render_markdown() puts
+# above the summary.
+PRUNED_CAVEAT = ('Parts of what survived did not match review-schema.json '
+                 'and were dropped rather than posted: {dropped}.')
 
 
 def validate_review(review_data: dict) -> tuple[bool, str]:
@@ -450,6 +547,27 @@ def load_review(input_path: Path) -> dict:
         sys.exit(1)
 
 
+def prune_file(input_path: Path) -> None:
+    """Prune a salvaged review in place, warning in its caveat; exit.
+
+    Prints what was dropped. Exits 0 with the pruned review written
+    back, or 1 leaving the file alone when nothing postable is left.
+    """
+    pruned, dropped = prune_review(load_review(input_path))
+    described = describe_dropped(dropped) or 'nothing'
+    if pruned is None:
+        print(f'Nothing usable is left after dropping: {described}')
+        sys.exit(1)
+    if dropped:
+        warning = PRUNED_CAVEAT.format(dropped=described)
+        caveat = pruned.get('caveat')
+        pruned['caveat'] = f'{caveat} {warning}' if caveat else warning
+    with open(input_path, 'w') as f:
+        json.dump(pruned, f, indent=2)
+    print(f'Dropped: {described}')
+    sys.exit(0)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -462,6 +580,12 @@ def main() -> None:
     if '--embed-json' in args:
         embed_json = True
         args.remove('--embed-json')
+
+    if args and args[0] == '--prune':
+        if len(args) < 2:
+            print('Error: --prune requires an input file')
+            sys.exit(1)
+        prune_file(Path(args[1]))
 
     # Handle --validate flag
     if args and args[0] == '--validate':

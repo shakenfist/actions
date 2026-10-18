@@ -339,9 +339,10 @@ FAKE_CLAUDE_RESPONDING = textwrap.dedent('''\
 class ReviewOutcomeTest(unittest.TestCase):
     """Which outcome a review that will not validate ends in.
 
-    A salvaged review that fails schema validation goes to the green
-    "cut off" explanation, on the grounds that the response ran out of
-    room. A complete review that fails it is the prompt and the schema
+    A salvaged review that fails schema validation is posted green,
+    less the parts that failed and with a warning naming them, or gets
+    the green "cut off" explanation when no finding survives. A
+    complete review that fails it is the prompt and the schema
     disagreeing, which is red. So which of the two the extractor calls
     a review decides whether a tooling bug is seen or explained away.
     """
@@ -359,7 +360,10 @@ class ReviewOutcomeTest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         bin_dir = os.path.join(tmp.name, 'bin')
         os.mkdir(bin_dir)
-        write_executable(os.path.join(bin_dir, 'gh'), FAKE_GH)
+        write_executable(os.path.join(bin_dir, 'gh-inner'), FAKE_GH)
+        write_executable(os.path.join(bin_dir, 'gh'), POSTING_GH)
+        self.posted_dir = os.path.join(tmp.name, 'posted')
+        os.mkdir(self.posted_dir)
         claude = os.path.join(bin_dir, 'fake-claude')
         write_executable(claude, FAKE_CLAUDE_RESPONDING)
         response_path = os.path.join(tmp.name, 'response.txt')
@@ -373,6 +377,7 @@ class ReviewOutcomeTest(unittest.TestCase):
             'CLAUDE_BIN': claude,
             'FAKE_CLAUDE_RESPONSE': response_path,
             'FAKE_GH_LOG': os.path.join(tmp.name, 'gh.log'),
+            'FAKE_GH_POSTED': self.posted_dir,
             'GITHUB_REPOSITORY': 'shakenfist/example',
             'GITHUB_STEP_SUMMARY': summary,
             'INPUT_PR_NUMBER': '7',
@@ -389,14 +394,21 @@ class ReviewOutcomeTest(unittest.TestCase):
             summary_text = ''
         return result, summary_text
 
-    def test_an_invalid_salvaged_review_is_explained_green(self):
-        text = json.dumps({'summary': 's', 'items': self.ITEMS})
+    def test_a_salvaged_review_with_a_bad_optional_field_is_posted_green(self):
+        text = json.dumps({'summary': 's', 'items': self.ITEMS + [
+            {'id': 3, 'title': 'v', 'category': 'bug', 'action': 'fix'}]})
         result, summary = self.run_reviewer(
-            '```json\n' + text[:text.index('{"id": 2')])
+            '```json\n' + text[:text.index('{"id": 3')])
         self.assertEqual(result.returncode, 0,
                          result.stdout + result.stderr)
         self.assertIn('Extraction: status=salvaged', result.stdout)
-        self.assertIn('cut off before it said anything', summary)
+        review = self.posted_review()
+        self.assertEqual([item['id'] for item in review['items']], [1, 2])
+        self.assertNotIn('severity', review['items'][0])
+        self.assertIn('Incomplete review.', self.posted['review'])
+        self.assertIn('dropped rather than posted: review.items[0].severity.',
+                      review['caveat'])
+        self.assertIn('Partial review posted with parts dropped', summary)
 
     def test_an_invalid_whole_review_with_prose_after_it_is_red(self):
         # Prose after the object used to make this a salvaged review,
@@ -421,6 +433,87 @@ class ReviewOutcomeTest(unittest.TestCase):
                          result.stdout + result.stderr)
         self.assertIn('Extraction: status=ok', result.stdout)
         self.assertIn('failed schema validation', summary)
+
+    @property
+    def posted(self):
+        """{'review' or 'comment': body} for what the run posted."""
+        bodies = {}
+        for name in os.listdir(self.posted_dir):
+            with open(os.path.join(self.posted_dir, name)) as f:
+                bodies[name] = f.read()
+        return bodies
+
+    def posted_review(self):
+        """The review JSON embedded in the posted review."""
+        self.assertIn('review', self.posted, self.posted)
+        embedded = self.posted['review'].split('```json\n', 1)[1]
+        return json.loads(embedded.split('\n```', 1)[0])
+
+    def test_a_salvaged_review_with_a_bad_positive_feedback_entry_is_posted_green(self):
+        text = json.dumps({
+            'summary': 's', 'items': [self.ITEMS[1]],
+            'positive_feedback': [{'title': 'good', 'description': 'why'},
+                                  {'title': 3, 'description': 'how'}],
+            'test_coverage': {'adequate': True, 'missing': []},
+        })
+        result, summary = self.run_reviewer(
+            '```json\n' + text[:text.index('"missing"')])
+        self.assertEqual(result.returncode, 0,
+                         result.stdout + result.stderr)
+        self.assertIn('Extraction: status=salvaged', result.stdout)
+        review = self.posted_review()
+        self.assertEqual(review['positive_feedback'],
+                         [{'title': 'good', 'description': 'why'}])
+        self.assertEqual(len(review['items']), 1)
+        self.assertIn('review.positive_feedback[1].', review['caveat'])
+        self.assertIn('Partial review posted with parts dropped', summary)
+
+    def test_a_salvaged_review_with_nothing_left_is_explained_green(self):
+        # The summary is required, so a wrong one leaves nothing to post.
+        text = json.dumps({'summary': 3, 'items': self.ITEMS})
+        result, summary = self.run_reviewer(
+            '```json\n' + text[:text.index('{"id": 2')])
+        self.assertEqual(result.returncode, 0,
+                         result.stdout + result.stderr)
+        self.assertIn('Extraction: status=salvaged', result.stdout)
+        self.assertIn('cut off before it said anything', summary)
+        self.assertNotIn('review', self.posted)
+
+    def test_an_invalid_whole_review_is_red_and_not_pruned(self):
+        # The same bad optional field a salvaged review is posted
+        # without, in a fence that closed.
+        result, summary = self.run_reviewer(
+            '```json\n' + json.dumps({'summary': 's', 'items': self.ITEMS})
+            + '\n```\n')
+        self.assertEqual(result.returncode, 1,
+                         result.stdout + result.stderr)
+        self.assertIn('Extraction: status=ok', result.stdout)
+        self.assertIn('failed schema validation', summary)
+        self.assertNotIn('review', self.posted)
+        self.assertNotIn('Dropped:', result.stdout)
+
+
+# Keeps a copy of each body the script posts, under FAKE_GH_POSTED, as
+# review or comment, then answers as FAKE_GH does, installed beside it
+# as gh-inner. The script deletes its own copy when it exits.
+POSTING_GH = textwrap.dedent('''\
+    #!/bin/bash
+    kind=''
+    case "$1 $2" in
+        'pr review') kind=review ;;
+        'pr comment') kind=comment ;;
+    esac
+    if [ -n "${kind}" ]; then
+        prev=''
+        for arg in "$@"; do
+            if [ "${prev}" = '--body-file' ]; then
+                cp "${arg}" "${FAKE_GH_POSTED}/${kind}"
+            fi
+            prev="${arg}"
+        done
+    fi
+    exec "$(dirname "$0")/gh-inner" "$@"
+    ''')
 
 
 if __name__ == '__main__':
