@@ -142,6 +142,102 @@ merge -- the fabric is not available on a dev host -- and because it has
 already been broken once, when only one of twelve provisioning paths
 grew the gate.
 
+## Waiting for capacity
+
+The CI cluster sometimes refuses an instance create because no node
+has room at that moment. Without a wait, that refusal fails the build.
+The topology and kerbside playbooks wait for room instead, with
+`sf_instance`'s `capacity_wait` option. The option is described in
+[shakenfist's Ansible guide](https://github.com/shakenfist/shakenfist/blob/develop/docs/user_guide/ansible.md).
+It replays two kinds of refusal, and no others:
+
+- a 507 that the server marked `transient`;
+- on an awaited create, a preflight abort for capacity.
+
+Replays are at least a minute apart. Before each replay, the module
+deletes the refused instance record, so the replay can reuse the name.
+
+Each playbook gives the whole run one budget, `capacity_wait_budget`,
+in seconds:
+
+| Playbook | `capacity_wait_budget` |
+|---|---|
+| `ci-topology-localhost.yml` | 1800 |
+| `kerbside-single-node.yml` | 1800 |
+| `ci-topology-slim-tier.yml` | 600 |
+| `ci-topology-slim-primary.yml` | 600 |
+| `kerbside-multi-node.yml` | 600 |
+| `kerbside-multi-node-2.yml` | 600 |
+
+No other playbook waits. `ci-topology-localhost-released.yml`,
+`ci-topology-localhost-upgrade.yml` and
+`ci-topology-slim-primary-released.yml` still fail on the first
+refusal. No workflow runs them, so a change there would go untested.
+The image-build playbooks (`ci-image.yml`, `ci-image-desktop.yml`,
+`ci-dependencies.yml`, `ci-instar-testdata.yml`) are left out too.
+They belong to private-ci's ci-images builder, which holds its own
+capacity claim, so adopting the wait there is that builder's change.
+`tests/test_capacity_wait.py` holds the table above to the playbooks,
+and checks that each create is counted by the task straight after it.
+
+The fact `sf_capacity_waited` holds the total spent so far. It starts at
+0 in the play's first `set_fact`. After each create, the playbook adds
+the `capacity_waited.seconds` that `sf_instance` returned. Each create
+passes what is left of the budget, `capacity_wait_budget -
+sf_capacity_waited`, as its `capacity_wait`, and never less than 0.
+The budget counts only seconds spent waiting, not time since the play
+started. `kerbside-multi-node-2.yml` creates and boots eight instances
+in turn. A deadline set when the play started would have run out on
+those boots, and the last instances would get no wait at all. The
+kerbside playbooks keep this count in `kerbside-create-instance.yml`,
+which they include once per instance. Because `sf_capacity_waited` is
+a fact, its total carries over from one include to the next.
+
+The `slim-*` worker nodes are created without `await`. For those, only
+a 507 is replayed, because the module returns before preflight runs.
+
+To change the budget, set it as an extra var:
+`--extra-vars capacity_wait_budget=N`. Setting it to 0 turns the wait
+off. No action input sets this, so CI runs use the values in the table.
+`kerbside-create-instance.yml` sends no `capacity_wait` at all when the
+calling play sets no budget, or sets it to 0. So a play outside CI that
+includes the file behaves as it did before. The same applies to a
+homelab overlay that imports `kerbside-single-node.yml` and passes
+`capacity_wait_budget=0`. Either kind of play still works with a
+collection that does not have the option.
+
+**Worst case.** A single create can take `capacity_wait` plus its
+`await_timeout`, which is 600 seconds in every one of these playbooks.
+The capacity clock and the boot clock are separate. The wait ends
+when the cluster accepts the create, and the boot then gets its full
+`await_timeout`. A whole run can spend at most its budget waiting, on
+top of its usual time. So the build step of a `localhost` smoke
+cluster can take up to 30 minutes longer than before. That step,
+deploy included, normally takes 6 to 7 minutes: that was the median
+and maximum over successful shakenfist pull request runs in October
+2026. So the worst case is still well under the 90 minute
+`timeout-minutes` on the step in `smoke-cluster.yml`. The
+multi-instance `slim-*` builds take 9 to 12 minutes, plus at most 10
+minutes of waiting.
+When the budget runs out, the task fails with the server's last
+refusal message, followed by how long it waited. So a log search for
+the server's text still finds the failure.
+
+**The collection must have the option.** Each topology and kerbside
+playbook passes `capacity_wait`, so it needs a `shakenfist.shakenfist`
+collection that has the option. Against an older collection, the first
+create fails with "Unsupported parameters for
+(shakenfist.shakenfist.sf_instance) module: capacity_wait".
+`tools/install-collection.sh` builds the collection from the job's
+shakenfist checkout. That checkout is `develop` in every repository
+except shakenfist. shakenfist's own jobs check out the event's ref,
+which for a pull request is its merge with `develop`. So the shakenfist
+change that added the option had to reach `develop` before these
+playbooks could pass it. A re-run of a shakenfist pull request's
+older run builds that run's original merge commit. If that commit
+predates the option, the re-run fails as shown above. Pushing to the
+pull request again builds a new merge commit, which fixes it.
+
 ## The mesh interface
 
 Multi-node topologies give each node a second NIC on a private mesh

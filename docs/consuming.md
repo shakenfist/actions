@@ -128,6 +128,20 @@ builds the shakenfist server and client wheels from the checkouts made
 by setup-test-environment, so cross-repo changes must land in
 dependency order.
 
+### A cluster build can wait for capacity
+
+The CI cluster may refuse an instance create because no node has room
+at that moment. When it does, `build-smoke-cluster` and
+`setup-kerbside-environment` wait for room rather than failing at
+once. They give up after 30 minutes in total for a one-node build
+(`localhost`, kerbside `all-in-one`). For a multi-node build they give
+up after 10 minutes. A build that waits can take up to that much longer, so
+leave room for it in your `timeout-minutes`. The 90 minutes in the
+Mode 2 example above has room: a `localhost` build normally takes 6
+to 7 minutes of it, deploy included. A build that runs out of time fails with
+the cluster's own refusal message, followed by how long it waited. See
+[Waiting for capacity](ansible.md#waiting-for-capacity).
+
 ### The headroom gate can fail a Mode 1 job
 
 `smoke-cluster.yml` samples the cluster's spare capacity while the test

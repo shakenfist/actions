@@ -16,7 +16,19 @@
     running_in_ci: true
     prefer_floating_ip: false
 
+    # Seconds this run may spend in total waiting out the cluster's
+    # transient capacity refusals, across every instance
+    # kerbside-create-instance.yml creates. Each create gets what is left
+    # of it, and sf_capacity_waited counts what has been spent. Override
+    # with --extra-vars capacity_wait_budget=N; 0 turns the wait off. See
+    # "Waiting for capacity" in docs/ansible.md.
+    capacity_wait_budget: 600
+
   tasks:
+    - name: Start counting the time spent waiting for capacity
+      set_fact:
+        sf_capacity_waited: 0
+
     # Idempotent: a no-op in CI (the runner already lives in this
     # namespace) but the off-fabric path needs it created.
     - name: Ensure the ShakenFist namespace exists
