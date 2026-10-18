@@ -294,6 +294,21 @@ something invalid rather than running out of room. Only a fence left
 open, or an unfenced object running to the end of the response, is
 treated as having been cut off.
 
+Being treated as possibly cut off is not the same as being labelled
+partial. A complete review can sit in one of those shapes -- prose
+after an unfenced object, a closing fence on the brace's own line, a
+`~~~` fence, or a fence left open around an object that did close --
+and the salvage walk-back finds it whole, with nothing left to close.
+That is posted as a complete review, without the partial warning, and
+if it then fails schema validation it goes red like any other complete
+review rather than green as a truncated one. That includes an item the
+walk-back would drop from a truncated review, such as one with an
+action the schema does not allow: a whole review keeps it, and
+validation rejects it. Unfenced, a whole review with such an item is
+also what the prompt's example looks like when the model restates it,
+so it is chosen only when no other candidate yields a review or reads
+as truncated.
+
 Invalid JSON in a closed fence is usually a model quoting a literal --
 a description discussing `packages = ["x"]` with the inner quotes left
 unescaped. Before giving up on it, the extractor escapes every quote
@@ -319,6 +334,23 @@ bot so a quoted trigger phrase cannot fire, and cuts it to fit GitHub's
 comment size limit, with the full text still in the step log. It is an
 ordinary comment rather than a review, so it does not satisfy the
 already-reviewed check and the next review runs as normal.
+
+A review that does parse is model output shaped by the pull request
+too, so before it is posted every @mention in it is broken with a
+zero-width space, which reads the same and notifies nobody. That
+includes an @ spelled as an HTML character reference such as `&#64;`,
+and a name whose first letter is one, since GitHub decodes those
+before it links mentions. It also includes mentions inside code spans
+and fences, which GitHub does not link: deciding what GitHub will
+render as code means parsing markdown exactly as it does, and the pull
+request chooses the text being parsed.
+The price is a zero-width space in a decorator quoted in a code sample.
+The bot's own mention is broken in any capitalisation, for the
+trigger-phrase reason above. The machine-readable JSON block at the
+end of the comment is broken along with the rest, so it stays valid
+JSON but is not byte-identical to the review the model wrote: a
+consumer that needs the original text, such as a path containing
+`@scope`, should strip U+200B from its strings.
 
 The same explanation is not posted twice: each of these comments
 carries an HTML marker naming its reason, and a handler that finds its

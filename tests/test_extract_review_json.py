@@ -36,6 +36,16 @@ def item(item_id, title='A finding'):
     }
 
 
+def cut_after_last_item(review):
+    """The review as a response cut off just after its last item closed.
+
+    Every item arrived complete, but the items array and the review
+    around it did not, so this is truncation rather than a whole review.
+    """
+    text = json.dumps(review)
+    return text[:text.rindex(']')]
+
+
 def fenced(payload):
     return f'Here is the review.\n\n```json\n{payload}\n```\n'
 
@@ -124,9 +134,11 @@ class SalvageTest(unittest.TestCase):
     def test_recovers_items_completed_before_the_cut(self):
         text = json.dumps(REVIEW)
         truncated = text[:text.index('"Another finding"')] + '"Anoth'
-        data = extract.salvage(truncated)
+        data, whole = extract.salvage(truncated)
         self.assertEqual(data['summary'], 'Adds a thing')
         self.assertEqual([i['id'] for i in data['items']], [1])
+        # Brackets had to be closed to get here, so this is partial.
+        self.assertFalse(whole)
 
     def test_a_brace_inside_a_string_is_not_a_cut_point(self):
         # A description mentioning a brace must not be mistaken for
@@ -137,7 +149,7 @@ class SalvageTest(unittest.TestCase):
                       item(2)],
         }
         text = json.dumps(review)
-        data = extract.salvage(text[:text.index('{"id": 2')])
+        data, _ = extract.salvage(text[:text.index('{"id": 2')])
         self.assertEqual([i['id'] for i in data['items']], [1])
         self.assertIn('}]', data['items'][0]['description'])
 
@@ -146,17 +158,36 @@ class SalvageTest(unittest.TestCase):
         # title, category and action on every one of them. Better to
         # lose the unfinished finding than the whole review.
         text = json.dumps(REVIEW)
-        data = extract.salvage(text[:text.index('"Another finding"')])
+        data, _ = extract.salvage(text[:text.index('"Another finding"')])
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_trailing_prose_after_a_complete_object_is_dropped(self):
+        # And reported whole: nothing had to be closed, so nothing is
+        # missing from what was recovered.
         text = json.dumps(REVIEW) + '\n\nHope that helps!'
-        self.assertEqual(extract.salvage(text), REVIEW)
+        self.assertEqual(extract.salvage(text), (REVIEW, True))
+
+    def test_a_bracket_in_trailing_prose_does_not_hide_the_whole_object(self):
+        # A closer in the prose is a later cut point with an empty
+        # stack too, but it does not parse, so the walk goes on back to
+        # the one that closed the review.
+        text = json.dumps(REVIEW) + '\n\nSee [1] and {this}.'
+        self.assertEqual(extract.salvage(text), (REVIEW, True))
+
+    def test_a_whole_review_is_not_walked_back_over_an_unusable_item(self):
+        # The review closed, so the model finished writing that item.
+        # Dropping it and calling the rest partial would blame
+        # truncation for a reviewer bug; returning it whole lets
+        # validation reject it, as it would in a closed fence.
+        unusable = {'id': 2, 'title': 'No action', 'category': 'bug'}
+        review = {'summary': 's', 'items': [item(1), unusable]}
+        text = json.dumps(review) + '\n\nHope that helps.'
+        self.assertEqual(extract.salvage(text), (review, True))
 
     def test_recovers_when_the_cut_is_at_a_trailing_comma(self):
         text = json.dumps(REVIEW)
         truncated = text[:text.index('{"id": 2')]
-        data = extract.salvage(truncated)
+        data, _ = extract.salvage(truncated)
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_refuses_when_nothing_complete_arrived(self):
@@ -188,6 +219,14 @@ class SalvageTest(unittest.TestCase):
         with self.assertRaises(extract.ExtractionError):
             extract.salvage(text)
 
+    def test_a_whole_review_with_no_findings_is_recovered(self):
+        # The outer object closed, so nothing was cut off and a clean
+        # review is what arrived.
+        clean = {'summary': 'LGTM', 'items': []}
+        data, whole = extract.salvage(json.dumps(clean) + ' Hope that helps.')
+        self.assertEqual(data, clean)
+        self.assertTrue(whole)
+
     def test_an_item_the_schema_will_reject_is_walked_past(self):
         # The trailing item completed as JSON but has no action, so
         # validation downstream would reject the whole review -- and a
@@ -195,7 +234,7 @@ class SalvageTest(unittest.TestCase):
         # taking the complete finding in front of it with it.
         unusable = {'id': 2, 'title': 'Half a finding', 'category': 'bug'}
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(cut_after_last_item(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_an_item_whose_required_field_has_the_wrong_type(self):
@@ -205,7 +244,7 @@ class SalvageTest(unittest.TestCase):
         # with it.
         unusable = dict(item(2), id='two')
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(cut_after_last_item(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_an_item_with_an_unknown_action_is_walked_past(self):
@@ -214,7 +253,7 @@ class SalvageTest(unittest.TestCase):
         # invents vocabulary as readily as it truncates.
         unusable = dict(item(2), action='escalate')
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(cut_after_last_item(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_an_item_with_an_unknown_category_is_walked_past(self):
@@ -223,7 +262,7 @@ class SalvageTest(unittest.TestCase):
         # merely for being present.
         unusable = dict(item(2), category='architecture')
         review = {'summary': 's', 'items': [item(1), unusable]}
-        data = extract.salvage(json.dumps(review))
+        data, _ = extract.salvage(cut_after_last_item(review))
         self.assertEqual([i['id'] for i in data['items']], [1])
 
     def test_the_walk_back_is_bounded(self):
@@ -373,6 +412,51 @@ class ExtractTest(unittest.TestCase):
         self.assertEqual(data, REVIEW)
         self.assertEqual(status, 'ok')
 
+    def assert_complete(self, response, expected=REVIEW, status='ok'):
+        data, got = extract.extract(response)
+        self.assertEqual(got, status)
+        self.assertEqual(data, expected)
+        # The caveat is what tells a reader findings are missing, and
+        # none are.
+        self.assertNotIn('caveat', data)
+
+    def test_an_unfenced_review_followed_by_prose_is_complete(self):
+        self.assert_complete(
+            'Here it is: ' + json.dumps(REVIEW, indent=2)
+            + '\n\nLet me know if you want more detail.')
+
+    def test_a_closing_fence_on_the_brace_line_is_complete(self):
+        # The line holding the closing fence is not a bare fence, so
+        # the block reads as one that never closed.
+        self.assert_complete(
+            '```json\n' + json.dumps(REVIEW, indent=2) + '```\n')
+
+    def test_a_tilde_fence_is_complete(self):
+        # Not a fence this script looks for, so the review is found by
+        # the brace fallback with the closing fence still after it.
+        self.assert_complete(
+            '~~~json\n' + json.dumps(REVIEW, indent=2) + '\n~~~\n')
+
+    def test_an_unclosed_fence_around_a_complete_object_is_complete(self):
+        self.assert_complete(
+            '```json\n' + json.dumps(REVIEW, indent=2)
+            + '\n\nThat is everything I found.\n')
+
+    def test_a_whole_review_needing_strict_false_is_repaired(self):
+        # A raw newline in a string is what a closed fence reports as
+        # repaired, so the same object followed by prose says the same.
+        text = json.dumps(REVIEW).replace('Adds a thing', 'Adds\na thing')
+        expected = dict(REVIEW, summary='Adds\na thing')
+        self.assert_complete(text + '\n\nDone.', expected, 'repaired')
+
+    def test_a_whole_review_needing_repair_is_repaired(self):
+        # A fence that never closed, around a complete object with a
+        # stray quote in it and nothing after it.
+        data, status = extract.extract('```json\n' + RepairTest.QUOTED)
+        self.assertEqual(status, 'repaired')
+        self.assertEqual(len(data['items']), 1)
+        self.assertNotIn('caveat', data)
+
     def test_a_prose_brace_does_not_hide_an_unfenced_review(self):
         # No fence at all, and a JSON snippet quoted ahead of the
         # review. Anchoring on the first brace makes the text
@@ -384,6 +468,76 @@ class ExtractTest(unittest.TestCase):
         data, status = extract.extract(text)
         self.assertEqual(data, REVIEW)
         self.assertEqual(status, 'ok')
+
+    CLEAN = {'summary': 'LGTM', 'items': []}
+
+    def test_a_whole_clean_review_followed_by_prose_is_complete(self):
+        # Rejecting it for having no findings reported a clean review
+        # as one cut off before it said anything.
+        self.assert_complete(json.dumps(self.CLEAN) + '\n\nHope that helps.',
+                             self.CLEAN)
+
+    def test_a_whole_clean_review_in_an_unclosed_fence_is_complete(self):
+        self.assert_complete('```json\n' + json.dumps(self.CLEAN)
+                             + '\n\nNothing else.\n', self.CLEAN)
+
+    def test_a_whole_clean_review_needing_strict_false_is_repaired(self):
+        text = json.dumps(self.CLEAN).replace('LGTM', 'LG\nTM')
+        self.assert_complete(text + '\n\nDone.',
+                             dict(self.CLEAN, summary='LG\nTM'), 'repaired')
+
+    def test_a_clean_example_does_not_hide_a_truncated_review(self):
+        # Unfenced, the first candidate runs on past the example to the
+        # end of the response, and the example is whole inside it. The
+        # review after it was cut off, and saying it was clean would
+        # record the pull request as reviewed off a response that never
+        # got to its first finding.
+        text = ('The format is ' + json.dumps(self.CLEAN)
+                + ' and here it is: {"summary": "s", "items": '
+                '[{"id": 1, "title": "t')
+        with self.assertRaises(extract.TruncatedError):
+            extract.extract(text)
+
+    def test_a_clean_example_does_not_hide_a_later_review(self):
+        text = ('The format is ' + json.dumps(self.CLEAN)
+                + ' and here it is: ' + json.dumps(REVIEW))
+        data, status = extract.extract(text)
+        self.assertEqual(data, REVIEW)
+        self.assertEqual(status, 'ok')
+
+    def test_a_whole_invalid_review_is_returned_for_validation_to_reject(self):
+        # Not walked back to the usable item in front: the review
+        # arrived whole, so the item the schema rejects goes to
+        # validation with it, and the job goes red.
+        review = {'summary': 's',
+                  'items': [item(1), dict(item(2), action='escalate')]}
+        data, status = extract.extract(json.dumps(review) + '\n\nDone.')
+        self.assertEqual(data, review)
+        self.assertEqual(status, 'ok')
+
+    # The prompt's example, whose enums are placeholders: whole, shaped
+    # like a review, and holding an item the schema rejects.
+    PLACEHOLDER = {'summary': 'Brief summary', 'items': [dict(
+        item(1, 'Short title'),
+        category='security|bug|performance|documentation|style|testing|other',
+        action='fix|document|consider|none')]}
+
+    def test_a_restated_example_does_not_hide_a_later_review(self):
+        text = ('The format is ' + json.dumps(self.PLACEHOLDER)
+                + ' and here it is: ' + json.dumps(REVIEW))
+        self.assertEqual(extract.extract(text), (REVIEW, 'ok'))
+
+    def test_a_restated_example_does_not_hide_a_clean_review(self):
+        text = ('The format is ' + json.dumps(self.PLACEHOLDER)
+                + ' and here it is: ' + json.dumps(self.CLEAN))
+        self.assertEqual(extract.extract(text), (self.CLEAN, 'ok'))
+
+    def test_a_restated_example_does_not_hide_a_truncated_review(self):
+        text = ('The format is ' + json.dumps(self.PLACEHOLDER)
+                + ' and here it is: {"summary": "s", "items": '
+                '[{"id": 1, "title": "t')
+        with self.assertRaises(extract.TruncatedError):
+            extract.extract(text)
 
 
 class RepairTest(unittest.TestCase):
@@ -600,7 +754,9 @@ class ItemAcceptanceMatchesTheSchemaTest(unittest.TestCase):
     survive render-review.py's validation. If this script's idea of
     that drifts from review-schema.json, the walk stops either too
     early -- losing findings that would have posted -- or too late,
-    which discards the whole salvaged review.
+    which discards the whole salvaged review. So the rules are read
+    from the schema rather than copied from it, and what is pinned here
+    is that reading.
     """
 
     def schema(self):
@@ -610,31 +766,84 @@ class ItemAcceptanceMatchesTheSchemaTest(unittest.TestCase):
         with open(path) as f:
             return json.load(f)
 
-    def test_the_required_fields_match(self):
-        item_schema = self.schema()['properties']['items']['items']
-        self.assertEqual(
-            sorted(extract.ITEM_REQUIRED_FIELDS),
-            sorted(item_schema['required']))
+    def test_the_rules_are_read_from_the_shipped_schema(self):
+        self.assertEqual(extract.ITEM_RULES, extract.item_rules(self.schema()))
+        self.assertEqual(list(extract.REVIEW_REQUIRED_FIELDS),
+                         self.schema()['required'])
 
-    def test_the_required_field_types_match(self):
-        json_types = {int: 'integer', str: 'string'}
-        item_schema = self.schema()['properties']['items']['items']
-        for field, field_type in extract.ITEM_REQUIRED_FIELDS.items():
-            self.assertEqual(
-                item_schema['properties'][field]['type'],
-                json_types[field_type], field)
+    def test_types_are_judged_as_the_fallback_validator_judges_them(self):
+        # Both scripts carry a JSON_TYPES table; if they part ways, the
+        # walk-back stops somewhere the validator will not accept.
+        render = load_script(
+            'review-pr-with-claude/render-review.py', 'render_review')
+        self.assertEqual(extract.JSON_TYPES.keys(), render.JSON_TYPES.keys())
+        for value in (None, True, False, 0, 1, 0.0, 1.0, 1.5, '', 'x', [],
+                      {}):
+            for name, check in extract.JSON_TYPES.items():
+                self.assertEqual(check(value), render.JSON_TYPES[name](value),
+                                 (name, value))
 
-    def test_the_action_enum_matches(self):
-        item_schema = self.schema()['properties']['items']['items']
-        self.assertEqual(
-            sorted(extract.ITEM_ACTIONS),
-            sorted(item_schema['properties']['action']['enum']))
+    def test_the_schema_sits_beside_the_script(self):
+        # It is read when the script loads, so without it every review
+        # fails as unparseable -- red, with a traceback naming the file
+        # rather than anything about the response.
+        self.assertTrue(extract.SCHEMA_PATH.exists(), extract.SCHEMA_PATH)
 
-    def test_the_category_enum_matches(self):
-        item_schema = self.schema()['properties']['items']['items']
-        self.assertEqual(
-            sorted(extract.ITEM_CATEGORIES),
-            sorted(item_schema['properties']['category']['enum']))
+    def test_the_rules_follow_whatever_the_schema_says(self):
+        schema = {'properties': {'items': {'items': {
+            'required': ['name', 'kind', 'free'],
+            'properties': {
+                'name': {'type': 'string'},
+                'kind': {'type': 'string', 'enum': ['a', 'b']},
+                'other': {'type': 'integer'},
+            },
+        }}}}
+        self.assertEqual(extract.item_rules(schema), {
+            'name': ('string', None),
+            'kind': ('string', ['a', 'b']),
+            'free': (None, None),
+        })
+
+    def test_items_are_judged_by_the_rules_not_a_copy(self):
+        # Widen the schema's category enum, and an item using the new
+        # value has to become usable without anything else changing.
+        schema = self.schema()
+        item_schema = schema['properties']['items']['items']
+        item_schema['properties']['category']['enum'].append('architecture')
+        candidate = dict(item(1), category='architecture')
+        self.assertFalse(extract.items_are_usable([candidate]))
+        with unittest.mock.patch.object(
+                extract, 'ITEM_RULES', extract.item_rules(schema)):
+            self.assertTrue(extract.items_are_usable([candidate]))
+
+    def test_usable_items_are_exactly_the_ones_that_validate(self):
+        # Every way an item can differ in what it requires, judged by
+        # both this script and the validator downstream. Optional
+        # fields are left alone: items_are_usable() lets a bad one
+        # through on purpose. Both validator branches are asked, as
+        # which one a review meets depends on the runner.
+        render = load_script(
+            'review-pr-with-claude/render-review.py', 'render_review')
+        with unittest.mock.patch.dict(sys.modules, {'jsonschema': None}):
+            fallback = load_script('review-pr-with-claude/render-review.py',
+                                   'render_review_without_jsonschema')
+        self.assertTrue(render.HAS_JSONSCHEMA)
+        self.assertFalse(fallback.HAS_JSONSCHEMA)
+        candidates = [item(1), 'not an object', dict(item(1), id='one'),
+                      dict(item(1), id=True), dict(item(1), id=1.5),
+                      dict(item(1), id=1.0),
+                      dict(item(1), title=7), dict(item(1), action='escalate'),
+                      dict(item(1), category='architecture')]
+        for field in item(1):
+            candidates.append(
+                {k: v for k, v in item(1).items() if k != field})
+        for module in (render, fallback):
+            for candidate in candidates:
+                valid, error = module.validate_review(
+                    {'summary': 's', 'items': [candidate]})
+                self.assertEqual(
+                    extract.items_are_usable([candidate]), valid,
+                    f'{module.__name__} {candidate!r}: {error}')
 
 
 if __name__ == '__main__':

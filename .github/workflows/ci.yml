@@ -209,12 +209,19 @@ jobs:
       # running. It is imported at module scope now, so a missing
       # PyYAML is a hard error here and locally.
       #
+      # jsonschema is for the reviewer's render-review.py, which uses it
+      # when it is installed and its own schema walker when it is not.
+      # The tests cover both branches on purpose: the jsonschema one by
+      # importing it at module scope, so a missing package is a hard
+      # error rather than a quietly untested branch, and the fallback
+      # by loading the script with that import blocked.
+      #
       # From apt rather than pip: there is no package to install first
       # and no requirements file, deliberately, because this repository
       # is not a Python project and growing a pyproject.toml just to
       # run tests would make it one.
       - name: Install test dependencies
-        run: sudo apt-get update && sudo apt-get install -y python3-yaml python3-jinja2
+        run: sudo apt-get update && sudo apt-get install -y python3-yaml python3-jinja2 python3-jsonschema
 
       # Plain unittest, run from the repository root.
       - name: Run unit tests

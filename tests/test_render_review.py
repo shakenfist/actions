@@ -14,8 +14,14 @@ import contextlib
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
+import unittest.mock
+
+# Imported here, unused, so that a missing jsonschema fails the suite
+# rather than leaving ValidateReviewTest to exercise the fallback twice.
+import jsonschema  # noqa: F401
 
 from tests.helpers import REPO_ROOT, load_script
 
@@ -26,6 +32,20 @@ render = load_script(
 # The reviewer's prompt, which shows the model the review it must write.
 PROMPT_SOURCE = os.path.join(
     REPO_ROOT, 'review-pr-with-claude', 'review-pr-with-claude.sh')
+
+
+def load_without_jsonschema():
+    """Load the renderer as it runs where jsonschema is not installed.
+
+    A None entry in sys.modules makes the import raise ImportError,
+    which is the branch render-review.py takes to its own validator.
+    """
+    with unittest.mock.patch.dict(sys.modules, {'jsonschema': None}):
+        return load_script('review-pr-with-claude/render-review.py',
+                           'render_review_without_jsonschema')
+
+
+render_fallback = load_without_jsonschema()
 
 
 def item(item_id, action, title='A finding', **kwargs):
@@ -67,7 +87,104 @@ class StripNullsTest(unittest.TestCase):
         self.assertEqual(render.strip_nulls(7), 7)
 
 
-class ValidateReviewTest(unittest.TestCase):
+class ValidateReviewCases:
+    """What either validator has to accept and reject.
+
+    Run once against each branch of validate_review(), since which one
+    a review meets depends on whether the runner has jsonschema.
+    """
+
+    module = None
+
+    def assert_invalid(self, review):
+        valid, error = self.module.validate_review(review)
+        self.assertFalse(valid, review)
+        return error
+
+    def test_accepts_a_full_review(self):
+        valid, error = self.module.validate_review({
+            'summary': 's',
+            'caveat': 'c',
+            'items': [item(1, 'fix', severity='low', description='d',
+                           location='l', suggestion='s', rationale='r')],
+            'positive_feedback': [{'title': 't', 'description': 'd'}],
+            'test_coverage': {'adequate': False, 'missing': ['m']},
+        })
+        self.assertTrue(valid, error)
+
+    def test_accepts_a_minimal_review(self):
+        valid, error = self.module.validate_review(
+            {'summary': 'Looks fine', 'items': []})
+        self.assertTrue(valid, error)
+
+    def test_rejects_an_unknown_action(self):
+        error = self.assert_invalid(
+            {'summary': 's', 'items': [item(1, 'explode')]})
+        self.assertIn('explode', error)
+
+    def test_rejects_an_unknown_category(self):
+        self.assert_invalid({
+            'summary': 's', 'items': [item(1, 'fix', category='vibes')]})
+
+    def test_rejects_an_unknown_severity(self):
+        self.assert_invalid({
+            'summary': 's', 'items': [item(1, 'fix', severity='urgent')]})
+
+    def test_accepts_an_integer_valued_float_id(self):
+        # JSON does not tell 1 from 1.0, and neither does jsonschema.
+        valid, error = self.module.validate_review(
+            {'summary': 's', 'items': [item(1.0, 'fix')]})
+        self.assertTrue(valid, error)
+
+    def test_rejects_an_id_that_is_not_an_integer(self):
+        for bad in ('1', 1.5, True):
+            self.assert_invalid(
+                {'summary': 's', 'items': [item(bad, 'fix')]})
+
+    def test_rejects_an_item_that_is_not_an_object(self):
+        self.assert_invalid({'summary': 's', 'items': ['a finding']})
+
+    def test_rejects_a_missing_summary(self):
+        self.assert_invalid({'items': []})
+
+    def test_rejects_items_that_are_not_a_list(self):
+        self.assert_invalid({'summary': 's', 'items': 'nope'})
+
+    def test_rejects_an_item_key_the_schema_does_not_declare(self):
+        error = self.assert_invalid({
+            'summary': 's',
+            'items': [item(1, 'fix', issue_number=42)],
+        })
+        self.assertIn('issue_number', error)
+
+    def test_rejects_an_item_missing_a_required_field(self):
+        self.assert_invalid({
+            'summary': 's',
+            'items': [{'id': 1, 'title': 't', 'category': 'bug'}],
+        })
+
+    def test_rejects_positive_feedback_without_a_title(self):
+        # render_markdown() indexes the title, so letting this through
+        # turns a bad review into a traceback instead of a red job.
+        self.assert_invalid({
+            'summary': 's', 'items': [],
+            'positive_feedback': [{'description': 'd'}]})
+
+    def test_rejects_test_coverage_of_the_wrong_shape(self):
+        self.assert_invalid({
+            'summary': 's', 'items': [],
+            'test_coverage': {'adequate': 'yes'}})
+        self.assert_invalid({
+            'summary': 's', 'items': [],
+            'test_coverage': {'missing': [1]}})
+
+
+class ValidateReviewTest(ValidateReviewCases, unittest.TestCase):
+    module = render
+
+    def test_this_is_the_jsonschema_branch(self):
+        self.assertTrue(self.module.HAS_JSONSCHEMA)
+
     def test_the_schema_sits_beside_the_script(self):
         # load_schema() returns None when review-schema.json is not next
         # to render-review.py, and validate_review() then returns valid
@@ -78,34 +195,77 @@ class ValidateReviewTest(unittest.TestCase):
         self.assertTrue(render.SCHEMA_PATH.exists(), render.SCHEMA_PATH)
         self.assertIsInstance(render.load_schema(), dict)
 
-    def test_accepts_a_minimal_valid_review(self):
-        valid, error = render.validate_review(
-            {'summary': 'Looks fine', 'items': []})
+
+class FallbackValidateReviewTest(ValidateReviewCases, unittest.TestCase):
+    """The validator used where jsonschema is not installed."""
+
+    module = render_fallback
+
+    def test_this_is_the_fallback_branch(self):
+        self.assertFalse(self.module.HAS_JSONSCHEMA)
+
+    def test_the_fallback_reads_the_schema_file(self):
+        # Widen the category enum in a copy of the schema, and the
+        # fallback has to follow it: nothing in the script restates it.
+        schema = self.module.load_schema()
+        item_schema = schema['properties']['items']['items']
+        item_schema['properties']['category']['enum'].append('vibes')
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, 'review-schema.json')
+        with open(path, 'w') as f:
+            json.dump(schema, f)
+
+        review = {'summary': 's', 'items': [item(1, 'fix', category='vibes')]}
+        self.assertFalse(self.module.validate_review(review)[0])
+        with unittest.mock.patch.object(
+                self.module, 'SCHEMA_PATH', render.Path(path)):
+            valid, error = self.module.validate_review(review)
         self.assertTrue(valid, error)
 
-    def test_rejects_an_unknown_action(self):
-        valid, error = render.validate_review({
-            'summary': 's',
-            'items': [item(1, 'explode')],
-        })
-        self.assertFalse(valid)
-        self.assertIn('explode', error)
+    def test_the_schema_uses_only_keywords_the_fallback_enforces(self):
+        # A keyword the fallback does not know -- minLength, say -- is a
+        # constraint it would skip without a word, which is exactly the
+        # drift between the two validators this exists to prevent.
+        known = set(self.module.FALLBACK_KEYWORDS
+                    + self.module.ANNOTATION_KEYWORDS)
 
-    def test_rejects_a_missing_summary(self):
-        valid, _ = render.validate_review({'items': []})
-        self.assertFalse(valid)
+        def walk(node, path):
+            unknown = set(node) - known
+            self.assertFalse(unknown, f'{path} uses {sorted(unknown)}')
+            # The fallback compares enum members with Python's ==,
+            # which matches true to 1 where jsonschema does not. That
+            # is the same answer only while every member is a string.
+            for member in node.get('enum', []):
+                self.assertIsInstance(member, str, f'{path} enum')
+            # The fallback handles additionalProperties: false, not a
+            # schema for the extra properties.
+            if 'additionalProperties' in node:
+                self.assertIs(node['additionalProperties'], False, path)
+            for name, subschema in node.get('properties', {}).items():
+                walk(subschema, f'{path}.{name}')
+            if 'items' in node:
+                walk(node['items'], f'{path}[]')
 
-    def test_rejects_items_that_are_not_a_list(self):
-        valid, _ = render.validate_review(
-            {'summary': 's', 'items': 'nope'})
-        self.assertFalse(valid)
+        walk(self.module.load_schema(), 'schema')
 
-    def test_rejects_an_item_missing_a_required_field(self):
-        valid, _ = render.validate_review({
-            'summary': 's',
-            'items': [{'id': 1, 'title': 't', 'category': 'bug'}],
-        })
-        self.assertFalse(valid)
+    def test_an_invalid_review_is_a_clean_failure_not_a_traceback(self):
+        # Without jsonschema this used to validate, and then raise
+        # KeyError rendering the feedback's title.
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = os.path.join(directory.name, 'review.json')
+        with open(path, 'w') as f:
+            json.dump({'summary': 's', 'items': [],
+                       'positive_feedback': [{'description': 'd'}]}, f)
+        stderr = io.StringIO()
+        argv = ['render-review.py', path]
+        with contextlib.redirect_stderr(stderr):
+            with unittest.mock.patch.object(sys, 'argv', argv):
+                with self.assertRaises(SystemExit) as caught:
+                    self.module.main()
+        self.assertEqual(caught.exception.code, 1)
+        self.assertIn('Invalid review JSON', stderr.getvalue())
 
     def test_the_schema_closes_review_items(self):
         # Every key on an item is model output. One the schema does not
@@ -125,16 +285,6 @@ class ValidateReviewTest(unittest.TestCase):
         prompt_fields = set(json.loads(example)['items'][0])
         item_schema = render.load_schema()['properties']['items']['items']
         self.assertLessEqual(prompt_fields, set(item_schema['properties']))
-
-    @unittest.skipUnless(render.HAS_JSONSCHEMA,
-                         'the fallback validator does not read the schema')
-    def test_rejects_an_item_key_the_schema_does_not_declare(self):
-        valid, error = render.validate_review({
-            'summary': 's',
-            'items': [item(1, 'fix', issue_number=42)],
-        })
-        self.assertFalse(valid)
-        self.assertIn('issue_number', error)
 
 
 class RenderMarkdownTest(unittest.TestCase):
@@ -326,6 +476,137 @@ class RenderItemTest(unittest.TestCase):
         self.assertNotIn('📍', text)
         self.assertNotIn('💡', text)
         self.assertNotIn('ℹ️', text)
+
+
+class BreakMentionsTest(unittest.TestCase):
+    """Nothing the model writes can notify anyone, or fire a trigger."""
+
+    BROKEN = '@\u200b'
+
+    def review(self, **fields):
+        base = item(1, 'fix', 'Title by @alice', description='Ask @bob.',
+                    suggestion='Ping @carol', rationale='Per @dave')
+        base.update(fields)
+        return {
+            'summary': 'Summary for @erin',
+            'items': [base],
+            'positive_feedback': [
+                {'title': 'Thanks @frank', 'description': 'From @grace'}],
+            'test_coverage': {'adequate': False, 'missing': ['Ask @heidi']},
+        }
+
+    def test_mentions_in_every_rendered_field_are_broken(self):
+        text = render.render_markdown(self.review())
+        for name in ('alice', 'bob', 'carol', 'dave', 'erin', 'frank',
+                     'grace', 'heidi'):
+            self.assertNotIn('@' + name, text)
+            self.assertIn(self.BROKEN + name, text)
+
+    def test_the_bot_mention_is_broken_like_the_unparsed_renderer_does(self):
+        unparsed = load_script(
+            'review-pr-with-claude/render-unparsed-review.py',
+            'render_unparsed_review')
+        self.assertEqual(render.BOT_MENTION, unparsed.BOT_MENTION)
+        self.assertEqual(render.BROKEN_MENTION, unparsed.BROKEN_MENTION)
+
+    def test_the_bot_mention_is_broken_everywhere_in_any_case(self):
+        # The trigger workflows match with contains(), which ignores
+        # case and markdown alike, so code is no protection here.
+        text = render.render_markdown(
+            self.review(description='Run `@Shakenfist-Bot retest`.'),
+            embed_json=True)
+        self.assertNotIn(render.BOT_MENTION, text.lower())
+        self.assertIn(render.BROKEN_MENTION, text)
+
+    def test_mentions_in_the_embedded_json_cannot_fire_the_bot(self):
+        text = render.render_markdown(
+            self.review(summary='Ask @shakenfist-bot'), embed_json=True)
+        body = text.split('```json', 1)[1]
+        self.assertNotIn(render.BOT_MENTION, body)
+
+    def test_mentions_inside_code_are_broken_too(self):
+        # Which text GitHub renders as code is not decided here, so
+        # nothing is spared for looking like code.
+        text = render.break_mentions(
+            'Use `@property`, then:\n\n```python\n@cached\n```\n'
+            '~~~\n@also\n~~~\n\nand ask @ivan')
+        for name in ('property', 'cached', 'also', 'ivan'):
+            self.assertNotIn('@' + name, text)
+            self.assertIn(self.BROKEN + name, text)
+
+    def test_markdown_that_only_looks_like_code_hides_nothing(self):
+        # Each of these reads as code to a naive scan and renders as
+        # prose, with the mention linked: an escaped backtick opens no
+        # span, a list item ends the fence inside it, and a backtick in
+        # an HTML attribute is part of the tag.
+        for text in ('\\`@alice\\`',
+                     '- x\n   ```\n@alice\n```',
+                     '<span title="`">@alice`</span>',
+                     '- ```\n  ```\n  @alice\n  ```'):
+            with self.subTest(text=text):
+                self.assertIn(self.BROKEN + 'alice', render.break_mentions(text))
+
+    def test_the_location_code_span_is_broken_too(self):
+        text = render.render_markdown(self.review(location='pkg/@scope/x.js'))
+        self.assertIn('`pkg/' + self.BROKEN + 'scope/x.js`', text)
+
+    def test_an_email_address_is_not_a_mention(self):
+        self.assertEqual(render.break_mentions('mail a@b.com'), 'mail a@b.com')
+
+    def test_an_at_spelled_as_a_character_reference_is_broken(self):
+        # GitHub decodes references before it links mentions, so each
+        # of these notifies alice unless broken.
+        for at in ('&#64;', '&#064;', '&#x40;', '&#X40;', '&commat;'):
+            with self.subTest(at=at):
+                self.assertEqual(render.break_mentions(f'ask {at}alice'),
+                                 f'ask {at}\u200balice')
+
+    def test_a_numeric_reference_without_its_semicolon_is_broken(self):
+        # HTML decodes these, though CommonMark should not; breaking
+        # them costs nothing either way.
+        for at in ('&#64', '&#064', '&#x40', '&#X40'):
+            with self.subTest(at=at):
+                self.assertEqual(render.break_mentions(f'ask {at}zoe'),
+                                 f'ask {at}\u200bzoe')
+        self.assertEqual(render.break_mentions('ask &#64alice'),
+                         'ask &#64\u200balice')
+        self.assertEqual(render.break_mentions('ask @&#97lice'),
+                         'ask @\u200b&#97lice')
+
+    def test_a_reference_is_read_with_all_its_digits(self):
+        # A decoder takes every digit, so these are U+0281 and U+040A,
+        # not an @ and a digit; inserting a space after the @ they are
+        # not would turn them into one. Only a run that nothing
+        # alphanumeric follows tempts the pattern to stop short.
+        for text in ('ask &#641lice', 'ask &#x40alice', 'ask &#641, ok',
+                     'ask &#x40a, ok'):
+            with self.subTest(text=text):
+                self.assertEqual(render.break_mentions(text), text)
+
+    def test_a_name_starting_with_a_character_reference_is_broken(self):
+        self.assertEqual(render.break_mentions('ask @&#97;lice'),
+                         'ask @\u200b&#97;lice')
+        self.assertEqual(render.break_mentions('ask &#64;&#97;lice'),
+                         'ask &#64;\u200b&#97;lice')
+
+    def test_references_that_are_no_mention_are_left_alone(self):
+        # A letter before the reference makes an email address, and a
+        # reference that decodes to anything but @ is not one at all.
+        for text in ('mail a&#64;b.com', 'fish &amp;chips', '&lt;b&gt;',
+                     '&COMMAT;alice'):
+            with self.subTest(text=text):
+                self.assertEqual(render.break_mentions(text), text)
+
+    def test_the_bot_mention_is_broken_even_where_github_would_not_link_it(self):
+        # contains() does not care that a letter before the @ makes it
+        # look like an email address.
+        text = render.break_mentions('see x@ShakenFist-Bot please re-review')
+        self.assertNotIn(render.BOT_MENTION, text.lower())
+        self.assertIn('x' + render.BROKEN_MENTION, text)
+
+    def test_text_without_mentions_is_unchanged(self):
+        text = 'Plain `code` and\n```\nblock\n```\nprose.'
+        self.assertEqual(render.break_mentions(text), text)
 
 
 class LoadReviewTest(unittest.TestCase):

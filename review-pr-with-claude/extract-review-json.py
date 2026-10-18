@@ -21,6 +21,14 @@ open brackets, and keeps what survives. A salvaged review gets a
 renders at the top of the posted comment so nobody mistakes a partial
 review for a complete one.
 
+The same walk finds a review that is not truncated at all, only
+followed by something: prose after an unfenced object, a closing
+fence written on the brace's own line, a ``~~~`` fence this script
+does not look for, or a fence that never closed around an object that
+did. Those end at a cut that closes the outermost object with nothing
+left open, so nothing was lost, and they are reported as complete
+rather than given the caveat.
+
 A response is only treated as truncated when it could actually have
 been cut off: a fence left open, or an unfenced object running to the
 end of the text. JSON that will not parse inside a fence that closed
@@ -76,22 +84,56 @@ SALVAGE_CAVEAT = (
 
 CLOSERS = {'{': '}', '[': ']'}
 
-# What every recovered item needs before the review is worth keeping.
-# These mirror review-schema.json, which render-review.py validates
-# against: a salvaged review that fails that validation is discarded
-# whole, so the walk-back has to stop somewhere the validator will
-# accept rather than merely somewhere the JSON parser will. Drift
-# between the two is pinned by a test rather than by a shared import,
+# The schema render-review.py validates against. A salvaged review that
+# fails that validation is discarded whole, so the walk-back has to stop
+# somewhere the validator will accept rather than merely somewhere the
+# JSON parser will -- which is why what an item needs is read from the
+# schema itself rather than copied from it. It is read with the stdlib,
 # because this script deliberately runs without jsonschema.
-ITEM_REQUIRED_FIELDS = {
-    'id': int,
-    'title': str,
-    'category': str,
-    'action': str,
+SCHEMA_PATH = Path(__file__).parent / 'review-schema.json'
+
+# How each JSON Schema type is checked. bool is a subclass of int, and
+# the schema's integer does not admit true, so it is excluded by hand;
+# a float with no fractional part, such as 1.0, is an integer to
+# jsonschema, so it is admitted.
+JSON_TYPES = {
+    'object': lambda v: isinstance(v, dict),
+    'array': lambda v: isinstance(v, list),
+    'string': lambda v: isinstance(v, str),
+    'integer': lambda v: ((isinstance(v, int) and not isinstance(v, bool))
+                          or (isinstance(v, float) and v.is_integer())),
+    'number': lambda v: (isinstance(v, (int, float))
+                         and not isinstance(v, bool)),
+    'boolean': lambda v: isinstance(v, bool),
+    'null': lambda v: v is None,
 }
-ITEM_ACTIONS = ('fix', 'document', 'consider', 'none')
-ITEM_CATEGORIES = ('security', 'bug', 'performance', 'documentation',
-                   'style', 'testing', 'other')
+
+
+def item_rules(schema):
+    """Return {field: (type, enum)} for the fields every item requires.
+
+    Read from the schema's items entry: its required list, and the
+    declared type and enum of each field in it, either of which is None
+    when the schema does not constrain it. Only the required fields are
+    taken, for the reason given in items_are_usable().
+    """
+    item_schema = schema['properties']['items']['items']
+    properties = item_schema.get('properties', {})
+    return {
+        field: (properties.get(field, {}).get('type'),
+                properties.get(field, {}).get('enum'))
+        for field in item_schema.get('required', [])
+    }
+
+
+def _load_schema():
+    with open(SCHEMA_PATH) as f:
+        return json.load(f)
+
+
+SCHEMA = _load_schema()
+REVIEW_REQUIRED_FIELDS = tuple(SCHEMA.get('required', []))
+ITEM_RULES = item_rules(SCHEMA)
 
 
 # What may follow a JSON value, which is how a quote that ends a string
@@ -154,35 +196,46 @@ def _fenced_blocks(text):
 def looks_like_a_review(data):
     """True when a parsed object could be a review.
 
-    The schema requires a summary and an items array, so an object
-    without both cannot become a posted review no matter what else is
-    recovered alongside it.
+    An object missing a field the schema requires at the top level --
+    a summary, or the items array, which has to be a list for the
+    walk-back to look inside it -- cannot become a posted review no
+    matter what else is recovered alongside it.
     """
-    return (isinstance(data, dict) and 'summary' in data
+    return (isinstance(data, dict)
+            and all(field in data for field in REVIEW_REQUIRED_FIELDS)
             and isinstance(data.get('items'), list))
+
+
+def _matches(value, json_type):
+    """True when value is of json_type, a type name or a list of them."""
+    if json_type is None:
+        return True
+    if isinstance(json_type, list):
+        return any(_matches(value, t) for t in json_type)
+    return JSON_TYPES[json_type](value)
 
 
 def items_are_usable(items):
     """True when every recovered item will survive schema validation.
 
-    What is checked is the required fields -- present, and of the type
-    the schema declares -- and the two enums. An optional field of the
-    wrong type still gets through and still fails validation
-    downstream, which is deliberate: that is the model writing nonsense
-    rather than a response stopping early, and walking back over it
-    would drop good findings to hide a reviewer bug that should be
-    seen.
+    What is checked is the required fields, as the schema declares
+    them in ITEM_RULES -- present, of the declared type, and within the
+    enum where there is one. An optional field of the wrong type still
+    gets through and still fails validation downstream, which is
+    deliberate: that is the model writing nonsense rather than a
+    response stopping early, and walking back over it would drop good
+    findings to hide a reviewer bug that should be seen.
     """
     for entry in items:
         if not isinstance(entry, dict):
             return False
-        for field, field_type in ITEM_REQUIRED_FIELDS.items():
-            if not isinstance(entry.get(field), field_type):
+        for field, (json_type, enum) in ITEM_RULES.items():
+            if field not in entry:
                 return False
-        if entry['action'] not in ITEM_ACTIONS:
-            return False
-        if entry['category'] not in ITEM_CATEGORIES:
-            return False
+            if not _matches(entry[field], json_type):
+                return False
+            if enum is not None and entry[field] not in enum:
+                return False
     return True
 
 
@@ -267,8 +320,13 @@ def _cut_points(text):
 def salvage(text):
     """Recover a review from a truncated response.
 
-    Returns the parsed object, or raises ExtractionError when no prefix
-    of the text closes into something shaped like a review.
+    Returns (data, whole), or raises ExtractionError when no prefix of
+    the text closes into something shaped like a review. ``whole`` is
+    True when the cut that recovered it closed the outermost object, so
+    nothing had to be closed on its behalf: the review arrived complete
+    and what was wrong was whatever followed it. That is not
+    truncation, and labelling it so tells the reader findings are
+    missing when none are.
 
     Parsing is not enough on its own. Truncation before the first item
     closed leaves a prefix that parses -- ``summary`` and a completed
@@ -278,12 +336,14 @@ def salvage(text):
     So keep walking back until the recovered object could actually be
     posted.
 
-    That includes having found something. A cut after ``"items": []``
+    That includes having found something, unless the review is whole.
+    A cut after ``"items": []`` with the outer object still open
     recovers an object the schema accepts, and posting it would record
     the pull request as reviewed with a clean bill of health on the
     strength of a response that stopped before the first finding was
-    written. A genuinely clean review arrives complete and never comes
-    through here.
+    written. A whole review with no findings is a clean review with
+    something after it, and is returned for extract() to weigh like any
+    other findingless one.
 
     It also includes every recovered item being one the schema will
     accept. Stopping the walk one item too early loses that finding;
@@ -292,6 +352,14 @@ def salvage(text):
     a single unusable trailing item costs every complete finding in
     front of it.
 
+    None of that applies to a whole review, which is returned as it
+    came whether its items are usable or not. Nothing was cut off, so
+    an item the schema rejects is one the model finished writing, and
+    walking back over it would drop that finding and blame truncation
+    for the loss -- a reviewer bug explained away as a large diff. The
+    same object in a closed fence fails validation and goes red, and
+    this has to agree with it.
+
     Raw newlines and tabs inside strings are let through, as they are for
     a repaired block: they are the model writing a string it finished,
     not a sign that it did not.
@@ -299,16 +367,17 @@ def salvage(text):
     candidates = list(_cut_points(text))[-MAX_SALVAGE_CANDIDATES:]
 
     for cut, stack in reversed(candidates):
-        # An empty stack means this cut closed the outermost object,
-        # so the only thing wrong was whatever followed it.
         closing = ''.join(CLOSERS[opener] for opener in reversed(stack))
         try:
             data = json.loads(text[:cut] + closing, strict=False)
         except json.JSONDecodeError:
             continue
-        if (looks_like_a_review(data) and data['items']
-                and items_are_usable(data['items'])):
-            return data
+        if not looks_like_a_review(data):
+            continue
+        if not stack:
+            return data, True
+        if data['items'] and items_are_usable(data['items']):
+            return data, False
 
     raise ExtractionError('no complete JSON object could be recovered')
 
@@ -387,8 +456,28 @@ def repair(text):
     return ''.join(out)
 
 
+def _parses_strictly(text):
+    """True when text opens with a value the strict JSON parser accepts.
+
+    Whatever follows that value is ignored, which is the point: this
+    asks whether a review that arrived whole, with something after it,
+    needed strict=False's leniency to parse.
+    """
+    try:
+        json.JSONDecoder().raw_decode(text.lstrip())
+    except json.JSONDecodeError:
+        return False
+    return True
+
+
 def _salvaged(block):
-    """Return the review a truncated block salvages into, or None.
+    """Return (review, status) for a block that could have been cut off.
+
+    Returns None when nothing survives it. status is 'salvaged' when
+    brackets had to be closed to recover the review, and otherwise what
+    extract() reports for the same object in a closed fence: 'ok' if it
+    parses as it came, 'repaired' if it needed repair() or the raw
+    newlines strict=False lets through.
 
     A truncated block can be malformed too, and an unescaped quote
     throws _cut_points() out of step with the strings, so the cuts it
@@ -397,14 +486,18 @@ def _salvaged(block):
     closes a string left open at the end of the text, and the walk back
     discards that unfinished item like any other.
     """
-    try:
-        return salvage(block)
-    except ExtractionError:
-        pass
-    try:
-        return salvage(repair(block))
-    except ExtractionError:
-        return None
+    for text, repaired in ((block, False), (repair(block), True)):
+        try:
+            data, whole = salvage(text)
+        except ExtractionError:
+            continue
+        if not whole:
+            data['caveat'] = SALVAGE_CAVEAT
+            return data, 'salvaged'
+        if repaired or not _parses_strictly(text):
+            return data, 'repaired'
+        return data, 'ok'
+    return None
 
 
 def _repaired(block):
@@ -428,7 +521,10 @@ def extract(text):
     status is 'ok' for a review that parsed as it came, 'salvaged' when
     the response was truncated and the review was recovered from the
     part that arrived intact, and 'repaired' when a complete block of
-    malformed JSON parsed once its stray quotes were escaped.
+    malformed JSON parsed once its stray quotes were escaped. A whole
+    review with something after it is 'ok' or 'repaired', never
+    'salvaged': only a review that needed brackets closed is missing
+    anything.
 
     Candidates are tried in order and the first one that yields a
     review wins, so a truncated last block still beats a complete
@@ -442,6 +538,12 @@ def extract(text):
     prompt or schema problem rather than a size one. It is offered to
     repair(), and falls through to the unparseable path, and a red job,
     only if that does not recover a review with findings in it.
+
+    A whole review holding an item the schema rejects is returned only
+    when nothing else is, for render-review.py's validation to send to
+    the red path. It is also the shape of the prompt's example
+    restated, whose enums are placeholders, so it ranks below every
+    other outcome, truncation included.
     """
     candidates = candidate_blocks(text)
     if not candidates:
@@ -449,6 +551,8 @@ def extract(text):
 
     truncated = False
     findingless = None
+    salvaged_findingless = None
+    invalid = None
 
     for block, truncatable in candidates:
         try:
@@ -465,14 +569,31 @@ def extract(text):
                 if data is not None:
                     return data, 'repaired'
                 continue
-            # This block was still being written when the response ran
-            # out, so it is the answer if anything survives it.
-            truncated = True
-            data = _salvaged(block)
-            if data is None:
+            # This block may have been still being written when the
+            # response ran out, so it is the answer if anything survives
+            # it.
+            recovered = _salvaged(block)
+            if recovered is None:
+                truncated = True
                 continue
-            data['caveat'] = SALVAGE_CAVEAT
-            return data, 'salvaged'
+            if not items_are_usable(recovered[0]['items']):
+                # Only a whole review comes back with an item the
+                # schema rejects. Unfenced, it may be the prompt's
+                # example in front of the real review, so it is the
+                # last resort rather than the answer.
+                if invalid is None:
+                    invalid = recovered
+                continue
+            if recovered[0]['items']:
+                return recovered
+            # Only a whole review salvages with no findings. Unfenced,
+            # every candidate runs to the end of the response, so this
+            # may be a restated example in front of a review that was
+            # cut off, which is why it counts for less than either a
+            # findingless block that parsed or a block that ran out.
+            if salvaged_findingless is None:
+                salvaged_findingless = recovered
+            continue
 
         if not looks_like_a_review(data):
             continue
@@ -492,6 +613,12 @@ def extract(text):
         # cut off. It just stopped too early for anything to survive,
         # which is still a size problem rather than a broken reviewer.
         raise TruncatedError('no complete JSON object could be recovered')
+
+    if salvaged_findingless is not None:
+        return salvaged_findingless
+
+    if invalid is not None:
+        return invalid
 
     raise ExtractionError('no JSON block held anything shaped like a review')
 
