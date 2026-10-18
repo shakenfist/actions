@@ -17,21 +17,23 @@
 
     # RAM for each of sf-1 to sf-5, in MiB. The primary stays at 4096.
     #
-    # 8 GiB is a trial, down from 12 GiB. Over shakenfist's 140 slim-primary
-    # Functional tests runs of 2026-10-12 to 2026-10-18 (28 per job), the
-    # highest host-side RSS each of the 686 sf-N nodes reached had a median
-    # of 5.5 GiB, a p90 of 6.9 GiB and a maximum of 8.1 GiB. Two nodes went
-    # above 8 GiB, both in Debian 13 cluster. That RSS includes the nested
-    # guests and the node's own page cache, and the cache shrinks to fit a
-    # smaller node.
+    # 8 GiB is a trial, down from 12 GiB. shakenfist's 140 slim-primary
+    # Functional tests runs of 2026-10-12 to 2026-10-18 (28 per job) built
+    # 700 sf-N nodes, 686 of which have RSS samples. The highest host-side
+    # RSS each of those 686 reached had a median of 5.5 GiB, a p90 of 6.9
+    # GiB and a maximum of 8.1 GiB. Two nodes went above 8 GiB, both in the
+    # Debian 13 cluster job. That RSS includes the nested guests and the
+    # node's own page cache, and the cache shrinks to fit a smaller node.
     #
     # Why it matters: five nodes at 12 GiB allocate 69,632 MiB per run with
     # the primary and the runner, and the conductor claims that on sfcbr at
     # 1.2x, 83,559 MiB. Against sfcbr's roughly 170,000-190,000 MiB of
     # claimable memory only two of the five slim-primary jobs fit at once.
-    # At 8 GiB the allocation is 49,152 MiB and the claim 58,983 MiB, so
-    # three fit. The conductor sizes the claim from the last 14 days of runs,
-    # so the claim follows this value about two weeks after it changes.
+    # At 8 GiB the allocation is 49,152 MiB and the claim 58,983 MiB. Three
+    # claims need 176,949 MiB, so three fit only when sfcbr has more than
+    # about 177,000 MiB claimable, the upper part of that range; below it,
+    # two still do. The conductor sizes the claim from the last 14 days of
+    # runs, so the claim follows this value about two weeks after it changes.
     #
     # Inside the nested cloud this halves guest headroom: a plain hypervisor
     # idles with about 4.4 GiB free above its 2 GiB reservation, and sf-1,
@@ -41,10 +43,11 @@
     #
     # Every caller of this topology is part of the trial, the canary
     # included. It is judged against the week above on whether three
-    # slim-primary jobs actually run at once on sfcbr and merge groups finish
-    # sooner once the claim has followed, and on whether the smoke tests'
-    # pass rate and duration hold. If guests are OOM-killed or the suites
-    # slow down, put this back to 12288. The slim-tier topology's nodes reach
+    # slim-primary jobs actually run at once on sfcbr, allowing for days when
+    # claimable memory is below 177,000 MiB, and merge groups finish sooner
+    # once the claim has followed, and on whether the smoke tests' pass rate
+    # and duration hold. If guests are OOM-killed or the suites slow down,
+    # put this back to 12288. The slim-tier topology's nodes reach
     # 11.4 GiB and are deliberately not part of the trial, and
     # ci-topology-slim-primary-released.yml stays at 12 GiB.
     sf_node_ram_mb: 8192

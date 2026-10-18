@@ -25,9 +25,11 @@ code path covers every node count.
 `slim-primary` is a 4 vCPU / 4 GiB primary and five 4 vCPU hypervisors,
 sf-1 to sf-5. The hypervisors' RAM is `sf_node_ram_mb` at the top of
 the playbook: 8 GiB since October 2026, as a trial down from 12 GiB so
-that three of shakenfist's slim-primary merge queue jobs fit on the
-under-cloud at once rather than two. The comment beside the value has
-the measurements behind it and what would end the trial.
+that three of shakenfist's slim-primary merge queue jobs can fit on the
+under-cloud at once rather than two. Three fit only when sfcbr has more
+than about 177,000 MiB claimable, which is the upper part of its usual
+range; below that, two still do. The comment beside the value has the
+measurements behind it and what would end the trial.
 
 The trial reaches every caller of `slim-primary`, not only shakenfist's
 merge queue: the canary and any other repository or branch that builds
