@@ -49,14 +49,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-localhost.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-create-instance.yml",
-      "author": "mikal"
-    },
-    {
       "path": "deploy-kerbside-on-shakenfist/action.yml",
       "author": "mikal"
     },
@@ -190,18 +182,6 @@
     },
     {
       "path": "tools/ansible-syntax-check.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-multi-node-2.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-multi-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/kerbside-single-node.yml",
       "author": "mikal"
     },
     {
@@ -369,15 +349,7 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-slim-primary.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_mesh_interface.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-topology-slim-tier.yml",
       "author": "mikal"
     },
     {
