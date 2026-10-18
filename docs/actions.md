@@ -247,7 +247,7 @@ ignored, with a warning, in favour of scaling.
 
 | Name | Description |
 |------|-------------|
-| `review-posted` | `true` when a review was posted; `false` on every green path that posted nothing, and on a red one that got as far as running the reviewer |
+| `review-posted` | `true` when a review was posted; `false` on every green path that posted nothing, and on a red one that got as far as checking for an earlier review |
 | `review-skipped` | Why nothing was posted on a green path: `already_reviewed`, `diff_too_large`, `turn_budget_exhausted` or `truncated_unusable`. Empty otherwise |
 | `review-truncated` | `true` when the response was cut off, whether or not a partial review was salvaged from it |
 | `claude-turns`, `claude-duration-ms`, `claude-cost-usd` | What the reviewer run used, or `unknown` |
@@ -281,11 +281,12 @@ the job summary rather than only in the step log.
 | The CLI wrote something that is not a JSON envelope | Red | The CLI failed; nothing can be read out of it |
 | The SDK errored | Red | Same -- a tooling problem worth a human's attention |
 | A review that was not truncated failed schema validation | Red | A tooling problem too, and like an unparseable one its response is posted to the PR as it came |
+| The pull request's reviews could not be read, and `force` is unset | Red | Skipped, posting nothing: whether the bot already reviewed is unknown, and GitHub not answering is a tooling problem. Under `force` the answer does not matter, so the review goes ahead |
 
 The first eight are ordinary outcomes of reviewing a large change, and
 the money is spent by the time they are reached, so they buy an
-explanation on the pull request instead of a red X. The last four mean
-this repository, or the tooling under it, is broken.
+explanation on the pull request instead of a red X. The last five mean
+this repository, the tooling under it, or GitHub's API is broken.
 
 Truncation is told apart from the other failures by the fences. A
 response with no ```json fence at all was never writing a review, and a
@@ -374,7 +375,9 @@ own marker already on the pull request writes the job summary and skips
 the comment, so re-review rounds on an oversized diff do not stack up
 identical notes. That check reads a bounded page of the pull request's
 comments, so on a very long thread an older explanation can scroll out
-of view and be posted again.
+of view and be posted again. A check that fails outright is not taken
+to mean "no earlier copy": the comment is not posted, and the job
+summary says so alongside the explanation.
 
 A green job means the reviewer reached a known endpoint. It does not
 mean the pull request was reviewed -- read the comment, or the

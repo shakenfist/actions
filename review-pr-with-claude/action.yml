@@ -28,8 +28,8 @@ outputs:
     description: >
       'true' when a review was posted to the pull request. Every green
       run that posted nothing sets 'false', and so does a red one that
-      got as far as running the reviewer, so a caller can tell "the
-      job passed" apart from "the pull request was reviewed".
+      got as far as checking for an earlier review, so a caller can
+      tell "the job passed" apart from "the pull request was reviewed".
     value: ${{ steps.review.outputs.review_posted }}
   review-skipped:
     description: >

@@ -21,9 +21,11 @@
 # Exit codes:
 #   0 - Review posted successfully, or skipped for a reason the PR
 #       cannot do anything about (already reviewed, diff too large for
-#       the API, reviewer ran out of turns). Skips that happen after
-#       the PR is known are explained in a comment on the PR itself.
-#   1 - Something went wrong that a human should look at: the reviewer
+#       the API, reviewer ran out of turns). Every skip but the first is
+#       explained in a comment on the PR, when its comments can be read
+#       to check that the explanation is not there already.
+#   1 - Something went wrong that a human should look at: GitHub would
+#       not say whether the PR was already reviewed, or the reviewer
 #       errored, or produced output no review could be recovered from.
 #       The reason is written to the job summary, not just the log.
 
@@ -130,13 +132,25 @@ review_unavailable() {
     # so on a long enough pull request an older explanation can fall
     # out of view and be posted again. A duplicate comment is a much
     # smaller problem than a missing one.
-    if gh pr view "${pr_number}" --json comments \
+    #
+    # A query that fails is not an answer of "no earlier copy", though,
+    # and every retry of a failing run would post the explanation again.
+    # So a failure posts nothing: the explanation still reaches this
+    # run's job summary, and the next run that can read the comments
+    # posts it.
+    local summary_note=''
+    local earlier_comments
+    if ! earlier_comments=$(gh pr view "${pr_number}" --json comments \
             --jq '.comments[] |
                 select(
                     .author.login == "github-actions" or
                     .author.login == "shakenfist-bot"
-                ) | .body' 2>/dev/null \
-            | grep -qF "${marker}"; then
+                ) | .body'); then
+        echo "Warning: could not read the PR's comments to check for" \
+            "an earlier copy of this explanation, so not posting it"
+        summary_note="This explanation was not posted to the pull \
+request: its comments could not be read to check for an earlier copy."
+    elif grep -qF -- "${marker}" <<< "${earlier_comments}"; then
         echo "Note: the PR already carries this explanation, not" \
             "posting it again"
     else
@@ -145,6 +159,9 @@ review_unavailable() {
     fi
 
     step_summary "### :robot: ${heading}" '' "${body}"
+    if [ -n "${summary_note}" ]; then
+        step_summary '' "${summary_note}"
+    fi
 
     ci_output "review_skipped" "${reason}"
     ci_output "review_posted" "false"
@@ -422,13 +439,32 @@ fi
 # Step 4: Check for existing bot reviews
 echo "Step 4: Checking for existing reviews..."
 
-existing_review=$(gh pr view "${pr_number}" --json reviews \
-    --jq '.reviews[] |
-        select(
-            .author.login == "github-actions" or
-            .author.login == "shakenfist-bot"
-        ) | .id' \
-    2>/dev/null | head -1 || true)
+# A query that fails is not an answer of "no earlier review": reading
+# it as one would review, and post, again on every run that hit the
+# failure. So it skips, and posts nothing. It skips red, as a failed
+# diff fetch does, because a GitHub API that will not answer is
+# something for a human to look at rather than anything about the pull
+# request, and a green skip would read as "already reviewed". Under
+# force the answer changes nothing, so a failure there is only noted.
+reviews_file="${output_dir}/existing-reviews.txt"
+if gh pr view "${pr_number}" --json reviews \
+        --jq '.reviews[] |
+            select(
+                .author.login == "github-actions" or
+                .author.login == "shakenfist-bot"
+            ) | .id' > "${reviews_file}"; then
+    existing_review=$(head -1 "${reviews_file}")
+elif [ "${force}" = "true" ]; then
+    echo "Note: could not check for an earlier review; proceeding" \
+        "anyway (force specified)"
+    existing_review=''
+else
+    review_failed "Automated review could not check for an earlier review" \
+        "Reading the pull request's reviews failed, so whether the bot \
+has already reviewed it is unknown. Nothing was reviewed or posted; a \
+rerun of this job, or a request for a re-review, tries again once \
+GitHub answers -- see the step log for the error."
+fi
 
 if [ -n "${existing_review}" ]; then
     if [ "${force}" = "true" ]; then

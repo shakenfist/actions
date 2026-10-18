@@ -31,19 +31,70 @@ ACTION = os.path.join(REPO_ROOT, 'review-pr-with-claude', 'action.yml')
 # diff. Everything else -- posting a comment or a review -- succeeds and
 # does nothing. Every call is logged, so a run that stops short of the
 # reviewer shows which call it stopped after.
+#
+# A test can script the rest through the environment, all unset by
+# default:
+#
+#   FAKE_GH_REVIEWS, FAKE_GH_COMMENTS  a pull request JSON document that
+#       answers --json reviews or --json comments. The script's own --jq
+#       filter is applied to it with jq, so which authors the filter
+#       selects is exercised rather than assumed.
+#   FAKE_GH_REVIEWS_FAIL, FAKE_GH_COMMENTS_FAIL  fail that query:
+#       'error' writes only to stderr, and 'partial' also leaves text on
+#       stdout, as real gh can for an HTTP error.
+#   FAKE_GH_DIFF_LINES  the number of lines in the diff.
+#   FAKE_GH_POSTED  a file every posted comment or review body is
+#       appended to.
 FAKE_GH = textwrap.dedent('''\
     #!/bin/bash
     echo "gh $*" >> "${FAKE_GH_LOG}"
+    jq_filter=''
+    body_file=''
+    prev=''
+    for arg in "$@"; do
+        case "${prev}" in
+            --jq) jq_filter="${arg}" ;;
+            --body-file) body_file="${arg}" ;;
+        esac
+        prev="${arg}"
+    done
+    answer_query() {
+        local fail_var="FAKE_GH_${1}_FAIL" doc_var="FAKE_GH_${1}"
+        case "${!fail_var:-}" in
+            error)
+                echo 'error connecting to api.github.com' >&2
+                exit 1 ;;
+            partial)
+                echo '{"message": "Bad credentials"}'
+                echo 'HTTP 401: Bad credentials' >&2
+                exit 1 ;;
+        esac
+        if [ -n "${!doc_var:-}" ]; then
+            jq -r "${jq_filter}" "${!doc_var}" || exit 98
+        fi
+        exit 0
+    }
     case "$1 $2" in
         'pr view')
             case "$*" in
-                *--json\\ comments*|*--json\\ reviews*) exit 0 ;;
+                *--json\\ reviews*) answer_query REVIEWS ;;
+                *--json\\ comments*) answer_query COMMENTS ;;
             esac
             echo '{"title": "t", "body": "b", "author": {"login": "a"},' \\
                 '"baseRefName": "main", "headRefName": "topic"}'
             ;;
         'pr diff')
-            printf 'diff --git a/x b/x\\n+one line\\n'
+            printf 'diff --git a/x b/x\\n'
+            if [ -n "${FAKE_GH_DIFF_LINES:-}" ]; then
+                seq 2 "${FAKE_GH_DIFF_LINES}" | sed 's/^/+line /'
+            else
+                printf '+one line\\n'
+            fi
+            ;;
+        'pr comment'|'pr review')
+            if [ -n "${FAKE_GH_POSTED:-}" ] && [ -n "${body_file}" ]; then
+                cat "${body_file}" >> "${FAKE_GH_POSTED}"
+            fi
             ;;
     esac
     exit 0
@@ -514,6 +565,334 @@ POSTING_GH = textwrap.dedent('''\
     fi
     exec "$(dirname "$0")/gh-inner" "$@"
     ''')
+
+
+# Records its arguments, then ends the run the way FAKE_CLAUDE_OUTCOME
+# names: 'review' (the default) with a complete, valid review,
+# 'out_of_turns' with no result and the budget spent, 'out_of_turns_prose'
+# with the budget spent and prose in place of a review, and 'sdk_error'
+# with no result and the SDK having failed.
+GATE_CLAUDE = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    import json, os, sys
+    sys.stdin.read()
+    with open(os.environ['FAKE_CLAUDE_RECORD'], 'w') as f:
+        json.dump(sys.argv[1:], f)
+    outcome = os.environ.get('FAKE_CLAUDE_OUTCOME', 'review')
+    if outcome == 'review':
+        review = {'summary': 'Fine.', 'items': [
+            {'id': 1, 'title': 'A nit', 'category': 'style',
+             'action': 'none'}]}
+        envelope = {'subtype': 'success',
+                    'result': '```json\\n' + json.dumps(review) + '\\n```\\n'}
+    elif outcome == 'out_of_turns':
+        envelope = {'subtype': 'error_max_turns'}
+    elif outcome == 'out_of_turns_prose':
+        envelope = {'subtype': 'error_max_turns',
+                    'result': 'Still reading the tree, no review yet.'}
+    else:
+        envelope = {'subtype': 'error_during_execution'}
+    envelope.update({'type': 'result', 'num_turns': 1})
+    print(json.dumps(envelope))
+    ''')
+
+# The marker review_unavailable() puts on a turn budget explanation.
+OUT_OF_TURNS_MARKER = '<!-- sf-reviewer-unavailable: turn_budget_exhausted -->'
+
+
+def reviews_doc(*authors):
+    """A --json reviews answer holding one review by each author."""
+    return {'reviews': [
+        {'id': 'PRR_%d' % i, 'author': {'login': author},
+         'state': 'COMMENTED', 'body': 'b'}
+        for i, author in enumerate(authors)]}
+
+
+def comments_doc(*comments):
+    """A --json comments answer from (author, body) pairs."""
+    return {'comments': [
+        {'id': 'IC_%d' % i, 'author': {'login': author}, 'body': body}
+        for i, (author, body) in enumerate(comments)]}
+
+
+class GateRun:
+    """What one run of the script did, as FAKE_GH and GATE_CLAUDE saw it."""
+
+    def __init__(self, result, tmp):
+        self.returncode = result.returncode
+        self.log = result.stdout + result.stderr
+
+        def read(name):
+            try:
+                with open(os.path.join(tmp, name)) as f:
+                    return f.read()
+            except FileNotFoundError:
+                return ''
+
+        self.gh_calls = read('gh.log').splitlines()
+        self.posted = read('posted')
+        self.summary = read('summary')
+        record = read('record.json')
+        self.reviewer_argv = json.loads(record) if record else None
+        self.outputs = {}
+        for line in read('github-output').splitlines():
+            key, _, value = line.partition('=')
+            self.outputs[key] = value
+
+    @property
+    def posts(self):
+        """Every call that wrote to the pull request."""
+        return [c for c in self.gh_calls
+                if c.startswith(('gh pr comment', 'gh pr review'))]
+
+    @property
+    def max_turns(self):
+        if self.reviewer_argv is None:
+            return None
+        return self.reviewer_argv[self.reviewer_argv.index('--max-turns') + 1]
+
+
+class GateHarness:
+    """Runs the shipped script against FAKE_GH and GATE_CLAUDE."""
+
+    def run_script(self, reviews=None, comments=None, **env_overrides):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        bin_dir = os.path.join(tmp.name, 'bin')
+        os.mkdir(bin_dir)
+        write_executable(os.path.join(bin_dir, 'gh'), FAKE_GH)
+        claude = os.path.join(bin_dir, 'fake-claude')
+        write_executable(claude, GATE_CLAUDE)
+
+        # Nothing from the environment running the tests may script the
+        # stubs or receive the script's outputs.
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(('FAKE_', 'GITHUB_', 'INPUT_'))}
+        env.update({
+            'PATH': bin_dir + os.pathsep + env.get('PATH', ''),
+            'CLAUDE_BIN': claude,
+            'FAKE_CLAUDE_RECORD': os.path.join(tmp.name, 'record.json'),
+            'FAKE_GH_LOG': os.path.join(tmp.name, 'gh.log'),
+            'FAKE_GH_POSTED': os.path.join(tmp.name, 'posted'),
+            'GITHUB_REPOSITORY': 'shakenfist/example',
+            'GITHUB_OUTPUT': os.path.join(tmp.name, 'github-output'),
+            'GITHUB_STEP_SUMMARY': os.path.join(tmp.name, 'summary'),
+            'INPUT_PR_NUMBER': '7',
+            'INPUT_MAX_TURNS': '',
+            'INPUT_FORCE': 'false',
+        })
+        for name, doc in (('REVIEWS', reviews), ('COMMENTS', comments)):
+            if doc is not None:
+                path = os.path.join(tmp.name, name.lower() + '.json')
+                with open(path, 'w') as f:
+                    json.dump(doc, f)
+                env['FAKE_GH_' + name] = path
+        env.update(env_overrides)
+        result = subprocess.run(
+            ['bash', SCRIPT], cwd=tmp.name, env=env,
+            capture_output=True, text=True, timeout=60)
+        return GateRun(result, tmp.name)
+
+    def assertReviewed(self, run):
+        self.assertEqual(run.returncode, 0, run.log)
+        self.assertIsNotNone(run.reviewer_argv, run.log)
+        self.assertEqual(run.outputs.get('review_posted'), 'true', run.log)
+        self.assertEqual([c.split()[:3] for c in run.posts],
+                         [['gh', 'pr', 'review']], run.log)
+
+    def assertNotReviewed(self, run):
+        self.assertIsNone(run.reviewer_argv, run.log)
+        self.assertEqual(run.posts, [], run.log)
+        self.assertEqual(run.outputs.get('review_posted'), 'false', run.log)
+
+
+class EarlierReviewGateTest(GateHarness, unittest.TestCase):
+    """Whether the script reviews at all, given the reviews already there.
+
+    The gate is what stops every push to a pull request buying another
+    review. Its failure mode that matters is a query that fails being
+    read as "no earlier review", which reviews and posts again.
+    """
+
+    def test_no_earlier_review_is_reviewed(self):
+        self.assertReviewed(self.run_script(reviews=reviews_doc()))
+
+    def test_a_review_by_a_person_does_not_count(self):
+        self.assertReviewed(self.run_script(
+            reviews=reviews_doc('alice', 'github-actions[bot]')))
+
+    def test_a_review_by_either_bot_skips_green(self):
+        for authors in (('github-actions',), ('shakenfist-bot',),
+                        ('alice', 'shakenfist-bot')):
+            with self.subTest(authors=authors):
+                run = self.run_script(reviews=reviews_doc(*authors))
+                self.assertEqual(run.returncode, 0, run.log)
+                self.assertNotReviewed(run)
+                self.assertEqual(run.outputs.get('review_skipped'),
+                                 'already_reviewed')
+
+    def test_force_reviews_again(self):
+        run = self.run_script(reviews=reviews_doc('shakenfist-bot'),
+                              INPUT_FORCE='true')
+        self.assertReviewed(run)
+        self.assertIn('force specified', run.log)
+
+    def test_only_an_exact_true_forces(self):
+        for value in ('True', 'yes', '1', ''):
+            with self.subTest(force=value):
+                run = self.run_script(reviews=reviews_doc('shakenfist-bot'),
+                                      INPUT_FORCE=value)
+                self.assertNotReviewed(run)
+                self.assertEqual(run.outputs.get('review_skipped'),
+                                 'already_reviewed')
+
+    def test_a_failed_query_skips_red_and_posts_nothing(self):
+        # 'partial' leaves an error body on stdout, which the gate must
+        # not read as the id of an earlier review either: that would be
+        # a green "already reviewed" for a check that never happened.
+        for failure in ('error', 'partial'):
+            with self.subTest(failure=failure):
+                run = self.run_script(FAKE_GH_REVIEWS_FAIL=failure)
+                self.assertEqual(run.returncode, 1, run.log)
+                self.assertNotReviewed(run)
+                self.assertNotIn('review_skipped', run.outputs)
+                self.assertIn('could not check for an earlier review',
+                              run.summary)
+
+    def test_a_failed_query_under_force_still_reviews(self):
+        for failure in ('error', 'partial'):
+            with self.subTest(failure=failure):
+                run = self.run_script(FAKE_GH_REVIEWS_FAIL=failure,
+                                      INPUT_FORCE='true')
+                self.assertReviewed(run)
+                self.assertIn('could not check for an earlier review', run.log)
+
+
+class TurnBudgetTest(GateHarness, unittest.TestCase):
+    """The turn budget the reviewer is given, and running out of it."""
+
+    def test_the_budget_scales_with_the_diff(self):
+        # Fifty turns, ten more per whole 500 lines, capped at 150.
+        for max_turns, lines, expected in (
+                ('', 2, '50'), ('auto', 2, '50'), ('', 499, '50'),
+                ('', 500, '60'), ('', 1200, '70'), ('auto', 1200, '70'),
+                ('', 5000, '150'), ('', 5600, '150')):
+            with self.subTest(max_turns=max_turns, lines=lines):
+                run = self.run_script(INPUT_MAX_TURNS=max_turns,
+                                      FAKE_GH_DIFF_LINES=str(lines))
+                self.assertEqual(run.max_turns, expected, run.log)
+                self.assertIn('scaled from diff size', run.log)
+
+    def test_a_pinned_budget_is_used_as_given(self):
+        for max_turns in ('7', '9999'):
+            with self.subTest(max_turns=max_turns):
+                run = self.run_script(INPUT_MAX_TURNS=max_turns,
+                                      FAKE_GH_DIFF_LINES='1200')
+                self.assertEqual(run.max_turns, max_turns, run.log)
+                self.assertIn('set by the caller', run.log)
+
+    def test_an_unusable_budget_scales_instead(self):
+        for max_turns in ('0', '00', 'abc', '-5', '7 8', '1\n2', '12345',
+                          '99999999999999999999'):
+            with self.subTest(max_turns=max_turns):
+                run = self.run_script(INPUT_MAX_TURNS=max_turns)
+                self.assertEqual(run.max_turns, '50', run.log)
+                self.assertIn('is not a usable turn budget', run.log)
+
+    def test_running_out_of_turns_is_explained_green(self):
+        run = self.run_script(INPUT_MAX_TURNS='7',
+                              FAKE_CLAUDE_OUTCOME='out_of_turns')
+        self.assertEqual(run.returncode, 0, run.log)
+        self.assertEqual(run.outputs.get('review_skipped'),
+                         'turn_budget_exhausted')
+        self.assertEqual(run.outputs.get('review_posted'), 'false')
+        self.assertEqual(len(run.posts), 1, run.log)
+        self.assertIn('budget of 7 turns on this\n2 line diff', run.posted)
+        self.assertIn(OUT_OF_TURNS_MARKER, run.posted)
+        self.assertIn('ran out of turns', run.summary)
+
+    def test_running_out_of_turns_with_prose_is_explained_green(self):
+        # Prose in place of a review is the budget running out too, not
+        # the reviewer breaking, so it is not posted as unparsed output.
+        run = self.run_script(INPUT_MAX_TURNS='7',
+                              FAKE_CLAUDE_OUTCOME='out_of_turns_prose')
+        self.assertEqual(run.returncode, 0, run.log)
+        self.assertEqual(run.outputs.get('review_skipped'),
+                         'turn_budget_exhausted')
+        self.assertEqual(len(run.posts), 1, run.log)
+        self.assertIn(OUT_OF_TURNS_MARKER, run.posted)
+        self.assertNotIn('Still reading the tree', run.posted)
+
+    def test_the_explanation_names_a_scaled_budget(self):
+        run = self.run_script(FAKE_GH_DIFF_LINES='1200',
+                              FAKE_CLAUDE_OUTCOME='out_of_turns')
+        self.assertEqual(run.returncode, 0, run.log)
+        self.assertIn('budget of 70 turns on this\n1200 line diff',
+                      run.posted)
+
+    def test_no_result_with_turns_to_spare_is_red(self):
+        run = self.run_script(FAKE_CLAUDE_OUTCOME='sdk_error')
+        self.assertEqual(run.returncode, 1, run.log)
+        self.assertEqual(run.posts, [], run.log)
+        self.assertNotIn('review_skipped', run.outputs)
+        self.assertIn('produced no result', run.summary)
+
+
+class ExplanationDedupeTest(GateHarness, unittest.TestCase):
+    """An explanation of a skipped review is posted once per pull request.
+
+    Running out of turns is the way in: it reaches review_unavailable(),
+    which every green "no review" path shares.
+    """
+
+    def run_out_of_turns(self, **kwargs):
+        run = self.run_script(FAKE_CLAUDE_OUTCOME='out_of_turns', **kwargs)
+        self.assertEqual(run.returncode, 0, run.log)
+        self.assertEqual(run.outputs.get('review_skipped'),
+                         'turn_budget_exhausted')
+        self.assertIn('ran out of turns', run.summary)
+        return run
+
+    def test_the_first_explanation_is_posted(self):
+        run = self.run_out_of_turns(comments=comments_doc(
+            ('alice', 'Looks good to me.')))
+        self.assertEqual(len(run.posts), 1, run.log)
+        self.assertTrue(run.posts[0].startswith('gh pr comment'))
+        self.assertNotIn('was not posted to the pull request', run.summary)
+
+    def test_an_earlier_copy_from_either_bot_is_not_repeated(self):
+        for author in ('github-actions', 'shakenfist-bot'):
+            with self.subTest(author=author):
+                run = self.run_out_of_turns(comments=comments_doc(
+                    ('alice', 'Hmm.'),
+                    (author, 'Earlier words.\n\n' + OUT_OF_TURNS_MARKER
+                     + '\n')))
+                self.assertEqual(run.posts, [], run.log)
+                self.assertIn('already carries this explanation', run.log)
+                self.assertNotIn('was not posted to the pull request',
+                                 run.summary)
+
+    def test_a_person_quoting_the_marker_does_not_count(self):
+        run = self.run_out_of_turns(comments=comments_doc(
+            ('alice', OUT_OF_TURNS_MARKER)))
+        self.assertEqual(len(run.posts), 1, run.log)
+
+    def test_an_explanation_for_another_reason_does_not_count(self):
+        run = self.run_out_of_turns(comments=comments_doc(
+            ('shakenfist-bot',
+             '<!-- sf-reviewer-unavailable: diff_too_large -->')))
+        self.assertEqual(len(run.posts), 1, run.log)
+
+    def test_a_failed_query_posts_nothing(self):
+        # Not knowing whether the explanation is there already is not
+        # knowing that it is absent. The job summary still carries it.
+        for failure in ('error', 'partial'):
+            with self.subTest(failure=failure):
+                run = self.run_out_of_turns(FAKE_GH_COMMENTS_FAIL=failure)
+                self.assertEqual(run.posts, [], run.log)
+                self.assertIn('could not read the PR', run.log)
+                self.assertIn('was not posted to the pull request',
+                              run.summary)
 
 
 if __name__ == '__main__':
