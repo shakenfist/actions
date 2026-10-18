@@ -6,9 +6,10 @@
 A deploy profile is a Jinja2 template in the caller's checkout, named by
 the deploy_profile input of smoke-cluster.yml and build-smoke-cluster as a
 path relative to GITHUB_WORKSPACE. It lets a repository add inventory
-groups, extra variables and MariaDB databases to the CI deploy without
-any of that content living in this repository. docs/consuming.md
-documents the schema for callers; this docstring is the reference.
+groups, extra variables, MariaDB databases and ansible collections to the
+CI deploy without any of that content living in this repository.
+docs/consuming.md documents the schema for callers; this docstring is the
+reference.
 
 Rendering
 ---------
@@ -64,6 +65,20 @@ with only these top-level keys, all optional:
   test_env        {NAME: 'value'}: exported into the functional test run.
                   Names are shell identifiers; values must be strings, so
                   quote numbers.
+  collections     [{name: ..., type: ..., version: ...}, ...]: ansible
+                  collections installed beside Shaken Fist's, once, before
+                  the first deploy, by ansible-galaxy collection install -r.
+                  Each entry is an ansible-galaxy requirement:
+                    name     required: a Galaxy namespace.name, a git URL,
+                             or a path
+                    type     galaxy (the default), git, dir or file
+                    version  optional string: a Galaxy version range, a git
+                             ref, or a constraint the collection's own
+                             version must meet
+                  A dir or file path must be absolute once rendered:
+                  ansible-galaxy resolves a relative one against the
+                  directory it runs in, not this file. Build it from
+                  {{ workspace }}.
 
 Anything else -- an unknown key at any level, a value of the wrong type, an
 unknown host -- is refused before anything is written.
@@ -88,10 +103,17 @@ and SQL carry credentials:
                                    be sourced; empty when there are none
   ci-deploy-profile-redeploy-units one unit glob per line; absent when the
                                    profile asks for no redeploy check
+  ci-deploy-profile-requirements.yml
+                                   an ansible-galaxy requirements file of the
+                                   collections, every entry with its type;
+                                   absent when the profile lists none, and
+                                   deploy-collection.sh's eighth argument
 
 Nothing secret is logged: the summary on stderr names groups, hosts and
-variable names, never values. Errors name keys and hosts, never values,
-and a YAML error reports a line and column rather than the offending text.
+variable names, never values, and collections with any credential in a git
+URL removed. Errors name keys and hosts, never values, apart from a refused
+collection's type or relative path, and a YAML error reports a line and
+column rather than the offending text.
 """
 
 import argparse
@@ -105,9 +127,12 @@ import jinja2
 import yaml
 
 
-TOP_LEVEL_KEYS = ('groups', 'extra_vars', 'mariadb_sql', 'redeploy_check', 'test_env')
+TOP_LEVEL_KEYS = ('groups', 'extra_vars', 'mariadb_sql', 'redeploy_check', 'test_env', 'collections')
 GROUP_KEYS = ('hosts', 'vars')
 REDEPLOY_CHECK_KEYS = ('units',)
+COLLECTION_KEYS = ('name', 'type', 'version')
+COLLECTION_TYPES = ('galaxy', 'git', 'dir', 'file')
+LOCAL_COLLECTION_TYPES = ('dir', 'file')
 RESERVED_GROUPS = ('all', 'ungrouped')
 
 IDENTIFIER = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
@@ -118,6 +143,7 @@ EXTRA_VARS_FILE = 'ci-deploy-profile-extra-vars.json'
 SQL_FILE = 'ci-deploy-profile.sql'
 TEST_ENV_FILE = 'ci-deploy-profile-test-env.sh'
 REDEPLOY_UNITS_FILE = 'ci-deploy-profile-redeploy-units'
+REQUIREMENTS_FILE = 'ci-deploy-profile-requirements.yml'
 
 
 class ProfileError(Exception):
@@ -185,6 +211,35 @@ def _refuse_unknown_keys(value, allowed, where):
                            % (where, ', '.join(unknown), ', '.join(allowed)))
 
 
+def validate_collections(collections):
+    """Check a profile's collections and return them with every type explicit."""
+    if not isinstance(collections, list):
+        raise ProfileError('collections must be a list, not %s' % _type_name(collections))
+    normalised = []
+    for index, entry in enumerate(collections, start=1):
+        where = 'collections entry %d' % index
+        _require_mapping(entry, where)
+        _refuse_unknown_keys(entry, COLLECTION_KEYS, where)
+        name = entry.get('name')
+        if not isinstance(name, str) or not name:
+            raise ProfileError('%s needs a name' % where)
+        kind = _optional(entry, 'type', 'galaxy')
+        if kind not in COLLECTION_TYPES:
+            raise ProfileError('%s has unknown type %r; allowed: %s' % (where, kind, ', '.join(COLLECTION_TYPES)))
+        if kind in LOCAL_COLLECTION_TYPES and not os.path.isabs(name):
+            raise ProfileError('%s is a %s source with the relative path %s, which must be absolute: ansible-galaxy '
+                               'resolves a relative path against the directory it runs in, not the profile, so '
+                               'build it from {{ workspace }}' % (where, kind, name))
+        requirement = {'name': name, 'type': kind}
+        version = entry.get('version')
+        if version is not None:
+            if not isinstance(version, str):
+                raise ProfileError('%s version must be a string, not %s; quote it' % (where, _type_name(version)))
+            requirement['version'] = version
+        normalised.append(requirement)
+    return normalised
+
+
 def validate(profile, inventory_hosts, inventory_groups):
     """Check a parsed profile and return it normalised.
 
@@ -246,12 +301,15 @@ def validate(profile, inventory_hosts, inventory_groups):
             raise ProfileError('test_env %s must be a string, not %s; quote it'
                                % (name, _type_name(value)))
 
+    collections = validate_collections(_optional(profile, 'collections', []))
+
     return {
         'groups': groups,
         'extra_vars': extra_vars,
         'mariadb_sql': mariadb_sql,
         'redeploy_check': redeploy_check,
         'test_env': test_env,
+        'collections': collections,
     }
 
 
@@ -331,6 +389,10 @@ def apply(profile_path, facts, inventory_path, workspace=None):
     units_path = os.path.join(output_dir, REDEPLOY_UNITS_FILE)
     if profile['redeploy_check']:
         outputs[units_path] = ''.join('%s\n' % unit for unit in profile['redeploy_check']['units'])
+    requirements_path = os.path.join(output_dir, REQUIREMENTS_FILE)
+    if profile['collections']:
+        outputs[requirements_path] = '---\n' + yaml.safe_dump(
+            {'collections': profile['collections']}, default_flow_style=False, sort_keys=False)
     if profile['groups']:
         outputs[inventory_path] = '---\n' + yaml.safe_dump(
             merge_groups(inventory, profile['groups']), default_flow_style=False, sort_keys=False)
@@ -339,7 +401,20 @@ def apply(profile_path, facts, inventory_path, workspace=None):
         write_private(path, text)
     if not profile['redeploy_check'] and os.path.exists(units_path):
         os.unlink(units_path)
+    if not profile['collections'] and os.path.exists(requirements_path):
+        os.unlink(requirements_path)
     return profile
+
+
+def describe_collection(requirement):
+    """Name a collections entry for the log, leaving out any credential in a git URL."""
+    name = requirement['name']
+    if requirement['type'] == 'git':
+        name = re.sub(r'//[^/@]*@', '//', name)
+    description = '%s (%s' % (name, requirement['type'])
+    if 'version' in requirement:
+        description += ' %s' % requirement['version']
+    return description + ')'
 
 
 def summary(profile):
@@ -355,6 +430,7 @@ def summary(profile):
     else:
         lines.append('redeploy_check: (none)')
     lines.append('test_env: %s' % (', '.join(sorted(profile['test_env'])) or '(none)'))
+    lines.append('collections: %s' % (', '.join(describe_collection(c) for c in profile['collections']) or '(none)'))
     return lines
 
 

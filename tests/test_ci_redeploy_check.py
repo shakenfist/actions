@@ -7,7 +7,8 @@ daemon. The failure worth pinning is a check that passes without having
 looked: a restart read as unchanged, a unit that disappeared read as
 fine, or a snapshot of nothing compared against a snapshot of nothing.
 tools/ci-deploy-cluster.sh runs both deploys from one command line, and
-must never deploy twice for a caller that did not ask.
+must never deploy twice for a caller that did not ask, nor install a
+profile's collections more than once.
 tools/ci-ship-test-env.sh puts a profile's test_env into the suite's
 environment, and must add nothing to a run without a profile.
 """
@@ -370,6 +371,7 @@ class DeployClusterTest(ScriptCopyTestCase):
         self.inventory = self.state_path('ci-inventory.yaml')
         self.extra_vars = self.state_path(profiles.EXTRA_VARS_FILE)
         self.units_file = self.state_path(profiles.REDEPLOY_UNITS_FILE)
+        self.requirements = self.state_path(profiles.REQUIREMENTS_FILE)
         self.check_state = self.state_path('ci-redeploy-check-state')
 
     def run_wrapper(self, topology='localhost', **environment):
@@ -380,9 +382,15 @@ class DeployClusterTest(ScriptCopyTestCase):
         with open(self.units_file, 'w') as f:
             f.write(''.join('%s\n' % glob for glob in GLOBS))
 
+    def write_requirements(self):
+        with open(self.requirements, 'w') as f:
+            f.write('---\ncollections:\n- name: shakenfist.kerbside\n  type: galaxy\n')
+
     def test_without_a_profile_there_is_one_deploy_with_the_old_arguments(self):
-        # A stale units file from an earlier job on this runner must not count.
+        # Stale units and requirements files from an earlier job on this
+        # runner must not count.
         self.write_units()
+        self.write_requirements()
         result = self.run_wrapper()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls(), [['deploy', self.inventory, 'pw', 'seed', 'key', 'http://127.0.0.1:3100',
@@ -414,6 +422,23 @@ class DeployClusterTest(ScriptCopyTestCase):
         self.assertEqual(calls[3], ['check', 'compare', self.inventory, self.check_state] + GLOBS)
         self.assertIn('The first deploy took', result.stdout)
         self.assertIn('The second deploy took', result.stdout)
+
+    def test_collections_are_installed_by_the_first_deploy_only(self):
+        self.write_requirements()
+        result = self.run_wrapper(DEPLOY_PROFILE='p.yml.j2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls(), [['deploy', self.inventory, 'pw', 'seed', 'key', 'http://127.0.0.1:3100',
+                                         '127.0.0.1', self.extra_vars, self.requirements]])
+
+    def test_the_second_deploy_reuses_the_first_deploys_collections(self):
+        self.write_units()
+        self.write_requirements()
+        result = self.run_wrapper(DEPLOY_PROFILE='p.yml.j2')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        self.assertEqual([call[0] for call in calls], ['deploy', 'check', 'deploy', 'check'])
+        self.assertEqual(calls[0][-2:], [self.extra_vars, self.requirements])
+        self.assertEqual(calls[2], calls[0][:-1])
 
     def test_a_restart_fails_the_deploy(self):
         self.write_units()
@@ -507,6 +532,11 @@ class WiringTest(unittest.TestCase):
             wrapper = f.read()
         self.assertIn('REDEPLOY_UNITS_FILE="${STATE_DIR}/%s"' % profiles.REDEPLOY_UNITS_FILE, wrapper)
         self.assertIn('if [ -z "${DEPLOY_PROFILE}" ] || [ ! -f "${REDEPLOY_UNITS_FILE}" ]; then', wrapper)
+
+    def test_the_wrapper_reads_the_requirements_file_the_profile_writes(self):
+        with open(DEPLOY_CLUSTER) as f:
+            wrapper = f.read()
+        self.assertIn('REQUIREMENTS_FILE="${STATE_DIR}/%s"' % profiles.REQUIREMENTS_FILE, wrapper)
 
     def test_the_redeploy_comes_before_anything_that_restarts_sf_api(self):
         # Inside the action, the deploy step is followed by nothing that

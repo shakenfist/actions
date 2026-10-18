@@ -27,6 +27,12 @@ set -e
 #                      keys override the fixed ones. When it is absent or empty
 #                      the ansible-playbook command line is exactly what it was
 #                      before this argument existed.
+#   $8  requirements_file Optional. A deploy profile's ansible-galaxy requirements
+#                      file (written by ci-apply-deploy-profile.py), installed
+#                      after Shaken Fist's collection and before the deploy.
+#                      When it is absent or empty nothing else is installed,
+#                      and every command is exactly what it was before this
+#                      argument existed.
 #
 # The caller (workflow step) is responsible for exporting the proxy / pip
 # environment (http_proxy / https_proxy / PIP_INDEX_URL) before invoking this,
@@ -40,6 +46,7 @@ SYSTEM_KEY="${4:?system key required}"
 LOKI_BASE_URL="${5:?loki base url required}"
 MARIADB_HOST="${6:?mariadb host required}"
 EXTRA_VARS_FILE="${7:-}"
+REQUIREMENTS_FILE="${8:-}"
 
 # The file holds credentials, so it is named on the command line only by
 # path, and nothing here traces the command.
@@ -62,6 +69,14 @@ python3 tools/build-collection.py
 # Install the freshly built collection tarball (the same artifact release.yml
 # publishes), forcing over any previously installed copy.
 ansible-galaxy collection install dist-collection/*.tar.gz --force
+
+# Then the profile's collections, into the same default collections path, so
+# site.yml finds them as it finds Shaken Fist's. --force because a runner can
+# keep an earlier job's copy of a collection, and without it ansible-galaxy
+# keeps that copy rather than installing a dir source's working tree.
+if [ -n "${REQUIREMENTS_FILE}" ]; then
+    ansible-galaxy collection install -r "${REQUIREMENTS_FILE}" --force
+fi
 
 # Run the deploy from this controller against the generated inventory. Play 0
 # builds both wheels here (sf_build_local_wheels=true), play 1 ships them to

@@ -400,9 +400,9 @@ to have run first. Outputs the cluster coordinates (`primary`,
 `upload_target`, `namespace`, `inventory`).
 
 The optional `deploy_profile` input names a Jinja2 profile in the
-caller's checkout that adds inventory groups, extra vars and MariaDB SQL
-to the deploy, and can ask for a second deploy that must restart no
-matching systemd unit; see "Deploy profiles" in
+caller's checkout that adds inventory groups, extra vars, MariaDB SQL
+and ansible collections to the deploy, and can ask for a second deploy
+that must restart no matching systemd unit; see "Deploy profiles" in
 [consuming.md](consuming.md).
 
 The calling job must request at least an `s` runner, and since it

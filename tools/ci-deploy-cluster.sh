@@ -18,14 +18,19 @@ set -euo pipefail
 #
 # Both deploys run one deploy-collection.sh command line, built once below.
 # Without a profile it is exactly the command the action ran before
-# profiles existed, and there is no second deploy.
+# profiles existed, and there is no second deploy. A profile that lists
+# collections adds its requirements file to the first deploy's command
+# line only: they are installed once, and the second deploy runs against
+# what the first installed. A profile without collections leaves both
+# command lines as they were.
 #
 # The second deploy runs only when the profile asked for it, which
 # tools/ci-apply-deploy-profile.py records by writing the redeploy units
-# file (and removing a stale one). /srv/github outlives a job on a static
-# runner, so a run without a profile must not trust a file an earlier run
-# left behind: the file counts only when DEPLOY_PROFILE is set, because only
-# then did this job's apply step decide whether it should exist.
+# file (and removing a stale one); it records collections the same way in
+# the requirements file. /srv/github outlives a job on a static runner, so
+# a run without a profile must not trust a file an earlier run left behind:
+# either file counts only when DEPLOY_PROFILE is set, because only then did
+# this job's apply step decide whether it should exist.
 #
 # The check has to run here, straight after the first deploy: smoke-cluster.yml
 # later restarts sf-api on purpose (the JWKS CA and drain steps), and a second
@@ -41,6 +46,7 @@ INVENTORY="${STATE_DIR}/ci-inventory.yaml"
 FACTS="${STATE_DIR}/ci-topology-facts.json"
 EXTRA_VARS_FILE="${STATE_DIR}/ci-deploy-profile-extra-vars.json"
 REDEPLOY_UNITS_FILE="${STATE_DIR}/ci-deploy-profile-redeploy-units"
+REQUIREMENTS_FILE="${STATE_DIR}/ci-deploy-profile-requirements.yml"
 REDEPLOY_STATE_FILE="${STATE_DIR}/ci-redeploy-check-state"
 TOOLS="${GITHUB_WORKSPACE}/actions/tools"
 
@@ -60,18 +66,23 @@ print([n['mesh_ip'] for n in d['nodes'] if n['name'] == 'primary'][0])" "${FACTS
     loki_url="http://${primary_mesh}:3100"
 fi
 
-# Without a profile the array is empty and expands to no argument at all, so
-# the deploy command is exactly what it was before profiles.
+# Without a profile the arrays are empty and expand to no argument at all,
+# so the deploy command is exactly what it was before profiles.
 profile_args=()
+install_args=()
 if [ -n "${DEPLOY_PROFILE}" ]; then
     profile_args=("${EXTRA_VARS_FILE}")
+    if [ -f "${REQUIREMENTS_FILE}" ]; then
+        install_args=("${REQUIREMENTS_FILE}")
+    fi
 fi
 
-# deploy <label>: run the one deploy command, logging how long it took
-# whether or not it succeeded, so a run near its timeout shows where the
-# time went.
+# deploy <label> [requirements_file]: run the one deploy command, logging
+# how long it took whether or not it succeeded, so a run near its timeout
+# shows where the time went.
 deploy() {
     local label="${1}"
+    shift
     local start status=0
     start=$(date +%s)
     "${TOOLS}/deploy-collection.sh" \
@@ -81,12 +92,13 @@ deploy() {
         "${SYSTEM_KEY}" \
         "${loki_url}" \
         "${mariadb_host}" \
-        "${profile_args[@]}" || status=$?
+        "${profile_args[@]}" \
+        "$@" || status=$?
     echo "The ${label} deploy took $(( $(date +%s) - start )) seconds (exit status ${status})."
     return "${status}"
 }
 
-deploy first
+deploy first "${install_args[@]}"
 
 if [ -z "${DEPLOY_PROFILE}" ] || [ ! -f "${REDEPLOY_UNITS_FILE}" ]; then
     exit 0
