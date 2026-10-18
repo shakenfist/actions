@@ -262,11 +262,15 @@ redeploy_check:      # deploy a second time; no matching unit may restart
   units: ['sf-*.service', 'kerbside-*.service']
 test_env:            # exported into the test run; values are strings
   SF_CI_EXPECT_VDI_CONSOLE_PROXY: '1'
+collections:         # installed beside Shaken Fist's collection, before the deploy
+  - name: shakenfist.kerbside
+    version: '>=0.8.0,<0.9.0'
 ```
 
 `redeploy_check` runs the deploy a second time, with the same command
-line, inside `build-smoke-cluster`'s deploy step, and fails that step if
-any matching unit restarted. Before the second deploy,
+line less the `collections` install, inside `build-smoke-cluster`'s
+deploy step, and fails that step if any matching unit restarted. Before
+the second deploy,
 `tools/ci-redeploy-check.py` records the systemd `InvocationID` of every
 loaded unit matching a glob on every inventory host; afterwards it reads
 them again and prints each unit as unchanged, new, restarted or
@@ -284,6 +288,40 @@ drain steps). The log shows each deploy's elapsed seconds; the second
 costs roughly as long as the first, so check the build step's
 `timeout-minutes` (90 in `smoke-cluster.yml`) has room.
 
+`collections` installs ansible collections that `site.yml` needs but
+Shaken Fist's collection does not carry, such as the role behind an
+optional component. Each entry is an `ansible-galaxy` requirement with
+a `name`, a `type` (`galaxy`, the default, `git`, `dir` or `file`) and
+an optional `version`, and no other field. The deploy writes them to a
+requirements file and runs `ansible-galaxy collection install -r` with
+`--force` straight after installing Shaken Fist's collection, into the
+same collections path, so `site.yml` finds both. That happens once:
+`redeploy_check`'s second deploy runs against what the first installed.
+A Galaxy entry takes a version range:
+
+```yaml
+collections:
+  - name: shakenfist.kerbside
+    version: '>=0.8.0,<0.9.0'
+```
+
+A `dir` entry installs a checkout's working tree, so a repository can
+deploy the collection its own pull request changes. A `dir` or `file`
+path must be absolute once rendered, because `ansible-galaxy` resolves a
+relative path against the directory it runs in rather than the profile,
+so build it from `workspace`:
+
+```yaml
+collections:
+  - name: '{{ workspace }}/kerbside/ansible'
+    type: dir
+```
+
+A `type: git` entry names the repository, either with the subdirectory
+and ref in the name (`git+https://github.com/org/repo.git#/ansible,v1.2.3`)
+or with the ref as `version`. Without `collections` nothing but Shaken
+Fist's collection is installed, and the deploy commands are unchanged.
+
 `test_env` is copied to the primary as a `0600` file and sourced after
 `/etc/sf/sfrc` in the remote command that runs the suite, for both the
 `functional` and `ansible-modules` test kinds, so a variable there wins
@@ -292,9 +330,10 @@ command is unchanged.
 
 Anything else fails the deploy before it starts, with a "Deploy profile
 rejected" annotation: an unknown key at any level, a host the topology
-does not have, a group that already exists, or a name the facts do not
-define. A profile may add groups but not change the ones the inventory
-already has.
+does not have, a group that already exists, a name the facts do not
+define, or a collection without a name, with an unknown type, or with a
+relative path. A profile may add groups but not change the ones the
+inventory already has.
 
 Extra vars and SQL usually carry credentials, even throwaway CI ones, so
 they are written to `0600` files on the runner, the SQL reaches MariaDB

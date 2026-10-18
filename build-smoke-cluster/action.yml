@@ -196,8 +196,9 @@ runs:
 
     # The deploy, and the second deploy a profile's redeploy_check asks for,
     # are tools/ci-deploy-cluster.sh: both run one deploy-collection.sh
-    # command line, and the script's header says why the second belongs here
-    # rather than anywhere later in the job.
+    # command line (the first also installs a profile's collections), and
+    # the script's header says why the second belongs here rather than
+    # anywhere later in the job.
     - name: Deploy Shaken Fist via the collection
       shell: bash
       env:

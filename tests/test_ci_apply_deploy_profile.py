@@ -64,10 +64,15 @@ redeploy_check:
 test_env:
   SF_CI_EXPECT_VDI_CONSOLE_PROXY: '1'
   SF_CI_QUOTED: "it's spaced"
+collections:
+  - name: shakenfist.kerbside
+    version: '>=0.8.0,<0.9.0'
+  - name: '{{ workspace }}/kerbside/ansible'
+    type: dir
 """
 
 OUTPUT_FILES = (profiles.PROFILE_FILE, profiles.EXTRA_VARS_FILE, profiles.SQL_FILE, profiles.TEST_ENV_FILE,
-                profiles.REDEPLOY_UNITS_FILE)
+                profiles.REDEPLOY_UNITS_FILE, profiles.REQUIREMENTS_FILE)
 
 
 class ProfileTestCase(unittest.TestCase):
@@ -202,6 +207,14 @@ class MergeTest(ProfileTestCase):
         self.assertEqual(rendered['redeploy_check'], {'units': ['sf-*.service', 'kerbside-*.service']})
         self.assertEqual(rendered['test_env']['SF_CI_EXPECT_VDI_CONSOLE_PROXY'], '1')
 
+    def test_the_requirements_file_lists_the_collections_with_explicit_types(self):
+        self.apply(KERBSIDE_PROFILE)
+        self.assertTrue(self.output(profiles.REQUIREMENTS_FILE).startswith('---\n'))
+        self.assertEqual(yaml.safe_load(self.output(profiles.REQUIREMENTS_FILE)), {'collections': [
+            {'name': 'shakenfist.kerbside', 'type': 'galaxy', 'version': '>=0.8.0,<0.9.0'},
+            {'name': '/srv/ws/kerbside/ansible', 'type': 'dir'},
+        ]})
+
     def test_the_test_env_file_sources_back_to_the_same_values(self):
         self.apply(KERBSIDE_PROFILE)
         result = subprocess.run(
@@ -209,6 +222,84 @@ class MergeTest(ProfileTestCase):
              os.path.join(self.tmp, profiles.TEST_ENV_FILE)],
             check=True, stdout=subprocess.PIPE, text=True)
         self.assertEqual(result.stdout, "1\nit's spaced\n")
+
+
+class CollectionsTest(ProfileTestCase):
+    def collections(self, entries):
+        return self.apply(yaml.safe_dump({'collections': entries}))['collections']
+
+    def test_every_type_is_accepted(self):
+        entries = [
+            {'name': 'shakenfist.kerbside', 'type': 'galaxy', 'version': '0.8.0'},
+            {'name': 'git+https://github.com/shakenfist/kerbside.git#/ansible,develop', 'type': 'git'},
+            {'name': 'https://github.com/shakenfist/kerbside.git', 'type': 'git', 'version': '0123abcd'},
+            {'name': '/srv/ws/kerbside/ansible', 'type': 'dir'},
+            {'name': '/srv/ws/dist/shakenfist-kerbside-0.8.0.tar.gz', 'type': 'file'},
+        ]
+        self.assertEqual(self.collections(entries), entries)
+
+    def test_the_type_defaults_to_galaxy_and_the_version_is_optional(self):
+        self.assertEqual(self.collections([{'name': 'shakenfist.kerbside'}]),
+                         [{'name': 'shakenfist.kerbside', 'type': 'galaxy'}])
+
+    def test_a_null_collections_key_is_no_collections(self):
+        self.assertEqual(self.apply('collections:\n')['collections'], [])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, profiles.REQUIREMENTS_FILE)))
+
+    def test_a_stale_requirements_file_is_removed(self):
+        self.apply(KERBSIDE_PROFILE)
+        self.apply('extra_vars:\n  a: b\n')
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, profiles.REQUIREMENTS_FILE)))
+
+    def test_an_unknown_field_is_refused(self):
+        self.assertRefused('collections:\n  - name: shakenfist.kerbside\n    source: https://galaxy.example\n',
+                           'collections entry 1 has unknown key(s) source')
+
+    def test_an_unknown_type_is_refused(self):
+        for kind in ('url', 'subdirs', 'Galaxy', ''):
+            with self.subTest(type=kind):
+                self.assertRefused(yaml.safe_dump({'collections': [{'name': 'shakenfist.kerbside', 'type': kind}]}),
+                                   'collections entry 1 has unknown type')
+
+    def test_a_missing_name_is_refused(self):
+        for entry in ({'type': 'galaxy', 'version': '0.8.0'}, {'name': ''}, {'name': None}, {'name': 7}):
+            with self.subTest(entry=entry):
+                self.assertRefused(yaml.safe_dump({'collections': [{'name': 'a.b'}, entry]}),
+                                   'collections entry 2 needs a name')
+
+    def test_a_relative_dir_path_is_refused(self):
+        for name in ('kerbside/ansible', './kerbside/ansible', '~/kerbside/ansible'):
+            with self.subTest(name=name):
+                error = self.assertRefused(yaml.safe_dump({'collections': [{'name': name, 'type': 'dir'}]}),
+                                           'must be absolute')
+                self.assertIn('resolves a relative path against the directory it runs in', str(error))
+                self.assertIn('{{ workspace }}', str(error))
+
+    def test_a_relative_file_path_is_refused(self):
+        self.assertRefused(yaml.safe_dump({'collections': [{'name': 'dist/kerbside.tar.gz', 'type': 'file'}]}),
+                           'collections entry 1 is a file source with the relative path dist/kerbside.tar.gz')
+
+    def test_a_path_is_checked_after_rendering(self):
+        self.assertRefused("collections:\n  - name: '{{ nodes.primary.name }}/ansible'\n    type: dir\n",
+                           'relative path primary/ansible')
+
+    def test_a_non_string_version_is_refused(self):
+        self.assertRefused('collections:\n  - name: shakenfist.kerbside\n    version: 0.8\n', 'quote it')
+
+    def test_collections_that_are_not_a_list_are_refused(self):
+        self.assertRefused('collections:\n  name: shakenfist.kerbside\n', 'collections must be a list')
+
+    def test_an_entry_that_is_not_a_mapping_is_refused(self):
+        self.assertRefused('collections:\n  - shakenfist.kerbside\n', 'collections entry 1 must be a mapping')
+
+    def test_the_summary_leaves_out_a_git_credential(self):
+        profile = self.apply(yaml.safe_dump({'collections': [
+            {'name': 'git+https://bot:s3cret@github.com/shakenfist/kerbside.git#/ansible', 'type': 'git',
+             'version': 'develop'},
+            {'name': 'shakenfist.kerbside'}]}))
+        line = profiles.summary(profile)[-1]
+        self.assertEqual(line, 'collections: git+https://github.com/shakenfist/kerbside.git#/ansible (git develop), '
+                               'shakenfist.kerbside (galaxy)')
 
 
 class RefusalTest(ProfileTestCase):
@@ -258,13 +349,14 @@ class EmptyProfileTest(ProfileTestCase):
             with self.subTest(text=text):
                 profile = self.apply(text)
                 self.assertEqual(profile, {'groups': {}, 'extra_vars': {}, 'mariadb_sql': '',
-                                           'redeploy_check': None, 'test_env': {}})
+                                           'redeploy_check': None, 'test_env': {}, 'collections': []})
                 with open(self.inventory) as f:
                     self.assertEqual(f.read(), self.original_inventory)
                 self.assertEqual(json.loads(self.output(profiles.EXTRA_VARS_FILE)), {})
                 self.assertEqual(self.output(profiles.SQL_FILE), '')
                 self.assertEqual(self.output(profiles.TEST_ENV_FILE), '')
                 self.assertFalse(os.path.exists(os.path.join(self.tmp, profiles.REDEPLOY_UNITS_FILE)))
+                self.assertFalse(os.path.exists(os.path.join(self.tmp, profiles.REQUIREMENTS_FILE)))
 
     def test_a_stale_redeploy_units_file_is_removed(self):
         self.apply(KERBSIDE_PROFILE)
@@ -290,6 +382,8 @@ class CommandLineTest(ProfileTestCase):
         self.assertIn('kerbside_sql_url', result.stderr)
         self.assertNotIn('ci-password', result.stdout + result.stderr)
         self.assertNotIn('CREATE DATABASE', result.stdout + result.stderr)
+        self.assertIn('collections: shakenfist.kerbside (galaxy >=0.8.0,<0.9.0), %s/kerbside/ansible (dir)'
+                      % self.tmp, result.stderr)
 
     def test_an_absolute_profile_path_is_refused(self):
         result = self.run_script(self.write_profile(KERBSIDE_PROFILE))
@@ -308,13 +402,16 @@ class CommandLineTest(ProfileTestCase):
 class DeployCollectionCommandTest(unittest.TestCase):
     """Run deploy-collection.sh with every external command stubbed out.
 
-    The ansible-playbook stub records its argv, so these tests compare the
-    command the deploy would really run. The script hardcodes its venv
-    path under /tmp, which a test must not touch, so a copy is run with
-    that one path redirected.
+    The ansible-galaxy and ansible-playbook stubs record their argv, in
+    order, so these tests compare the commands the deploy would really run.
+    The script hardcodes its venv path under /tmp, which a test must not
+    touch, so a copy is run with that one path redirected.
     """
 
     POSITIONAL = ['/srv/github/ci-inventory.yaml', 'pw', 'seed', 'key', 'http://10.0.1.10:3100', '10.0.1.10']
+    EXTRA_VARS = '/srv/github/ci-deploy-profile-extra-vars.json'
+    REQUIREMENTS = '/srv/github/ci-deploy-profile-requirements.yml'
+    TARBALL_INSTALL = ['ansible-galaxy', 'collection', 'install', 'dist-collection/*.tar.gz', '--force']
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -330,11 +427,13 @@ class DeployCollectionCommandTest(unittest.TestCase):
         with open(self.script, 'w') as f:
             f.write(script.replace('/tmp/collection-venv', os.path.join(self.tmp, 'venv')))
 
-        self.record = os.path.join(self.tmp, 'argv')
+        # python3 is a stub here, so the recording stubs are plain bash: each
+        # call is its name and argv, NUL separated, ended by a record separator.
+        self.record = os.path.join(self.tmp, 'calls')
         self.stub(stubs, 'python3', 'if [ "$1" = "-mvenv" ]; then mkdir -p "$2/bin"; touch "$2/bin/activate"; fi')
         self.stub(stubs, 'pip', 'true')
-        self.stub(stubs, 'ansible-galaxy', 'true')
-        self.stub(stubs, 'ansible-playbook', 'printf "%%s\\0" "$@" > %s' % self.record)
+        for name in ('ansible-galaxy', 'ansible-playbook'):
+            self.stub(stubs, name, '{ printf "%%s\\0" %s "$@"; printf "\\036"; } >> %s' % (name, self.record))
 
         self.environment = dict(os.environ)
         self.environment['PATH'] = '%s:%s' % (stubs, os.environ['PATH'])
@@ -346,11 +445,20 @@ class DeployCollectionCommandTest(unittest.TestCase):
             f.write('#!/bin/bash\n%s\n' % body)
         os.chmod(path, 0o755)
 
-    def run_deploy(self, *extra):
+    def run_calls(self, *extra):
+        """Run the deploy and return every recorded command, in order."""
+        if os.path.exists(self.record):
+            os.unlink(self.record)
         subprocess.run(['bash', self.script] + self.POSITIONAL + list(extra), check=True, env=self.environment,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         with open(self.record) as f:
-            return f.read().split('\0')[:-1]
+            return [call.split('\0')[:-1] for call in f.read().split('\036')[:-1]]
+
+    def run_deploy(self, *extra):
+        """Run the deploy and return the ansible-playbook argv."""
+        calls = self.run_calls(*extra)
+        self.assertEqual(calls[-1][0], 'ansible-playbook')
+        return calls[-1][1:]
 
     def test_without_a_profile_the_command_has_one_extra_vars_string(self):
         argv = self.run_deploy()
@@ -360,14 +468,36 @@ class DeployCollectionCommandTest(unittest.TestCase):
         self.assertIn('mariadb_host=10.0.1.10', argv[4].split())
         self.assertIn('extra_config=[]', argv[4].split())
 
+    def test_without_a_profile_only_shakenfist_is_installed(self):
+        calls = self.run_calls()
+        self.assertEqual([call[0] for call in calls], ['ansible-galaxy', 'ansible-playbook'])
+        self.assertEqual(calls[0], self.TARBALL_INSTALL)
+
     def test_an_empty_seventh_argument_changes_nothing(self):
-        self.assertEqual(self.run_deploy(''), self.run_deploy())
+        self.assertEqual(self.run_calls(''), self.run_calls())
 
     def test_a_profile_appends_its_file_after_the_unchanged_command(self):
         without = self.run_deploy()
-        argv = self.run_deploy('/srv/github/ci-deploy-profile-extra-vars.json')
+        argv = self.run_deploy(self.EXTRA_VARS)
         self.assertEqual(argv[:len(without)], without)
-        self.assertEqual(argv[len(without):], ['--extra-vars', '@/srv/github/ci-deploy-profile-extra-vars.json'])
+        self.assertEqual(argv[len(without):], ['--extra-vars', '@' + self.EXTRA_VARS])
+
+    def test_a_profile_without_collections_installs_nothing_more(self):
+        calls = self.run_calls(self.EXTRA_VARS)
+        self.assertEqual([call[0] for call in calls], ['ansible-galaxy', 'ansible-playbook'])
+        self.assertEqual(calls[0], self.TARBALL_INSTALL)
+
+    def test_an_empty_eighth_argument_changes_nothing(self):
+        self.assertEqual(self.run_calls(self.EXTRA_VARS, ''), self.run_calls(self.EXTRA_VARS))
+
+    def test_collections_are_installed_after_shakenfist_and_before_the_unchanged_deploy(self):
+        without = self.run_calls(self.EXTRA_VARS)
+        calls = self.run_calls(self.EXTRA_VARS, self.REQUIREMENTS)
+        self.assertEqual(calls, [
+            self.TARBALL_INSTALL,
+            ['ansible-galaxy', 'collection', 'install', '-r', self.REQUIREMENTS, '--force'],
+            without[-1],
+        ])
 
 
 class WiringTest(unittest.TestCase):
