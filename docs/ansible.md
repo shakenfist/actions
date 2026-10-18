@@ -169,6 +169,17 @@ in seconds:
 | `kerbside-multi-node.yml` | 600 |
 | `kerbside-multi-node-2.yml` | 600 |
 
+No other playbook waits. `ci-topology-localhost-released.yml`,
+`ci-topology-localhost-upgrade.yml` and
+`ci-topology-slim-primary-released.yml` still fail on the first
+refusal. No workflow runs them, so a change there would go untested.
+The image-build playbooks (`ci-image.yml`, `ci-image-desktop.yml`,
+`ci-dependencies.yml`, `ci-instar-testdata.yml`) are left out too.
+They belong to private-ci's ci-images builder, which holds its own
+capacity claim, so adopting the wait there is that builder's change.
+`tests/test_capacity_wait.py` holds the table above to the playbooks,
+and checks that each create is counted by the task straight after it.
+
 The fact `sf_capacity_waited` holds the total spent so far. It starts at
 0 in the play's first `set_fact`. After each create, the playbook adds
 the `capacity_waited.seconds` that `sf_instance` returned. Each create
@@ -201,8 +212,13 @@ The capacity clock and the boot clock are separate. The wait ends
 when the cluster accepts the create, and the boot then gets its full
 `await_timeout`. A whole run can spend at most its budget waiting, on
 top of its usual time. So the build step of a `localhost` smoke
-cluster can take up to 30 minutes longer than before. That still fits
-under the 90 minute `timeout-minutes` on the step in `smoke-cluster.yml`.
+cluster can take up to 30 minutes longer than before. That step,
+deploy included, normally takes 6 to 7 minutes: that was the median
+and maximum over successful shakenfist pull request runs in October
+2026. So the worst case is still well under the 90 minute
+`timeout-minutes` on the step in `smoke-cluster.yml`. The
+multi-instance `slim-*` builds take 9 to 12 minutes, plus at most 10
+minutes of waiting.
 When the budget runs out, the task fails with the server's last
 refusal message, followed by how long it waited. So a log search for
 the server's text still finds the failure.

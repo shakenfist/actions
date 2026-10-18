@@ -137,7 +137,8 @@ once. They give up after 30 minutes in total for a one-node build
 (`localhost`, kerbside `all-in-one`). For a multi-node build they give
 up after 10 minutes. A build that waits can take up to that much longer, so
 leave room for it in your `timeout-minutes`. The 90 minutes in the
-Mode 2 example above has room. A build that runs out of time fails with
+Mode 2 example above has room: a `localhost` build normally takes 6
+to 7 minutes of it, deploy included. A build that runs out of time fails with
 the cluster's own refusal message, followed by how long it waited. See
 [Waiting for capacity](ansible.md#waiting-for-capacity).
 
