@@ -33,10 +33,6 @@
       "sha": "07e038ce4f1ba143eeb172e17e3d24c6e43e203a",
       "date": "2026-10-16"
     },
-    ".github/workflows/smoke-cluster.yml": {
-      "sha": "0a765d997604ddfac2d4d0f2fb7436df0f3bd54c",
-      "date": "2026-10-16"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
