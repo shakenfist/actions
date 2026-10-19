@@ -211,9 +211,10 @@ class ForkGuardTest(unittest.TestCase):
         self.assertIn('.head.repo.full_name', self.text)
 
     def test_authorized_requires_both_permission_and_same_repo(self):
-        # Callers gate only on `authorized`, so the fork check has to be
-        # folded into it -- otherwise every caller needs its own edit and
-        # the guard is lost the moment one is forgotten.
+        # Callers gate on `confirmed`, which folds `authorized` in, or on
+        # `authorized` itself, so the fork check has to be folded into it
+        # -- otherwise every caller needs its own edit and the guard is
+        # lost the moment one is forgotten.
         value = self.parsed['outputs']['authorized']['value']
         gate_id = re.search(r'steps\.(\w+)\.outputs\.authorized', value)
         self.assertIsNotNone(gate_id, 'authorized output is not a step output')

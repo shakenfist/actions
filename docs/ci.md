@@ -216,8 +216,8 @@ One convention is knowingly not met. AGENTS.md says not to write more
 than about five lines of shell inline in a workflow step -- put it in a
 script under `tools/` so it can be run and tested outside CI. Both
 bot-triggered workflows breach it: `pr-retest.yml` in its dispatch step
-and its confirmation comment, and `pr-re-review.yml` in its output
-check and the comments it posts. They are the fleet's shared
+and its confirmation comment, and `pr-re-review.yml` in the comments
+its re-review job posts. They are the fleet's shared
 templates, and every line this repository rewrites is a line that stops
 matching the other repositories running the same workflow, which costs
 more than it saves while the templates are still the source of truth.
