@@ -300,6 +300,7 @@ class IgnoredRunsTest(GateTestCase):
 
     def test_a_merge_queue_run_for_another_branch_is_ignored(self):
         for branch in ('gh-readonly-queue/main/pr-7-%s' % OTHER, 'gh-readonly-queue/developer/pr-7-%s' % OTHER,
+                       'gh-readonly-queue/develop/x/pr-7-%s' % OTHER,
                        'gh-readonly-queue/develop', 'develop'):
             with self.subTest(branch=branch):
                 self.assertIgnored(run(event='merge_group', branch=branch))

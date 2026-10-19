@@ -189,6 +189,38 @@ class CheckDistTestCase(unittest.TestCase):
         self.assertEqual(1, rc)
         self.assertIn('pkg/tests/my file.py', out)
 
+    def test_output_is_escaped_so_a_member_cannot_inject_a_command(self):
+        self.wheel('a.whl', ['pkg/tests/x\n::stop-commands::x/y.py'])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(1, rc)
+        self.assertIn('x%0A::stop-commands::x', out)
+        for line in out.splitlines():
+            self.assertFalse(line.startswith('::stop-commands::'), line)
+
+    def test_wheel_path_is_escaped(self):
+        odd = os.path.join(os.path.dirname(self.dist), 'a%b')
+        os.mkdir(odd)
+        self.wheel('a.whl', ['pkg/tests/t.py'], directory=odd)
+        rc, out = self.run_script(odd)
+        self.assertEqual(1, rc)
+        self.assertIn('a%25b', out)
+
+    def test_backslash_in_member_name_fails(self):
+        self.wheel('a.whl', ['pkg\\tests\\x.py'])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(1, rc)
+        self.assertIn('backslash in member name (wheels use /)', out)
+
+    def test_argv_path_overrides_environment(self):
+        self.wheel('a.whl', ['pkg/tests/t.py'])
+        good = os.path.join(os.path.dirname(self.dist), 'good')
+        os.mkdir(good)
+        self.wheel('b.whl', ['pkg/x.py'], directory=good)
+        proc = subprocess.run([sys.executable, '-I', SCRIPT, good], env={'CHECK_DIST_PATH': self.dist},
+                              capture_output=True, text=True)
+        self.assertEqual(0, proc.returncode, proc.stdout)
+        self.assertIn('b.whl OK', proc.stdout)
+
     def test_wheels_in_subdirectories_are_not_checked(self):
         os.mkdir(os.path.join(self.dist, 'sub'))
         self.wheel('a.whl', ['pkg/tests/t.py'], directory=os.path.join(self.dist, 'sub'))

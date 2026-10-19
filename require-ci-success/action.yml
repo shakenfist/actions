@@ -27,7 +27,7 @@ inputs:
       Blank lines and duplicates are ignored; naming none is an error.
     required: true
   sha:
-    description: 'The full 40-character sha of the commit to check. Defaults to the commit the workflow runs on.'
+    description: 'The full 40-character sha of the commit to check. Defaults to the commit the workflow runs on. In a release workflow leave it at its default unless the build checks out that same sha explicitly, or the gate approves one commit and the release publishes another.'
     required: false
     default: ${{ github.sha }}
   token:

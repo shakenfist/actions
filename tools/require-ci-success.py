@@ -217,10 +217,13 @@ def require_on_branch(repo, branch, sha, workflows):
                 raise GitHubError('the history of %s ends without listing %s, a first parent on it'
                                   % (branch, commit))
             if pages == MAX_FIRST_PARENT_PAGES:
+                listed = HISTORY_PER_PAGE * MAX_FIRST_PARENT_PAGES
                 raise GateFailure(
                     'The tagged commit %s is not on the first-parent history of %s as far back as the gate '
-                    'reads it, the newest %d commits listed. A release is tagged at or near the tip, so the gate '
-                    'looks no further. %s' % (sha, branch, HISTORY_PER_PAGE * MAX_FIRST_PARENT_PAGES, why_not),
+                    'reads it, the newest %d commits in GitHub\'s date-ordered listing. That count includes commits '
+                    'merged in from feature branches, so it is not %d first-parent steps. A release is tagged at '
+                    'or near the tip, so the gate looks no further. %s'
+                    % (sha, branch, listed, listed, why_not),
                     summary)
             pages += 1
             batch, ended = history_page(repo, tip, pages)
@@ -282,7 +285,9 @@ def qualifies(run, repo, sha, branch):
     if run.get('event') == 'push':
         return head_branch == branch
     if run.get('event') == 'merge_group':
-        return head_branch.startswith('gh-readonly-queue/%s/' % branch)
+        # The whole name must match: a queue for a branch nested under this one, such as
+        # gh-readonly-queue/develop/release/pr-7-<sha>, also starts with the prefix.
+        return re.fullmatch(r'gh-readonly-queue/%s/pr-\d+-[0-9a-f]{40}' % re.escape(branch), head_branch) is not None
     return False
 
 

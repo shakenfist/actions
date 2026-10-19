@@ -34,6 +34,14 @@ HINT = (
     '= false under [tool.setuptools] is the usual fix.')
 
 
+def annotate(message):
+    """Escape text the way the runner unescapes a workflow command's message.
+
+    Without it, a member name containing a newline could start a line of its own and inject a command.
+    """
+    return message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+
+
 def is_test_component(component):
     return component == 'tests' or component.endswith('_tests')
 
@@ -52,6 +60,8 @@ def test_directory(member):
 
 def offending_reason(member, forbid):
     """Return why a wheel member must not ship, or None if it may."""
+    if '\\' in member:
+        return 'backslash in member name (wheels use /)'
     component = test_directory(member)
     if component is not None:
         return 'test directory %r' % component
@@ -84,7 +94,7 @@ def run(path, forbid):
     """Check every wheel under path, print the results, return an exit code."""
     wheels = sorted(glob.glob(os.path.join(glob.escape(path), '*.whl')))
     if not wheels:
-        print('::error::check-dist: no .whl file found under %s' % path)
+        print('::error::check-dist: no .whl file found under %s' % annotate(path))
         return 1
 
     failed = False
@@ -95,19 +105,20 @@ def run(path, forbid):
         try:
             count, offenders = check_wheel(wheel, forbid)
         except (zipfile.BadZipFile, OSError) as e:
-            print('::error::check-dist: %s is not a readable zip archive (%s)' % (wheel, e))
+            print('::error::check-dist: %s is not a readable zip archive (%s)' % (annotate(wheel), annotate(str(e))))
             failed = True
             continue
 
         if offenders:
             failed = True
-            print('::error::check-dist: %s contains %d member(s) that must not ship:' % (wheel, len(offenders)))
+            print('::error::check-dist: %s contains %d member(s) that must not ship:'
+                  % (annotate(wheel), len(offenders)))
             for member, reason in offenders:
-                print('  %s (%s)' % (member, reason))
+                print('  %s (%s)' % (annotate(member), reason))
                 if test_directory(member) is not None:
                     shipped_tests = True
         else:
-            print('check-dist: %s OK (%d members)' % (wheel, count))
+            print('check-dist: %s OK (%d members)' % (annotate(wheel), count))
 
     if shipped_tests:
         print('check-dist: hint: ' + HINT)

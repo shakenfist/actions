@@ -664,7 +664,7 @@ it the gate fails closed, with "could not run gh".
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `workflows` | Yes | - | The workflow files that must have succeeded, one per line, each a bare file name in `.github/workflows/` such as `ci.yml`, not a path. Blank lines, surrounding whitespace and duplicates are ignored; naming none is an error |
-| `sha` | No | `github.sha` | The commit to check, as a full 40-character sha |
+| `sha` | No | `github.sha` | The commit to check, as a full 40-character sha. In a release workflow leave it at its default unless the build checks out that same sha explicitly; otherwise the gate approves one commit and the release publishes another |
 | `token` | No | `github.token` | A token with `actions: read` and `contents: read` |
 
 There are no outputs. The step passes or fails, prints the commit CI
@@ -684,6 +684,18 @@ matters as much as the event: a push to any other branch runs the
 workflow file as that branch has it, so anyone who can push a branch
 could make CI succeed there trivially and then tag the commit.
 
+A merge queue run counts only if its whole `head_branch` has the form
+`gh-readonly-queue/<default>/pr-<number>-<40 hex sha>`, so the queue of
+a branch nested under the default one, such as `develop/release`, does
+not.
+
+A tag named like the default branch, on a commit already on its
+first-parent history, still yields `push` runs with that `head_branch`.
+Inside those runs `github.ref` is `refs/tags/<name>`, so steps guarded
+on the ref are skipped. Gated CI workflows should restrict `on: push`
+to `branches:`, so that a tag push starts no CI at all. A tag ruleset
+that blocks branch-named tags is an alternative.
+
 A run's metadata does not tell a tag from a branch, though. Pushing a
 tag creates `push` runs whose `head_branch` is the tag's name, so a tag
 named `develop`, pushed onto any commit, would make runs that look like
@@ -702,8 +714,10 @@ commit that never landed.
 The gate reads the branch's tip from the branch itself, lists the
 history from that sha rather than from the branch's name (which a tag
 named like it would make ambiguous), and looks through at most five
-pages, the newest 500 commits. A release is tagged at or near the tip,
-so a commit further back is refused rather than looked for; the bound
+pages, the newest 500 commits in GitHub's date-ordered listing. That
+is 500 listed commits, including commits merged in from feature
+branches, not 500 first-parent steps. A release is tagged at or near
+the tip, so a commit further back is refused rather than looked for; the bound
 is fixed in the script, and it only ever fails closed. Membership is
 checked once, on the tagged commit, because the walk described below
 follows first parents too, and the first parent of a commit on that

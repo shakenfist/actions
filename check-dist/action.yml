@@ -41,4 +41,4 @@ runs:
       env:
         CHECK_DIST_PATH: ${{ inputs.path }}
         CHECK_DIST_FORBID: ${{ inputs.forbid }}
-      run: python3 -I "${GITHUB_ACTION_PATH}/../tools/check-dist.py"
+      run: 'python3 -I "${GITHUB_ACTION_PATH}/../tools/check-dist.py"'
