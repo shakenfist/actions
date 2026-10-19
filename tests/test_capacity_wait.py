@@ -30,9 +30,10 @@ ANSIBLE_DIR = os.path.join(REPO_ROOT, 'ansible')
 DOCS = os.path.join(REPO_ROOT, 'docs', 'ansible.md')
 MODULE = 'shakenfist.shakenfist.sf_instance'
 INCLUDE = 'kerbside-create-instance.yml'
+NODE_INCLUDE = 'tasks/create-topology-node.yml'
 
-# The playbooks that set a budget, and the task file the kerbside ones
-# create through. Every other playbook is left alone on purpose: the
+# The playbooks that set a budget, and the task files that create on
+# their behalf. Every other playbook is left alone on purpose: the
 # -released and -upgrade topologies are run by no workflow, and the
 # image-build playbooks belong to the conductor's ci-images builder.
 BUDGETED = (
@@ -45,10 +46,17 @@ BUDGETED = (
 )
 CREATING = (
     'ci-topology-localhost.yml',
-    'ci-topology-slim-tier.yml',
-    'ci-topology-slim-primary.yml',
     INCLUDE,
+    NODE_INCLUDE,
 )
+# Budgeted playbooks which create only through one of those task files.
+CREATES_THROUGH = {
+    'ci-topology-slim-primary.yml': NODE_INCLUDE,
+    'ci-topology-slim-tier.yml': NODE_INCLUDE,
+    'kerbside-single-node.yml': INCLUDE,
+    'kerbside-multi-node.yml': INCLUDE,
+    'kerbside-multi-node-2.yml': INCLUDE,
+}
 
 
 def load(name):
@@ -132,14 +140,13 @@ class CapacityWaitTest(unittest.TestCase):
                            if 'capacity_wait_budget' in (play.get('vars') or {})]
                 self.assertEqual([documented[name]], budgets)
 
-    def test_the_kerbside_playbooks_create_through_the_counting_include(self):
-        for name in BUDGETED:
-            if not name.startswith('kerbside-'):
-                continue
+    def test_playbooks_create_through_their_counting_include(self):
+        self.assertTrue(set(CREATES_THROUGH) <= set(BUDGETED))
+        for name, include in CREATES_THROUGH.items():
             with self.subTest(playbook=name):
-                self.assertFalse(creates(name), 'creates directly rather than through %s' % INCLUDE)
+                self.assertFalse(creates(name), 'creates directly rather than through %s' % include)
                 with open(os.path.join(ANSIBLE_DIR, name)) as f:
-                    self.assertIn(INCLUDE, f.read())
+                    self.assertIn(include, f.read())
 
     def test_no_other_playbook_passes_the_option(self):
         passing = set()

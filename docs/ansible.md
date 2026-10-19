@@ -207,8 +207,13 @@ started. `kerbside-multi-node-2.yml` creates and boots eight instances
 in turn. A deadline set when the play started would have run out on
 those boots, and the last instances would get no wait at all. The
 kerbside playbooks keep this count in `kerbside-create-instance.yml`,
-which they include once per instance. Because `sf_capacity_waited` is
-a fact, its total carries over from one include to the next.
+which they include once per instance. The two `slim-*` topologies do
+the same with `tasks/create-topology-node.yml`, included in a loop over
+the `topology_nodes` list in their vars. Because `sf_capacity_waited`
+is a fact, its total carries over from one include to the next. A loop
+over a bare `sf_instance` task would not work: no other task runs
+between the items of a loop, so every create would see the same
+`sf_capacity_waited` and be handed the whole budget.
 
 The `slim-*` worker nodes are created without `await`. For those, only
 a 507 is replayed, because the module returns before preflight runs.
