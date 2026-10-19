@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright 2026 Michael Still and contributors
 
 """Run require-ci-success's script for real.
 
@@ -43,7 +44,8 @@ OTHER = sha(99)
 # Answers `gh api --method GET PATH` from FAKE_GH_RESPONSES, a JSON map of
 # path to {"status": ..., "body": ...}. As gh does, a 200 prints the body
 # and an HTTP error writes its body to *stdout*, "gh: <message> (HTTP
-# <status>)" to stderr, and exits 1. Any other argument list, or a path
+# <status>)" to stderr, and exits 1. A response may give "stdout" or
+# "stderr" to print in place of those. Any other argument list, or a path
 # nobody provided, exits 99, so a script that changes what it asks fails
 # its test rather than reading an answer meant for another call. Every
 # call is appended to FAKE_GH_LOG.
@@ -59,9 +61,10 @@ if len(args) != 4 or args[:3] != ['api', '--method', 'GET'] or args[3] not in re
     sys.stderr.write('fake gh: nothing to answer %r with\\n' % args)
     sys.exit(99)
 response = responses[args[3]]
-sys.stdout.write(json.dumps(response['body']))
+sys.stdout.write(response['stdout'] if 'stdout' in response else json.dumps(response['body']))
 if response['status'] != 200:
-    sys.stderr.write('gh: %s (HTTP %d)\\n' % (response['body']['message'], response['status']))
+    sys.stderr.write(response['stderr'] if 'stderr' in response
+                     else 'gh: %s (HTTP %d)\\n' % (response['body'].get('message'), response['status']))
     sys.exit(1)
 """
 
@@ -99,24 +102,45 @@ def commit_path(commit):
     return 'repos/%s/commits/%s' % (REPO, commit)
 
 
-def compare_path(commit, branch='develop'):
-    return 'repos/%s/compare/%s...%s' % (REPO, branch, commit)
+def branch_path(branch='develop'):
+    return 'repos/%s/branches/%s' % (REPO, branch)
+
+
+def history_path(tip, page=1):
+    return 'repos/%s/commits?sha=%s&per_page=100&page=%d' % (REPO, tip, page)
 
 
 class GitHub:
     """What the stub gh answers with: a repository, its commits and its workflow runs.
 
-    The tagged commit is on the default branch unless a test says otherwise.
+    The tagged commit is the tip of the default branch unless a test says
+    otherwise.
     """
 
     def __init__(self, default='develop'):
         self.default = default
         self.responses = {'repos/%s' % REPO: ok({'default_branch': default})}
-        self.compare(TAG)
+        self.tip(TAG)
 
-    def compare(self, commit, status='identical'):
-        """How GitHub compares the default branch with a commit."""
-        self.responses[compare_path(commit, self.default)] = ok({'status': status})
+    def tip(self, commit):
+        """The commit the default branch points at."""
+        self.responses[branch_path(self.default)] = ok({'name': self.default, 'commit': {'sha': commit}})
+        return self
+
+    def history(self, *entries):
+        """The default branch's history, newest first, as (sha, parents) pairs; the first is its tip.
+
+        It is listed a hundred commits to a page, as GitHub lists it, and a
+        listing that fills its last page is followed by an empty one.
+        """
+        tip = entries[0][0]
+        self.tip(tip)
+        listing = [{'sha': commit, 'parents': [{'sha': p} for p in parents]} for commit, parents in entries]
+        pages = [listing[n:n + 100] for n in range(0, len(listing), 100)]
+        if len(listing) % 100 == 0:
+            pages.append([])
+        for n, page in enumerate(pages):
+            self.responses[history_path(tip, n + 1)] = ok(page)
         return self
 
     def runs(self, workflow, commit, *entries, page=1, total=None):
@@ -170,8 +194,10 @@ def run_script(github=None, workflows='ci.yml', commit=TAG, env=None, command=No
             GITHUB_STEP_SUMMARY=os.path.join(tmp, 'summary'), FAKE_GH_RESPONSES=answers,
             FAKE_GH_LOG=os.path.join(tmp, 'gh-log'), PATH='%s:%s' % (tmp, os.environ['PATH']))
         run_env.update(env or {})
+        # A script that loops forever fails its test rather than hanging
+        # the suite.
         result = subprocess.run(
-            command or [sys.executable, '-I', SCRIPT], env=run_env, check=False,
+            command or [sys.executable, '-I', SCRIPT], env=run_env, check=False, timeout=60,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
         def read(name):
@@ -295,58 +321,179 @@ class IgnoredRunsTest(GateTestCase):
         self.assertPasses(run_script(GitHub().runs('ci.yml', TAG, run(repository='ShakenFist/Example'))))
 
 
-class ReachabilityTest(GateTestCase):
-    """The commit must be on the default branch before any run on it is judged.
+TIP = sha(10)
+FEATURE = sha(11)
+FEATURE_BASE = sha(12)
+ROOT = sha(13)
+
+
+def merged_feature():
+    """A tip that merged a feature branch with a merge commit, over TAG.
+
+    TIP's first parent is TAG and its second FEATURE, a commit on the
+    feature branch; both descend from ROOT. Listed in date order, the
+    feature branch's commits sit between TIP and TAG.
+    """
+    return GitHub().history((TIP, [TAG, FEATURE]), (FEATURE, [FEATURE_BASE]), (FEATURE_BASE, [ROOT]),
+                            (TAG, [ROOT]), (ROOT, []))
+
+
+def linear(count, start=200):
+    """A history of count commits, each the only parent of the one before; the last is a root."""
+    chain = [sha(start + n) for n in range(count)]
+    return chain, [(commit, [chain[n + 1]] if n + 1 < count else []) for n, commit in enumerate(chain)]
+
+
+class FirstParentTest(GateTestCase):
+    """The commit must be on the default branch's first-parent history before any run on it is judged.
 
     A tag push creates push runs whose head_branch is the tag's name, so a
     tag named like the default branch makes runs that look like pushes to
-    it, on any commit at all.
+    it, on any commit at all. Reachability is not enough: a commit on a
+    feature branch merged with a merge commit is reachable from the tip,
+    though the branch never pointed at it.
     """
 
-    def assertNotOnBranch(self, github, status):
-        result = run_script(github)
-        self.assertFails(result, 'The tagged commit %s is not on the default branch develop' % TAG,
-                         'GitHub says it is %s' % status)
-        self.assertFalse(result.asked(runs_path('ci.yml', TAG)))
+    def assertNotOnBranch(self, result, commit, *fragments):
+        self.assertFails(result, 'The tagged commit %s is not on the first-parent history of develop' % commit,
+                         'a tag named like a branch gives its runs that branch name', *fragments)
+        self.assertFalse(result.asked(runs_path('ci.yml', commit)))
         self.assertDidNotWalk(result)
-        self.assertIn('- `ci.yml`: not checked: %s is not on develop' % TAG, result.summary)
+        self.assertIn('- `ci.yml`: not checked: %s is not on the first-parent history of develop' % commit,
+                      result.summary)
 
-    def test_a_push_run_from_a_tag_named_like_the_default_branch_fails(self):
-        github = GitHub().compare(TAG, 'diverged').runs('ci.yml', TAG, run(branch='develop'))
-        self.assertNotOnBranch(github, 'diverged')
-
-    def test_a_commit_ahead_of_the_default_branch_fails(self):
-        github = GitHub().compare(TAG, 'ahead').runs('ci.yml', TAG, run())
-        self.assertNotOnBranch(github, 'ahead')
-
-    def test_a_merge_queue_run_on_a_commit_that_never_landed_fails(self):
-        github = GitHub().compare(TAG, 'diverged').runs('ci.yml', TAG, queued())
-        self.assertNotOnBranch(github, 'diverged')
-
-    def test_any_other_comparison_fails(self):
-        for status in ('unknown', 'Identical'):
-            with self.subTest(status=status):
-                self.assertNotOnBranch(GitHub().compare(TAG, status).runs('ci.yml', TAG, run()), status)
-
-    def test_the_tip_of_the_default_branch_passes(self):
-        result = run_script(GitHub().compare(TAG, 'identical').runs('ci.yml', TAG, run()))
+    def test_the_tip_of_the_default_branch_passes_without_reading_its_history(self):
+        result = run_script(GitHub().runs('ci.yml', TAG, run()))
         self.assertPasses(result)
-        self.assertTrue(result.asked(compare_path(TAG)))
+        self.assertTrue(result.asked(branch_path()))
+        self.assertIn('%s is on the first-parent history of develop, 0 commits below its tip' % TAG, result.stdout)
+        self.assertFalse([call for call in result.gh_calls if 'commits?' in call], result.gh_calls)
 
-    def test_a_commit_behind_the_tip_passes(self):
-        self.assertPasses(run_script(GitHub().compare(TAG, 'behind').runs('ci.yml', TAG, run())))
+    def test_a_commit_on_the_first_parent_chain_near_the_tip_passes(self):
+        result = run_script(merged_feature().runs('ci.yml', TAG, run()))
+        self.assertPasses(result)
+        self.assertIn('1 commit below its tip', result.stdout)
 
-    def test_the_default_branch_read_is_the_one_compared(self):
+    def test_a_second_parent_ancestor_fails(self):
+        # The attack: FEATURE made CI pass trivially, a later commit put it
+        # back, the branch was merged with a merge commit, and a tag named
+        # develop pushed at FEATURE gave it a successful push run on
+        # "develop".
+        github = merged_feature().runs('ci.yml', FEATURE, run(head_sha=FEATURE))
+        result = run_script(github, commit=FEATURE)
+        self.assertNotOnBranch(result, FEATURE, 'ends at the root commit %s' % ROOT)
+        github = merged_feature().runs('ci.yml', FEATURE_BASE, queued(head_sha=FEATURE_BASE))
+        self.assertNotOnBranch(run_script(github, commit=FEATURE_BASE), FEATURE_BASE)
+
+    def test_a_commit_off_the_branch_entirely_fails(self):
+        github = merged_feature().runs('ci.yml', OTHER, run(head_sha=OTHER))
+        self.assertNotOnBranch(run_script(github, commit=OTHER), OTHER, 'ends at the root commit %s' % ROOT)
+
+    def test_a_chain_that_spans_two_pages_passes(self):
+        # A merged feature branch of 120 commits, listed between the tip
+        # and its first parent, pushes the first parent onto page 2.
+        feature = [sha(300 + n) for n in range(120)]
+        entries = [(TIP, [PARENT, feature[0]])]
+        entries += [(commit, [feature[n + 1] if n + 1 < len(feature) else TAG]) for n, commit in enumerate(feature)]
+        entries += [(PARENT, [TAG]), (TAG, [ROOT]), (ROOT, [])]
+        result = run_script(GitHub().history(*entries).runs('ci.yml', TAG, run()))
+        self.assertPasses(result)
+        self.assertIn('2 commits below its tip', result.stdout)
+        self.assertTrue(result.asked(history_path(TIP, 2)))
+        self.assertFalse(result.asked(history_path(TIP, 3)))
+
+    def test_a_commit_beyond_the_page_bound_fails(self):
+        chain, entries = linear(600)
+        # The gate reads five pages, the newest 500 commits. The last of
+        # them names its first parent, so that is the furthest it reaches.
+        github = GitHub().history(*entries).runs('ci.yml', chain[500], run(head_sha=chain[500]))
+        result = run_script(github, commit=chain[500])
+        self.assertPasses(result, chain[500])
+        self.assertIn('500 commits below its tip', result.stdout)
+        self.assertFalse(result.asked(history_path(chain[0], 6)))
+        # One commit further, the sixth page is never asked for.
+        github = GitHub().history(*entries).runs('ci.yml', chain[501], run(head_sha=chain[501]))
+        result = run_script(github, commit=chain[501])
+        self.assertNotOnBranch(result, chain[501], 'as far back as the gate reads it, the newest 500 commits',
+                               'tagged at or near the tip')
+        self.assertTrue(result.asked(history_path(chain[0], 5)))
+        self.assertFalse(result.asked(history_path(chain[0], 6)))
+
+    def test_a_chain_that_ends_at_a_root_fails(self):
+        chain, entries = linear(3)
+        github = GitHub().history(*entries).runs('ci.yml', TAG, run())
+        self.assertNotOnBranch(run_script(github), TAG, 'ends at the root commit %s' % chain[-1])
+
+    def test_the_history_is_listed_from_the_tip_sha_not_the_branch_name(self):
+        # A tag named develop would make the name ambiguous.
+        result = run_script(merged_feature().runs('ci.yml', TAG, run()))
+        self.assertPasses(result)
+        self.assertTrue(result.asked(history_path(TIP)))
+        self.assertFalse([call for call in result.gh_calls if 'sha=develop' in call], result.gh_calls)
+
+    def test_the_default_branch_read_is_the_one_whose_tip_is_read(self):
         result = run_script(GitHub(default='main').runs('ci.yml', TAG, run(branch='main')))
         self.assertPasses(result)
-        self.assertTrue(result.asked(compare_path(TAG, 'main')))
+        self.assertTrue(result.asked(branch_path('main')))
 
-    def test_only_the_starting_commit_is_compared(self):
-        github = GitHub().runs('ci.yml', TAG).review_marks(TAG, PARENT).runs('ci.yml', PARENT, run(head_sha=PARENT))
+    def test_a_merge_queue_run_on_a_commit_that_never_landed_fails(self):
+        github = merged_feature().runs('ci.yml', OTHER, queued(head_sha=OTHER))
+        self.assertNotOnBranch(run_script(github, commit=OTHER), OTHER)
+
+    def test_the_walk_stays_on_the_first_parent_chain(self):
+        # Membership is checked once, on the tagged commit. That holds only
+        # because the walk crosses nothing but single-parent commits, whose
+        # parent is the next commit down the same chain.
+        github = (GitHub().history((TIP, [TAG]), (TAG, [PARENT]), (PARENT, [ROOT]), (ROOT, []))
+                  .runs('ci.yml', TAG).review_marks(TAG, PARENT).runs('ci.yml', PARENT, run(head_sha=PARENT)))
         result = run_script(github)
         self.assertPasses(result, PARENT)
-        self.assertEqual([call for call in result.gh_calls if '/compare/' in call],
-                         ['api --method GET %s' % compare_path(TAG)])
+        self.assertEqual([call for call in result.gh_calls if 'commits?' in call or '/branches/' in call],
+                         ['api --method GET %s' % branch_path(), 'api --method GET %s' % history_path(TIP)])
+        # A merge commit on the chain is not crossed, even towards a second
+        # parent that CI succeeded on: that parent is off the chain.
+        github = (GitHub().runs('ci.yml', TAG).commit(TAG, [PARENT, FEATURE], ['REVIEWS.md'])
+                  .runs('ci.yml', FEATURE, run(head_sha=FEATURE)))
+        result = run_script(github)
+        self.assertFails(result, 'because %s is a merge commit' % TAG)
+        self.assertFalse(result.asked(runs_path('ci.yml', FEATURE)))
+
+    def test_a_history_that_cannot_be_read_is_a_github_failure(self):
+        listing = [{'sha': TIP, 'parents': [{'sha': TAG}]}, {'sha': TAG, 'parents': []}]
+
+        def page_one(*entries):
+            return ok([listing[0]] + list(entries))
+
+        cases = {
+            'the history, failing': error(502, 'Bad Gateway'),
+            'the history, not found': error(404, 'Not Found'),
+            'a history that is not a list': ok({'message': 'surprise'}),
+            'an empty first page': ok([]),
+            'a first page that does not start at the tip': ok(listing[::-1]),
+            'an entry that is not an object': page_one('surprise'),
+            'an entry with no sha': page_one({'parents': []}),
+            'an entry whose sha is not a sha': page_one({'sha': 'HEAD', 'parents': []}),
+            'an entry with no parents': page_one({'sha': TAG}),
+            'an entry whose parents are not a list': page_one({'sha': TAG, 'parents': {'sha': ROOT}}),
+            'a parent that is not an object': ok([{'sha': TIP, 'parents': [TAG]}, listing[1]]),
+            'a parent that is not a sha': ok([{'sha': TIP, 'parents': [{'sha': 'HEAD~1'}]}, listing[1]]),
+            'a history that ends without the first parent': ok([{'sha': TIP, 'parents': [{'sha': PARENT}]}]),
+            'a history that loops': ok([{'sha': TIP, 'parents': [{'sha': PARENT}]},
+                                        {'sha': PARENT, 'parents': [{'sha': TIP}]}]),
+        }
+        for name, response in cases.items():
+            with self.subTest(case=name):
+                github = GitHub().tip(TIP).runs('ci.yml', TAG, run())
+                github.responses[history_path(TIP)] = response
+                result = run_script(github)
+                self.assertFails(result, 'Could not ask GitHub whether CI succeeded on %s' % TAG, 'this is not a pass')
+                self.assertFalse(result.asked(runs_path('ci.yml', TAG)))
+
+    def test_a_malformed_later_page_is_a_github_failure(self):
+        chain, entries = linear(150)
+        github = GitHub().history(*entries).runs('ci.yml', chain[120], run(head_sha=chain[120]))
+        github.responses[history_path(chain[0], 2)] = ok([{'sha': chain[100]}])
+        self.assertFails(run_script(github, commit=chain[120]), 'Could not ask GitHub', 'no sha or no parents')
 
 
 class AttemptsTest(GateTestCase):
@@ -567,8 +714,7 @@ class WalkTest(GateTestCase):
         chain = [sha(100 + n) for n in range(22)]
 
         def github(passing):
-            g = GitHub()
-            g.compare(chain[0])
+            g = GitHub().tip(chain[0])
             for n, commit in enumerate(chain[:-1]):
                 g.runs('ci.yml', commit).review_marks(commit, chain[n + 1])
             return g.runs('ci.yml', chain[passing], run(head_sha=chain[passing]))
@@ -634,6 +780,19 @@ class GitHubFailureTest(GateTestCase):
         self.assertIn('- `functional.yml`: no such workflow', result.summary)
         self.assertDidNotWalk(result)
 
+    def test_a_404_is_read_from_stderr_or_from_the_body(self):
+        cases = {
+            'stderr only': {'status': 404, 'body': {'message': 'Not Found'}},
+            'body only': {'status': 404, 'body': {'message': 'Not Found', 'status': '404'},
+                          'stderr': 'gh: Not Found\n'},
+        }
+        for name, response in cases.items():
+            with self.subTest(case=name):
+                github = GitHub().runs('ci.yml', TAG, run())
+                github.responses[runs_path('functional.yml', TAG)] = response
+                result = run_script(github, workflows='ci.yml\nfunctional.yml')
+                self.assertFails(result, '%s has no workflow named functional.yml' % REPO)
+
     def test_any_other_failure_to_ask_github_fails(self):
         cases = {
             'the repository': ('repos/%s' % REPO, error(403, 'Resource not accessible by integration')),
@@ -647,9 +806,14 @@ class GitHubFailureTest(GateTestCase):
             'a run with no attempt': (runs_path('ci.yml', TAG), ok({'total_count': 1, 'workflow_runs': [
                 {k: v for k, v in run().items() if k != 'run_attempt'}]})),
             'a repository whose default branch is empty': ('repos/%s' % REPO, ok({'default_branch': ''})),
-            'the comparison': (compare_path(TAG), error(500, 'Server Error')),
-            'the comparison, not found': (compare_path(TAG), error(404, 'Not Found')),
-            'a comparison with no status': (compare_path(TAG), ok({})),
+            'the branch': (branch_path(), error(500, 'Server Error')),
+            'the branch, not found': (branch_path(), error(404, 'Branch not found')),
+            'a branch with no commit': (branch_path(), ok({'name': 'develop'})),
+            'a branch whose commit is not a sha': (branch_path(), ok({'name': 'develop', 'commit': {'sha': 'HEAD'}})),
+            'a 404 body naming a status that is not 404': (runs_path('ci.yml', TAG), {
+                'status': 403, 'body': {'message': 'Forbidden', 'status': '403'}, 'stderr': 'gh: Forbidden\n'}),
+            'a failure whose body is not JSON': (runs_path('ci.yml', TAG), {
+                'status': 500, 'body': None, 'stdout': '<html>', 'stderr': 'gh: Server Error (HTTP 500)\n'}),
             'a run that is not an object': (runs_path('ci.yml', TAG), ok({'total_count': 1, 'workflow_runs': [
                 'surprise']})),
             'a run that is not an object beside one that passes': (runs_path('ci.yml', TAG), ok({

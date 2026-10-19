@@ -21,12 +21,17 @@ make CI there succeed trivially and then tag the commit.
 A run's metadata does not tell a tag from a branch, though. Pushing a tag
 creates `push` runs whose head_branch is the tag's name, so a tag named
 like the default branch, pushed onto any commit, would produce runs that
-look like pushes to it. So before any run is judged, the commit must be
-reachable from the default branch: GitHub's comparison of the branch with
-the commit must find them identical, or the commit behind. That also
-refuses a merge queue run on a queue commit that never landed. It is
-checked once, on the starting commit, because every first-parent ancestor
-of a commit on the branch is on it too.
+look like pushes to it. So before any run is judged, the commit must be on
+the default branch's first-parent history: the commits its tip reaches by
+following first parents, which are the commits the branch itself pointed
+at. Being reachable is not enough, because a commit on a feature branch
+merged with a merge commit is reachable too, though the branch never
+pointed at it, so no push to the branch ever ran CI there. That also
+refuses a merge queue run on a queue commit that never landed. Only the
+newest few hundred commits are looked through, since a release is tagged
+at or near the tip. It is checked once, on the starting commit, because
+the walk below follows first parents too, and the first parent of a
+commit on that history is on it.
 
 Every run that counts is judged, each at its latest attempt, so a re-run
 that succeeded passes and a re-run that failed does not. A workflow
@@ -82,9 +87,15 @@ SHA_RE = re.compile(r'[0-9a-f]{40}')
 REPO_RE = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 WORKFLOW_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.ya?ml')
 
-# What GitHub's comparison of the default branch with a commit says when
-# the commit is on the branch: the branch's tip itself, or behind it.
-REACHABLE = ('identical', 'behind')
+# The default branch's history is read a hundred commits to a page, and
+# the tagged commit must be found on its first-parent chain within this
+# many pages. Not an input, for the same reason as MAX_STEPS. A release is
+# tagged at or near the tip, so a commit further back than this is refused
+# rather than looked for: the bound only ever fails closed, because a
+# commit it stops short of is one the gate has not shown to be on the
+# branch.
+HISTORY_PER_PAGE = 100
+MAX_FIRST_PARENT_PAGES = 5
 
 RECOVERY = ('Tag the last commit CI ran on, or re-run CI on this commit and then re-run this job '
             'with "Re-run jobs".')
@@ -110,6 +121,15 @@ class NotFound(GitHubError):
     """GitHub answered 404."""
 
 
+def error_status(stdout):
+    """The status GitHub gave in an error body, or None if there is none to read."""
+    try:
+        body = json.loads(stdout)
+    except ValueError:
+        return None
+    return body.get('status') if isinstance(body, dict) else None
+
+
 def gh_api(path):
     """GET a path through gh api and return the decoded JSON."""
     try:
@@ -118,9 +138,10 @@ def gh_api(path):
     except OSError as e:
         raise GitHubError('could not run gh: %s' % e)
     if result.returncode != 0:
-        # gh writes the error body to stdout and the status to stderr, so
-        # stderr is what tells a 404 from every other failure.
-        if '(HTTP 404)' in result.stderr:
+        # gh writes the status to stderr and the error body, which names
+        # the status too, to stdout. Either tells a 404 from every other
+        # failure.
+        if '(HTTP 404)' in result.stderr or error_status(result.stdout) == '404':
             raise NotFound(path)
         raise GitHubError('gh api %s exited %d: %s' % (path, result.returncode,
                                                        result.stderr.strip() or 'no error text'))
@@ -138,20 +159,85 @@ def default_branch(repo):
     return branch
 
 
-def require_on_branch(repo, branch, sha, workflows):
-    """Raise GateFailure unless sha is reachable from the default branch."""
-    path = 'repos/%s/compare/%s...%s' % (repo, urllib.parse.quote(branch, safe='/'), sha)
+def branch_tip(repo, branch):
+    """The sha the default branch points at."""
+    path = 'repos/%s/branches/%s' % (repo, urllib.parse.quote(branch, safe='/'))
     body = gh_api(path)
-    status = body.get('status') if isinstance(body, dict) else None
-    if not isinstance(status, str) or not status:
-        raise GitHubError('%s did not say how %s compares with %s' % (path, sha, branch))
-    if status not in REACHABLE:
-        raise GateFailure(
-            'The tagged commit %s is not on the default branch %s: compared with %s, GitHub says it is %s. A '
-            'run there is not CI on %s, whatever its head_branch says, because a tag named like a branch gives '
-            'its runs that branch name. Tag a commit on %s that CI succeeded on.'
-            % (sha, branch, branch, status, branch, branch),
-            {workflow: 'not checked: %s is not on %s' % (sha, branch) for workflow in workflows})
+    commit = body.get('commit') if isinstance(body, dict) else None
+    tip = commit.get('sha') if isinstance(commit, dict) else None
+    if not isinstance(tip, str) or not SHA_RE.fullmatch(tip):
+        raise GitHubError('%s names no commit' % path)
+    return tip
+
+
+def history_page(repo, tip, page):
+    """One page of the commits reachable from tip, as a map of sha to first parent (None for a root)."""
+    path = 'repos/%s/commits?sha=%s&per_page=%d&page=%d' % (repo, tip, HISTORY_PER_PAGE, page)
+    body = gh_api(path)
+    if not isinstance(body, list):
+        raise GitHubError('%s did not list commits' % path)
+    first_parents = {}
+    for entry in body:
+        commit = entry.get('sha') if isinstance(entry, dict) else None
+        parents = entry.get('parents') if isinstance(entry, dict) else None
+        if not isinstance(commit, str) or not SHA_RE.fullmatch(commit) or not isinstance(parents, list):
+            raise GitHubError('%s lists a commit with no sha or no parents' % path)
+        parent = parents[0].get('sha') if parents and isinstance(parents[0], dict) else None
+        if parents and (not isinstance(parent, str) or not SHA_RE.fullmatch(parent)):
+            raise GitHubError('%s names a parent of %s that is not a sha' % (path, commit))
+        first_parents[commit] = parent
+    if page == 1 and (not body or body[0].get('sha') != tip):
+        raise GitHubError('%s does not start at %s' % (path, tip))
+    return first_parents, len(body) < HISTORY_PER_PAGE
+
+
+def require_on_branch(repo, branch, sha, workflows):
+    """Raise GateFailure unless sha is on the default branch's first-parent history.
+
+    Return how many first parents were followed from the tip to reach it.
+    """
+    # The tip is read from the branch itself and the history listed from
+    # that sha, never from the branch's name: a tag named like the branch
+    # would make the name ambiguous, and git resolves an ambiguous name to
+    # the tag.
+    tip = branch_tip(repo, branch)
+    why_not = ('A run there is not CI on %s, whatever its head_branch says: a tag named like a branch gives its '
+               'runs that branch name, so only a commit %s itself pointed at can carry CI for it. Tag a commit '
+               'on the first-parent history of %s that CI succeeded on.' % (branch, branch, branch))
+    summary = {workflow: 'not checked: %s is not on the first-parent history of %s' % (sha, branch)
+               for workflow in workflows}
+    first_parents = {}
+    pages = 0
+    ended = False
+    commit = tip
+    steps = 0
+    while commit != sha:
+        if commit not in first_parents:
+            if ended:
+                raise GitHubError('the history of %s ends without listing %s, a first parent on it'
+                                  % (branch, commit))
+            if pages == MAX_FIRST_PARENT_PAGES:
+                raise GateFailure(
+                    'The tagged commit %s is not on the first-parent history of %s as far back as the gate '
+                    'reads it, the newest %d commits listed. A release is tagged at or near the tip, so the gate '
+                    'looks no further. %s' % (sha, branch, HISTORY_PER_PAGE * MAX_FIRST_PARENT_PAGES, why_not),
+                    summary)
+            pages += 1
+            batch, ended = history_page(repo, tip, pages)
+            first_parents.update(batch)
+            continue
+        # Every step goes to an older commit, so a chain longer than the
+        # listing is one that loops, which no real history does.
+        if steps > len(first_parents):
+            raise GitHubError('the history of %s loops back on itself at %s' % (branch, commit))
+        parent = first_parents[commit]
+        if parent is None:
+            raise GateFailure(
+                'The tagged commit %s is not on the first-parent history of %s, which ends at the root commit '
+                '%s without reaching it. %s' % (sha, branch, commit, why_not), summary)
+        commit = parent
+        steps += 1
+    return steps
 
 
 def list_runs(repo, workflow, sha):
@@ -315,7 +401,9 @@ def gate(repo, workflows, sha):
     workflow to its runs there.
     """
     branch = default_branch(repo)
-    require_on_branch(repo, branch, sha, workflows)
+    steps = require_on_branch(repo, branch, sha, workflows)
+    print('%s is on the first-parent history of %s, %d commit%s below its tip.'
+          % (sha, branch, steps, '' if steps == 1 else 's'))
     commit = sha
     crossed = []
     while True:

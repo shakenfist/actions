@@ -630,7 +630,8 @@ jobs:
       contents: read
     steps:
       - uses: shakenfist/actions/require-ci-success@main
-        # A few API calls per commit, and at most 21 commits.
+        # A few API calls per commit, at most 21 commits, and up to
+        # five pages of the default branch's history.
         timeout-minutes: 5
         with:
           workflows: |
@@ -651,8 +652,8 @@ jobs:
 ```
 
 The job needs `actions: read` to list workflow runs and `contents:
-read` to read the repository, its commits and the comparison of a
-commit with the default branch, and nothing else.
+read` to read the repository, its default branch and its commits, and
+nothing else.
 
 It also needs `gh` on the runner, because every read goes through `gh
 api`. The fleet's static and vm runners have it. On a runner without
@@ -687,12 +688,26 @@ A run's metadata does not tell a tag from a branch, though. Pushing a
 tag creates `push` runs whose `head_branch` is the tag's name, so a tag
 named `develop`, pushed onto any commit, would make runs that look like
 pushes to `develop`. So before it judges any run, the gate requires the
-tagged commit to be on the default branch: GitHub's comparison of the
-branch with the commit must say `identical` or `behind`, and anything
-else fails, saying the tagged commit is not on the default branch. That
-also refuses a merge queue run on a queue commit that never landed. It
-is checked once, on the tagged commit, because every first-parent
-ancestor of a commit on the branch is on it too.
+tagged commit to be on the default branch's *first-parent history*: the
+commits its tip reaches by following first parents, which are the
+commits the branch itself pointed at. Only those can carry CI for the
+branch. Being reachable from the tip is not enough, because a commit on
+a feature branch that was merged with a merge commit is reachable too,
+though the branch never pointed at it: a tag named `develop` on such a
+commit, one whose own `ci.yml` passed trivially, would otherwise pass.
+A commit off that history fails, saying it is not on the first-parent
+history of the branch. That also refuses a merge queue run on a queue
+commit that never landed.
+
+The gate reads the branch's tip from the branch itself, lists the
+history from that sha rather than from the branch's name (which a tag
+named like it would make ambiguous), and looks through at most five
+pages, the newest 500 commits. A release is tagged at or near the tip,
+so a commit further back is refused rather than looked for; the bound
+is fixed in the script, and it only ever fails closed. Membership is
+checked once, on the tagged commit, because the walk described below
+follows first parents too, and the first parent of a commit on that
+history is on it.
 
 Every run that counts is judged, each at its latest attempt, and every
 one must have completed with `success`. A workflow with a failed
@@ -704,7 +719,7 @@ one.
 
 | On the commit | Result |
 |---|---|
-| The tagged commit is not on the default branch | Fail, before any run is judged |
+| The tagged commit is not on the default branch's first-parent history within its newest 500 commits, including a commit merged in from a feature branch | Fail, before any run is judged |
 | Every run of every named workflow succeeded | Pass |
 | Any run of a named workflow failed, was cancelled, or has not finished, even beside a run that succeeded | Fail, naming the workflow, each such run and its state |
 | Some named workflows ran and others did not | Fail, naming the missing ones. The commit was only part-tested |
@@ -731,8 +746,9 @@ failure is recoverable:
 
 * If CI never ran on the tagged commit, delete the tag and tag the last
   commit CI ran on instead.
-* If the tagged commit is not on the default branch, delete the tag and
-  tag a commit that is.
+* If the tagged commit is not on the default branch's first-parent
+  history, delete the tag and tag a commit that is: the merge commit
+  that brought the change in, or a later one.
 * If a CI run failed for a reason unrelated to the change, re-run it
   until it succeeds, then re-run the release's gate job with "Re-run
   jobs". That keeps the original tag `push` event, so the guards still
@@ -765,6 +781,17 @@ git-tracked file as package data, so a `packages.find` exclude drops the
 tests *package* and the tests come back as *data*. Setting
 `include-package-data = false` under `[tool.setuptools]` is the usual
 fix.
+
+Only wheels are checked, not sdists. An sdist conventionally carries
+its tests, so their presence there is not a fault; what must not ship
+in one is guarded by the release-artifacts check in
+[shakenfist/development](https://github.com/shakenfist/development).
+
+The default rule looks only at directory names, so some test layouts
+pass it: `pkg/test/` and `pkg/testing/`, a `conftest.py` anywhere, and
+`test_*.py` modules outside a `tests` directory. A repository that uses
+one of those adds a `forbid` glob for it, such as `*/conftest.py` or
+`*/test_*.py`.
 
 Finding no wheel under `path`, or a `.whl` that is not a zip, is a
 failure with a one-line `::error::` message, never a traceback. On
@@ -807,6 +834,6 @@ And in a CI job, straight after the build:
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
 | `path` | No | `dist/` | Directory holding the built wheels. Only `*.whl` directly in it are checked, not those in subdirectories |
-| `forbid` | No | `''` | Extra `fnmatch` globs, one per line, matched against each member's full path inside the wheel. A `*` matches across `/` |
+| `forbid` | No | `''` | Extra `fnmatch` globs, one per line, matched case-sensitively against each member's full path inside the wheel. A `*` matches across `/` |
 
 There are no outputs. A failure is the step's non-zero exit.

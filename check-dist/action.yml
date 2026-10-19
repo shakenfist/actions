@@ -21,8 +21,8 @@ inputs:
     default: 'dist/'
   forbid:
     description: >-
-      Extra fnmatch globs, one per line, matched against each wheel
-      member's full path.
+      Extra fnmatch globs, one per line, matched case-sensitively against
+      each wheel member's full path.
     required: false
     default: ''
 

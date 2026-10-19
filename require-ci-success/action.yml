@@ -2,9 +2,13 @@ name: 'Require CI success'
 description: >-
   Fail unless the named CI workflows succeeded on a commit, so that a
   release cannot publish code CI did not pass. The commit must be on the
-  default branch. A run counts only if it was a push to the default branch
-  or a merge queue run for it, from this repository, and every such run is
-  judged at its latest attempt: one that did not succeed fails the gate.
+  default branch's first-parent history, within its newest 500 commits:
+  a tag named like the branch gives its runs that branch name, so only a
+  commit the branch itself pointed at can carry CI for it, and a commit
+  merged in from a feature branch is reachable but never was. A run
+  counts only if it was a push to the default branch or a merge queue
+  run for it, from this repository, and every such run is judged at its
+  latest attempt: one that did not succeed fails the gate.
   A commit no named workflow ran on is crossed to its first parent only
   when it changed nothing but review marks (REVIEWS.md, .vscode/*.weaudit
   and .vscode/*.weaudit-shas.json), and never when it is a merge. There
