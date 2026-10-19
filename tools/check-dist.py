@@ -8,6 +8,9 @@ directory component equal to 'tests' or ending in '_tests', or matches one
 of the extra fnmatch globs given in CHECK_DIST_FORBID (newline separated).
 Only directory components count, so pkg/contests.py and pkg/tests.py pass.
 When a test directory was found, a hint follows naming the usual cause.
+A wheel must also hold at least one file outside its *.dist-info/ directory,
+in a package or under <name>.data/. A zip with no members, or one holding
+only dist-info, is not a usable wheel and fails.
 
 Member names are read through zipfile rather than by parsing the output of
 "python3 -m zipfile -l", which is a human-readable listing and not a stable
@@ -71,8 +74,18 @@ def offending_reason(member, forbid):
     return None
 
 
+def is_payload(member):
+    """Return True if a wheel member is a file outside the *.dist-info/ directory.
+
+    Files under <name>.data/ count, because a wheel that only installs scripts holds nothing else.
+    """
+    if member.endswith('/'):
+        return False
+    return not member.split('/')[0].endswith('.dist-info')
+
+
 def check_wheel(wheel, forbid):
-    """Return (member_count, [(member, reason)]) for one wheel.
+    """Return (member_count, [(member, reason)], has_payload) for one wheel.
 
     Raises zipfile.BadZipFile or OSError if the file cannot be read.
     """
@@ -83,7 +96,7 @@ def check_wheel(wheel, forbid):
         reason = offending_reason(member, forbid)
         if reason:
             offenders.append((member, reason))
-    return len(members), offenders
+    return len(members), offenders, any(is_payload(m) for m in members)
 
 
 def parse_forbid(text):
@@ -103,11 +116,16 @@ def run(path, forbid):
     shipped_tests = False
     for wheel in wheels:
         try:
-            count, offenders = check_wheel(wheel, forbid)
+            count, offenders, has_payload = check_wheel(wheel, forbid)
         except (zipfile.BadZipFile, OSError) as e:
             print('::error::check-dist: %s is not a readable zip archive (%s)' % (annotate(wheel), annotate(str(e))))
             failed = True
             continue
+
+        if not has_payload:
+            failed = True
+            print('::error::check-dist: %s holds no package or data (%d member(s), none outside *.dist-info/)'
+                  % (annotate(wheel), count))
 
         if offenders:
             failed = True
@@ -117,7 +135,7 @@ def run(path, forbid):
                 print('  %s (%s)' % (annotate(member), reason))
                 if test_directory(member) is not None:
                     shipped_tests = True
-        else:
+        elif has_payload:
             print('check-dist: %s OK (%d members)' % (annotate(wheel), count))
 
     if shipped_tests:

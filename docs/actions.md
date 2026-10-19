@@ -807,6 +807,13 @@ pass it: `pkg/test/` and `pkg/testing/`, a `conftest.py` anywhere, and
 one of those adds a `forbid` glob for it, such as `*/conftest.py` or
 `*/test_*.py`.
 
+A wheel must also hold at least one file outside its `*.dist-info/`
+directory. A zip with no members, or one holding only dist-info, fails
+with a message naming the wheel and saying it holds no package or data;
+the `include-package-data` hint is not printed for it. A wheel whose
+only payload is under `<name>.data/` passes, as ryll's does
+(`ryll-<ver>.data/scripts/ryll`).
+
 Finding no wheel under `path`, or a `.whl` that is not a zip, is a
 failure with a one-line `::error::` message, never a traceback. On
 success it prints each wheel with its member count. The logic is

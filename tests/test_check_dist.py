@@ -152,6 +152,38 @@ class CheckDistTestCase(unittest.TestCase):
         self.assertIn('b1.whl contains', out)
         self.assertIn('b2.whl contains', out)
 
+    def test_zip_with_no_members_fails(self):
+        path = self.wheel('a-1-py3-none-any.whl', [])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(1, rc)
+        self.assertIn('::error::check-dist: %s holds no package or data' % path, out)
+        self.assertNotIn('OK', out)
+        self.assertNotIn('hint', out)
+        self.assertNotIn('Traceback', out)
+
+    def test_dist_info_only_wheel_fails(self):
+        self.wheel('a-1-py3-none-any.whl', ['a-1.dist-info/METADATA', 'a-1.dist-info/RECORD', 'a-1.dist-info/'])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(1, rc)
+        self.assertIn('a-1-py3-none-any.whl holds no package or data', out)
+        self.assertNotIn('OK', out)
+        self.assertNotIn('hint', out)
+
+    def test_data_only_wheel_passes(self):
+        self.wheel('ryll-1-py3-none-any.whl', [
+            'ryll-1.data/scripts/ryll', 'ryll-1.dist-info/METADATA', 'ryll-1.dist-info/RECORD',
+            'ryll-1.dist-info/sboms/ryll.cdx.json'])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(0, rc, out)
+        self.assertIn('ryll-1-py3-none-any.whl OK (4 members)', out)
+
+    def test_empty_wheel_name_is_escaped(self):
+        self.wheel('a\n::error::injected.whl', [])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(1, rc)
+        self.assertIn('%0A::error::injected.whl holds no package or data', out)
+        self.assertEqual(1, sum(1 for line in out.splitlines() if line.startswith('::error::')))
+
     def test_no_wheels_fails(self):
         with open(os.path.join(self.dist, 'a.tar.gz'), 'w') as f:
             f.write('x')
@@ -238,6 +270,10 @@ class CheckDistTestCase(unittest.TestCase):
         self.assertEqual(['a', 'b'], cd.parse_forbid('a\n\n b \n'))
         self.assertEqual([], cd.parse_forbid(None))
         self.assertEqual(1, cd.run(self.dist, []))
+        self.assertFalse(cd.is_payload('a-1.dist-info/METADATA'))
+        self.assertFalse(cd.is_payload('pkg/'))
+        self.assertTrue(cd.is_payload('a-1.data/scripts/a'))
+        self.assertTrue(cd.is_payload('pkg/__init__.py'))
 
 
 class ActionTestCase(unittest.TestCase):

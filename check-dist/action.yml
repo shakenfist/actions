@@ -4,8 +4,10 @@ description: >-
   .whl directly under the given path, the step fails if any member sits in
   a directory named tests or ending in _tests, or matches a forbid glob,
   and prints every offending member grouped by wheel. Only directory
-  components count, so a module named contests.py is fine. Finding no wheel
-  under the path, or a .whl that is not a zip, is also a failure. The
+  components count, so a module named contests.py is fine. A wheel with
+  nothing outside its .dist-info directory (files under .data/ count), or
+  with no members at all, also fails. Finding no wheel under the path, or a
+  .whl that is not a zip, is also a failure. The
   usual cause of a failure is include-package-data defaulting to true
   under pyproject.toml, which lets setuptools_scm's file finder add every
   git-tracked file as package data. The logic is tools/check-dist.py,
