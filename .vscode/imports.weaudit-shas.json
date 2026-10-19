@@ -1,17 +1,6 @@
 {
   "version": 1,
   "files": {
-    ".github/workflows/pr-retest.yml": {
-      "sha": "dab99349ea1867e984ae0e5fc73f70ec00cb519b",
-      "date": "2026-10-02",
-      "imported": {
-        "repo": "shakenfist/development",
-        "reviewer": "mikal",
-        "path": ".github/workflows/pr-retest.yml",
-        "commit": "334333685dd9c68222678a4676a7fe8f127675aa",
-        "verified": true
-      }
-    },
     "tools/review-tracking.sh": {
       "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
       "date": "2026-09-27",
