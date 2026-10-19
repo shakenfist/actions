@@ -236,19 +236,14 @@ wrong commit with nothing in the run to show it, so it is tested once,
 here, rather than copied untested into every repository.
 
 Both also state the fork guard twice: the job doing the work requires
-`pr-bot-trigger`'s `same-repo` output as well as `authorized`, which
+`pr-bot-trigger`'s `same-repo` output as well as `confirmed`, which
 already folds it in. That is redundant on purpose -- a regression in
 the action, taken at `@main`, cannot quietly widen what runs next to a
-write-scoped token -- and the trigger job fails loudly if the action
-stops reporting either output, rather than reacting with a rocket and
-then doing nothing.
-
-Their "Confirm pr-bot-trigger reported the pull request's origin" step
-and the requester notice after it are now redundant: `pr-bot-trigger`
-checks its own outputs and exports the verdict as `confirmed` (see
-[actions.md](actions.md#pr-bot-trigger)). They stay until the
-`ci-review-automation` templates in `shakenfist/development` drop them,
-for the same byte-identical reason as above.
+write-scoped token. Their trigger jobs are the action alone: it checks
+its own outputs, exports the verdict as `confirmed`, and fails loudly
+on the pull request when it cannot vouch for them, rather than
+reacting with a rocket and then doing nothing (see
+[actions.md](actions.md#pr-bot-trigger)).
 
 ### Post-merge lane -- `canary.yml`
 
@@ -693,7 +688,8 @@ collaborator and a failed API call are each refused, and `maintain`,
 which the API reports as `write`, is accepted.
 For the two review workflows it pins that every `claude-code` job is
 held to same-repository pull requests, and one started by a comment to
-a commenter `pr-bot-trigger` authorized, that only `pr-re-review.yml`
+a request `pr-bot-trigger` confirmed, through outputs the action
+declares, that only `pr-re-review.yml`
 forces a second review, that the re-review trigger ignores comments
 from bots and from the `shakenfist-bot` account, that no checkout
 there leaves the token in `.git/config`, that the re-review disables

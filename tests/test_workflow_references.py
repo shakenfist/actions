@@ -1017,6 +1017,12 @@ class ReviewWorkflowGuardTest(unittest.TestCase):
         self.assertIsNotNone(source, '%s is not read from a pr-bot-trigger output' % output)
         step = {s.get('id'): s for s in job['steps']}[source.group(1)]
         self.assertEqual(step.get('uses'), 'shakenfist/actions/pr-bot-trigger@main')
+        # These workflows are byte-identical copies of the templates every
+        # adopter runs, so an output renamed or dropped here would leave
+        # the fleet's gates reading empty and skipping without a word.
+        with open(os.path.join(REPO_ROOT, 'pr-bot-trigger', 'action.yml')) as f:
+            declared = yaml.safe_load(f)['outputs']
+        self.assertIn(action_output, declared, 'pr-bot-trigger has no %s output' % action_output)
 
     def steps_using(self, name, action):
         return [(job_name, step)
@@ -1042,11 +1048,13 @@ class ReviewWorkflowGuardTest(unittest.TestCase):
                         len(needed), 1, '%s runs a pull request through Claude Code on a write-scoped '
                         'runner without a same-repository condition' % job_name)
                     trigger = needed[0]
-                    self.assertIn("needs.%s.outputs.authorized == 'true'" % trigger, terms,
-                                  '%s does not require the commenter to be authorized' % job_name)
+                    # confirmed is true only for an authorized commenter;
+                    # pr-bot-trigger vouches for it (#126).
+                    self.assertIn("needs.%s.outputs.confirmed == 'true'" % trigger, terms,
+                                  '%s does not require pr-bot-trigger to confirm the request' % job_name)
                     self.assertIn(trigger, job_needs(job))
                     self.assert_bot_trigger_output(jobs[trigger], 'same_repo', 'same-repo')
-                    self.assert_bot_trigger_output(jobs[trigger], 'authorized', 'authorized')
+                    self.assert_bot_trigger_output(jobs[trigger], 'confirmed', 'confirmed')
 
     def test_only_a_human_request_forces_a_second_review(self):
         # review-pr-with-claude skips a pull request the bot has already

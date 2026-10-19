@@ -33,8 +33,9 @@ outputs:
     description: >
       Whether this request may proceed (true/false). True only when the
       commenter has write access AND the pull request comes from a branch
-      in this repository. Callers gate their work on this single output,
-      so a fork pull request skips their jobs without them changing.
+      in this repository. Callers gate their work on `confirmed`, which
+      folds this in, so a fork pull request skips their jobs without them
+      changing.
     value: ${{ steps.gate.outputs.authorized }}
   same-repo:
     description: >
