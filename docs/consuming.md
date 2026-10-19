@@ -360,7 +360,7 @@ Whatever you change in a copy, keep these:
   booking a runner, and the bot check stops a review that quotes a
   phrase back onto the pull request from firing it.
 * **The fork guard, stated where the work happens.** The job that
-  checks out, dispatches or pushes requires both `authorized` and
+  checks out, dispatches or pushes requires both `confirmed` and
   `same-repo` to be `'true'`, passed on through the trigger job's
   `outputs:`. The action already refuses forks, so this is redundant
   by design: a regression in the shared action cannot quietly widen

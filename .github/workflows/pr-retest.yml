@@ -41,12 +41,18 @@ jobs:
     # Just a few gh API calls, so anything beyond this is a hang.
     timeout-minutes: 10
     outputs:
-      authorized: ${{ steps.trigger.outputs.authorized }}
+      confirmed: ${{ steps.trigger.outputs.confirmed }}
       same_repo: ${{ steps.trigger.outputs.same-repo }}
       pr_ref: ${{ steps.trigger.outputs.pr-ref }}
       pr_number: ${{ github.event.issue.number }}
 
     steps:
+      # pr-bot-trigger vouches for its own outputs: `confirmed` is
+      # 'true' only when the request was triggered, authorized and from
+      # this repository with a pr-ref set, and when it cannot tell, the
+      # action fails and says so on the pull request itself. So this
+      # file does not re-read the other outputs to check them.
+      # pr-re-review.yml relies on it the same way.
       - name: Handle trigger
         id: trigger
         uses: shakenfist/actions/pr-bot-trigger@main
@@ -54,79 +60,18 @@ jobs:
           trigger-phrase: 'please retest'
           reaction: 'rocket'
 
-      # The retest job below requires same_repo as well as authorized,
-      # so if pr-bot-trigger renames or drops its same-repo output the
-      # retest silently never runs after the rocket reaction. Fail
-      # loudly instead. pr-re-review.yml carries the same step.
-      #
-      # Every output the job below depends on is checked, not only
-      # same-repo: a step gated on authorized == 'true' would skip
-      # itself exactly when authorized goes missing. triggered is read
-      # first because the job's contains() is case-insensitive and the
-      # action's phrase match is not, so a comment that differs only in
-      # case legitimately gets triggered=false and no authorized at all.
-      - name: Confirm pr-bot-trigger reported the pull request's origin
-        id: origin
-        env:
-          TRIGGERED: ${{ steps.trigger.outputs.triggered }}
-          AUTHORIZED: ${{ steps.trigger.outputs.authorized }}
-          SAME_REPO: ${{ steps.trigger.outputs.same-repo }}
-        run: |
-          fail() {
-            echo "$1"
-            echo "Either the output was renamed or dropped in"
-            echo "shakenfist/actions, or the action and this file disagree."
-            echo "Refusing to go on to a retest that would not run."
-            exit 1
-          }
-          case "${TRIGGERED}" in
-            false) exit 0 ;;
-            true) ;;
-            *) fail "pr-bot-trigger reported triggered as '${TRIGGERED}'." ;;
-          esac
-          case "${AUTHORIZED}" in
-            false) exit 0 ;;
-            true) ;;
-            *) fail "pr-bot-trigger reported authorized as '${AUTHORIZED}'." ;;
-          esac
-          if [ "${SAME_REPO}" != "true" ]; then
-            fail "pr-bot-trigger authorized this request but reported same-repo as '${SAME_REPO}'."
-          fi
-
-      # A red trigger job is visible to maintainers scanning Actions,
-      # but the requester has usually had the rocket reaction by now,
-      # and the run log is not somewhere they will look. Say it on the
-      # pull request as well. Gated on the step above rather than on
-      # any failure, so a failure inside pr-bot-trigger -- which may
-      # not have acknowledged anything -- is left to the action. The
-      # body is fixed text: nothing from the comment reaches it.
-      - name: Tell the requester the retest will not run
-        if: failure() && steps.origin.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.issue.number }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          body="This retest request was acknowledged but will not run:"
-          body="${body} this workflow could not confirm what pr-bot-trigger"
-          body="${body} reported about the pull request, which is a defect in"
-          body="${body} the workflow rather than in the pull request. The"
-          body="${body} [run log](${RUN_URL}) has the detail."
-          gh pr comment "${PR_NUMBER}" --repo "${REPO}" --body "${body}"
-
   retest:
     name: "Retest PR"
     needs: trigger-retest
     # same_repo is redundant -- pr-bot-trigger already folds it into
-    # authorized -- and it is here anyway. This job dispatches a
+    # confirmed -- and it is here anyway. This job dispatches a
     # workflow against the pull request's ref with a write-scoped
     # token, so the fork guard is worth stating twice: a regression in
     # the shared action cannot quietly widen what runs here, and a
     # reader can see the restriction without leaving the file.
     # pr-re-review.yml does the same for the same reason.
     if: >-
-      needs.trigger-retest.outputs.authorized == 'true' &&
+      needs.trigger-retest.outputs.confirmed == 'true' &&
       needs.trigger-retest.outputs.same_repo == 'true'
     runs-on: [self-hosted, static]
     # A dispatch and a comment, so anything beyond this is a hang.
