@@ -61,6 +61,10 @@
       "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
       "date": "2026-10-05"
     },
+    "ansible/ci-dependencies.yml": {
+      "sha": "26695d29c0f213fadd615a051513e83902fe29d3",
+      "date": "2026-10-20"
+    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -81,6 +85,10 @@
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
     },
+    "ansible/ci-instar-testdata.yml": {
+      "sha": "0f39657e5df707ecc908a017ff7b43c8aab1d850",
+      "date": "2026-10-20"
+    },
     "ansible/ci-node-checks.yml": {
       "sha": "4d42b36d9114e44df128f29fe3fa2c28367db8fe",
       "date": "2026-09-09"
@@ -93,9 +101,21 @@
       "sha": "065f73f684b95a93566f1dd55114984c912392d9",
       "date": "2026-09-07"
     },
+    "ansible/ci-topology-localhost.yml": {
+      "sha": "7590e2723fa8b7480f49db7f0dc5941bd3145d85",
+      "date": "2026-10-20"
+    },
     "ansible/ci-topology-slim-primary-released.yml": {
       "sha": "ddc07af70c9184047efcf7e8dc31b1663b410ff9",
       "date": "2026-09-30"
+    },
+    "ansible/ci-topology-slim-primary.yml": {
+      "sha": "5caebe8d932f088175bd961f8302cad560d2b6f4",
+      "date": "2026-10-20"
+    },
+    "ansible/ci-topology-slim-tier.yml": {
+      "sha": "bd9fdf846005591037748d701c6eb199e97c4a05",
+      "date": "2026-10-20"
     },
     "ansible/files/cache-action-archives.py": {
       "sha": "97106245dd3531d45934002d9e988e2637b1c0f7",
@@ -120,6 +140,22 @@
     "ansible/files/user-data": {
       "sha": "128382120d350596a21a95a7ec14031cc6856e8d",
       "date": "2026-09-04"
+    },
+    "ansible/kerbside-create-instance.yml": {
+      "sha": "f93ad77702e85a3f66147d003ec46d21daf8487c",
+      "date": "2026-10-20"
+    },
+    "ansible/kerbside-multi-node-2.yml": {
+      "sha": "fa8c659aef7aa94b9ee0e18a5363e99fb5e7cd02",
+      "date": "2026-10-20"
+    },
+    "ansible/kerbside-multi-node.yml": {
+      "sha": "94f42e19698644977840fb297a3ab039df55353c",
+      "date": "2026-10-20"
+    },
+    "ansible/kerbside-single-node.yml": {
+      "sha": "bb14bcf1c5ca0ddbb0e041c9a63fa2ab868bbac3",
+      "date": "2026-10-20"
     },
     "ansible/proxmox-single-node.yml": {
       "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
