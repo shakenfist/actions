@@ -31,10 +31,14 @@ runs:
   steps:
     # Inputs reach the script through env:, never interpolated into a
     # command line: an input carrying a quote or a shell metacharacter
-    # would otherwise run as shell here.
+    # would otherwise run as shell here. -I makes python ignore PYTHON*
+    # environment variables and the user site directory, either of which
+    # the caller's job could set to change what the script imports.
+    # Running a script already puts its own directory, not the working
+    # directory, first on the import path.
     - name: Check the built wheels
       shell: bash
       env:
         CHECK_DIST_PATH: ${{ inputs.path }}
         CHECK_DIST_FORBID: ${{ inputs.forbid }}
-      run: python3 "${GITHUB_ACTION_PATH}/../tools/check-dist.py"
+      run: python3 -I "${GITHUB_ACTION_PATH}/../tools/check-dist.py"

@@ -75,12 +75,13 @@ def error(status, message):
 
 
 def run(head_sha=TAG, event='push', branch='develop', status='completed', conclusion='success', number=10,
-        attempt=1):
+        attempt=1, repository=REPO):
     """One entry of a workflow runs listing."""
     return {
         'head_sha': head_sha, 'event': event, 'head_branch': branch, 'status': status,
         'conclusion': conclusion if status == 'completed' else None, 'run_number': number, 'run_attempt': attempt,
         'html_url': 'https://github.com/%s/actions/runs/%d%d' % (REPO, number, attempt),
+        'head_repository': None if repository is None else {'full_name': repository},
     }
 
 
@@ -98,11 +99,25 @@ def commit_path(commit):
     return 'repos/%s/commits/%s' % (REPO, commit)
 
 
+def compare_path(commit, branch='develop'):
+    return 'repos/%s/compare/%s...%s' % (REPO, branch, commit)
+
+
 class GitHub:
-    """What the stub gh answers with: a repository, its commits and its workflow runs."""
+    """What the stub gh answers with: a repository, its commits and its workflow runs.
+
+    The tagged commit is on the default branch unless a test says otherwise.
+    """
 
     def __init__(self, default='develop'):
+        self.default = default
         self.responses = {'repos/%s' % REPO: ok({'default_branch': default})}
+        self.compare(TAG)
+
+    def compare(self, commit, status='identical'):
+        """How GitHub compares the default branch with a commit."""
+        self.responses[compare_path(commit, self.default)] = ok({'status': status})
+        return self
 
     def runs(self, workflow, commit, *entries, page=1, total=None):
         self.responses[runs_path(workflow, commit, page)] = ok(
@@ -267,9 +282,75 @@ class IgnoredRunsTest(GateTestCase):
         # A head_sha filter GitHub silently dropped would list these.
         self.assertIgnored(run(head_sha=OTHER))
 
+    def test_a_run_from_another_repository_is_ignored(self):
+        self.assertIgnored(run(repository='someone/example'))
+        self.assertIgnored(queued(repository='someone/example'))
+        self.assertIgnored(run(repository='shakenfist/example-fork'))
+        self.assertIgnored(run(repository=None))
+        entry = run()
+        del entry['head_repository']
+        self.assertIgnored(entry)
+
+    def test_the_repository_is_matched_without_regard_to_case(self):
+        self.assertPasses(run_script(GitHub().runs('ci.yml', TAG, run(repository='ShakenFist/Example'))))
+
+
+class ReachabilityTest(GateTestCase):
+    """The commit must be on the default branch before any run on it is judged.
+
+    A tag push creates push runs whose head_branch is the tag's name, so a
+    tag named like the default branch makes runs that look like pushes to
+    it, on any commit at all.
+    """
+
+    def assertNotOnBranch(self, github, status):
+        result = run_script(github)
+        self.assertFails(result, 'The tagged commit %s is not on the default branch develop' % TAG,
+                         'GitHub says it is %s' % status)
+        self.assertFalse(result.asked(runs_path('ci.yml', TAG)))
+        self.assertDidNotWalk(result)
+        self.assertIn('- `ci.yml`: not checked: %s is not on develop' % TAG, result.summary)
+
+    def test_a_push_run_from_a_tag_named_like_the_default_branch_fails(self):
+        github = GitHub().compare(TAG, 'diverged').runs('ci.yml', TAG, run(branch='develop'))
+        self.assertNotOnBranch(github, 'diverged')
+
+    def test_a_commit_ahead_of_the_default_branch_fails(self):
+        github = GitHub().compare(TAG, 'ahead').runs('ci.yml', TAG, run())
+        self.assertNotOnBranch(github, 'ahead')
+
+    def test_a_merge_queue_run_on_a_commit_that_never_landed_fails(self):
+        github = GitHub().compare(TAG, 'diverged').runs('ci.yml', TAG, queued())
+        self.assertNotOnBranch(github, 'diverged')
+
+    def test_any_other_comparison_fails(self):
+        for status in ('unknown', 'Identical'):
+            with self.subTest(status=status):
+                self.assertNotOnBranch(GitHub().compare(TAG, status).runs('ci.yml', TAG, run()), status)
+
+    def test_the_tip_of_the_default_branch_passes(self):
+        result = run_script(GitHub().compare(TAG, 'identical').runs('ci.yml', TAG, run()))
+        self.assertPasses(result)
+        self.assertTrue(result.asked(compare_path(TAG)))
+
+    def test_a_commit_behind_the_tip_passes(self):
+        self.assertPasses(run_script(GitHub().compare(TAG, 'behind').runs('ci.yml', TAG, run())))
+
+    def test_the_default_branch_read_is_the_one_compared(self):
+        result = run_script(GitHub(default='main').runs('ci.yml', TAG, run(branch='main')))
+        self.assertPasses(result)
+        self.assertTrue(result.asked(compare_path(TAG, 'main')))
+
+    def test_only_the_starting_commit_is_compared(self):
+        github = GitHub().runs('ci.yml', TAG).review_marks(TAG, PARENT).runs('ci.yml', PARENT, run(head_sha=PARENT))
+        result = run_script(github)
+        self.assertPasses(result, PARENT)
+        self.assertEqual([call for call in result.gh_calls if '/compare/' in call],
+                         ['api --method GET %s' % compare_path(TAG)])
+
 
 class AttemptsTest(GateTestCase):
-    """Only the latest attempt of the newest qualifying run is judged.
+    """Every qualifying run is judged, each at its latest attempt.
 
     The listing shows each run once, at its latest attempt, with its
     run_attempt; listing every attempt separately is judged the same way.
@@ -299,13 +380,39 @@ class AttemptsTest(GateTestCase):
                 self.assertPasses(result)
                 self.assertIn(run(attempt=2)['html_url'], result.stdout)
 
-    def test_the_newest_run_is_judged(self):
+    def test_every_run_is_judged(self):
         # A later run on the same commit, from a re-queue or a second push,
-        # supersedes an earlier success.
+        # neither supersedes an earlier failure nor is excused by an
+        # earlier success.
         result = run_script(GitHub().runs('ci.yml', TAG, run(number=11, conclusion='failure'), run(number=10)))
         self.assertFails(result, 'ci.yml concluded failure on %s' % TAG, run(number=11)['html_url'])
         result = run_script(GitHub().runs('ci.yml', TAG, run(number=10, conclusion='failure'), run(number=11)))
+        self.assertFails(result, 'ci.yml concluded failure on %s' % TAG, run(number=10)['html_url'])
+        result = run_script(GitHub().runs('ci.yml', TAG, run(number=11), run(number=10, conclusion='failure')))
+        self.assertFails(result, 'ci.yml concluded failure on %s' % TAG, run(number=10)['html_url'])
+
+    def test_a_later_push_does_not_outrank_a_failed_merge_queue_run(self):
+        result = run_script(GitHub().runs('ci.yml', TAG, run(number=11), queued(number=10, conclusion='failure')))
+        message = self.assertFails(result, 'ci.yml concluded failure on %s' % TAG, queued(number=10)['html_url'])
+        self.assertNotIn(run(number=11)['html_url'], message)
+
+    def test_every_run_that_failed_is_named(self):
+        result = run_script(GitHub().runs('ci.yml', TAG, run(number=11, conclusion='cancelled'),
+                                          queued(number=10, conclusion='failure'), run(number=12)))
+        self.assertFails(result, 'ci.yml concluded failure', queued(number=10)['html_url'],
+                         'ci.yml concluded cancelled', run(number=11)['html_url'])
+
+    def test_several_runs_that_all_succeeded_pass(self):
+        result = run_script(GitHub().runs('ci.yml', TAG, queued(number=10), run(number=11)))
         self.assertPasses(result)
+        self.assertIn(queued(number=10)['html_url'], result.stdout)
+        self.assertIn(run(number=11)['html_url'], result.stdout)
+
+    def test_each_run_is_judged_at_its_latest_attempt(self):
+        entries = [run(number=10, attempt=1, conclusion='failure'), run(number=10, attempt=2), run(number=11)]
+        self.assertPasses(run_script(GitHub().runs('ci.yml', TAG, *entries)))
+        entries = [run(number=10, attempt=2, conclusion='failure'), run(number=10, attempt=1), run(number=11)]
+        self.assertFails(run_script(GitHub().runs('ci.yml', TAG, *entries)), run(number=10, attempt=2)['html_url'])
 
     def test_a_newer_run_that_does_not_count_supersedes_nothing(self):
         result = run_script(GitHub().runs('ci.yml', TAG, run(number=11, event='schedule', conclusion='failure'),
@@ -332,6 +439,13 @@ class AttemptsTest(GateTestCase):
         github = (GitHub().runs('ci.yml', TAG, *schedules, total=101)
                   .runs('ci.yml', TAG, run(number=10, conclusion='failure'), page=2, total=101))
         self.assertFails(run_script(github), 'ci.yml concluded failure on %s' % TAG)
+
+    def test_a_listing_that_ends_before_its_count_fails(self):
+        github = (GitHub().runs('ci.yml', TAG, run(), run(number=11), total=5)
+                  .runs('ci.yml', TAG, page=2, total=5))
+        self.assertFails(run_script(github), 'Could not ask GitHub', 'the listing ended early', '2 of 5 runs')
+        github = GitHub().runs('ci.yml', TAG, total=3)
+        self.assertFails(run_script(github), 'Could not ask GitHub', 'the listing ended early', '0 of 3 runs')
 
     def test_too_many_runs_to_read_fails(self):
         github = GitHub()
@@ -454,6 +568,7 @@ class WalkTest(GateTestCase):
 
         def github(passing):
             g = GitHub()
+            g.compare(chain[0])
             for n, commit in enumerate(chain[:-1]):
                 g.runs('ci.yml', commit).review_marks(commit, chain[n + 1])
             return g.runs('ci.yml', chain[passing], run(head_sha=chain[passing]))
@@ -515,7 +630,7 @@ class GitHubFailureTest(GateTestCase):
         github = GitHub().runs('ci.yml', TAG, run())
         github.responses[runs_path('functional.yml', TAG)] = error(404, 'Not Found')
         result = run_script(github, workflows='ci.yml\nfunctional.yml')
-        self.assertFails(result, '%s has no workflow named functional.yml' % REPO)
+        self.assertFails(result, '%s has no workflow named functional.yml, or the token cannot read it' % REPO)
         self.assertIn('- `functional.yml`: no such workflow', result.summary)
         self.assertDidNotWalk(result)
 
@@ -531,6 +646,29 @@ class GitHubFailureTest(GateTestCase):
             'a repository with no default branch': ('repos/%s' % REPO, ok({})),
             'a run with no attempt': (runs_path('ci.yml', TAG), ok({'total_count': 1, 'workflow_runs': [
                 {k: v for k, v in run().items() if k != 'run_attempt'}]})),
+            'a repository whose default branch is empty': ('repos/%s' % REPO, ok({'default_branch': ''})),
+            'the comparison': (compare_path(TAG), error(500, 'Server Error')),
+            'the comparison, not found': (compare_path(TAG), error(404, 'Not Found')),
+            'a comparison with no status': (compare_path(TAG), ok({})),
+            'a run that is not an object': (runs_path('ci.yml', TAG), ok({'total_count': 1, 'workflow_runs': [
+                'surprise']})),
+            'a run that is not an object beside one that passes': (runs_path('ci.yml', TAG), ok({
+                'total_count': 2, 'workflow_runs': [run(), None]})),
+            'a listing with no total': (runs_path('ci.yml', TAG), ok({'workflow_runs': [run()]})),
+            'a listing whose total is not an integer': (runs_path('ci.yml', TAG), ok({
+                'total_count': '1', 'workflow_runs': [run()]})),
+            'a listing whose total is a boolean': (runs_path('ci.yml', TAG), ok({
+                'total_count': True, 'workflow_runs': [run()]})),
+            'a parent that is not a sha': (commit_path(TAG), ok({
+                'parents': [{'sha': 'HEAD~1'}], 'files': [{'filename': 'REVIEWS.md'}]})),
+            'files that are not a list': (commit_path(TAG), ok({
+                'parents': [{'sha': PARENT}], 'files': {'filename': 'REVIEWS.md'}})),
+            'a changed file with no name': (commit_path(TAG), ok({
+                'parents': [{'sha': PARENT}], 'files': [{'status': 'added'}]})),
+            'a changed file whose name is not a string': (commit_path(TAG), ok({
+                'parents': [{'sha': PARENT}], 'files': [{'filename': ['REVIEWS.md']}]})),
+            'a changed file that is not an object': (commit_path(TAG), ok({
+                'parents': [{'sha': PARENT}], 'files': ['REVIEWS.md']})),
         }
         for name, (path, response) in cases.items():
             with self.subTest(case=name):
@@ -540,6 +678,14 @@ class GitHubFailureTest(GateTestCase):
                 self.assertFails(result, 'Could not ask GitHub whether CI succeeded on %s' % TAG,
                                  'this is not a pass')
                 self.assertIn('- `ci.yml`: not checked: could not ask GitHub', result.summary)
+
+    def test_a_run_that_is_not_an_object_is_not_skipped(self):
+        # Skipping it would judge the commit on the runs around it, and the
+        # one that could not be read may be the one that failed.
+        for entry in ('surprise', None, ['a', 'list'], 7):
+            with self.subTest(entry=entry):
+                github = GitHub().runs('ci.yml', TAG, run(), entry)
+                self.assertFails(run_script(github), 'Could not ask GitHub', 'lists a run that is not an object')
 
     def test_gh_that_cannot_run_fails(self):
         with tempfile.TemporaryDirectory() as empty:

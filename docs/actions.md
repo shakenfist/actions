@@ -644,18 +644,26 @@ jobs:
     if: >-
       !cancelled() && (needs.ci-gate.result == 'success' ||
       (github.event_name != 'push' && needs.ci-gate.result == 'skipped'))
-    ...
+    runs-on: [self-hosted, static]
+    steps:
+      - uses: actions/checkout@v7
+      # The build, and check-dist, go here.
 ```
 
 The job needs `actions: read` to list workflow runs and `contents:
-read` to read the repository and its commits, and nothing else.
+read` to read the repository, its commits and the comparison of a
+commit with the default branch, and nothing else.
+
+It also needs `gh` on the runner, because every read goes through `gh
+api`. The fleet's static and vm runners have it. On a runner without
+it the gate fails closed, with "could not run gh".
 
 **Inputs:**
 
 | Name | Required | Default | Description |
 |------|----------|---------|-------------|
-| `workflows` | Yes | - | The workflow files that must have succeeded, one per line, as named in `.github/workflows/`. Blank lines and surrounding whitespace are ignored; naming none is an error |
-| `sha` | No | `github.sha` | The commit to check |
+| `workflows` | Yes | - | The workflow files that must have succeeded, one per line, each a bare file name in `.github/workflows/` such as `ci.yml`, not a path. Blank lines, surrounding whitespace and duplicates are ignored; naming none is an error |
+| `sha` | No | `github.sha` | The commit to check, as a full 40-character sha |
 | `token` | No | `github.token` | A token with `actions: read` and `contents: read` |
 
 There are no outputs. The step passes or fails, prints the commit CI
@@ -666,25 +674,42 @@ the job summary.
 on the commit and keeps only those that ran on the default branch,
 which it reads from the repository rather than assuming: a `push`
 whose branch is the default branch, or a `merge_group` run for the
-default branch's queue (`gh-readonly-queue/<default>/...`). Every other
-event is ignored. A commit's run list also holds scheduled runs
-(Renovate, CodeQL, configuration export) for as long as it is the tip,
-and a `pull_request` run's head is never the merged commit. The branch
+default branch's queue (`gh-readonly-queue/<default>/...`), in either
+case from this repository rather than a fork. Every other event is
+ignored. A commit's run list also holds scheduled runs (Renovate,
+CodeQL, configuration export) for as long as it is the tip, and a
+`pull_request` run's head is never the merged commit. The branch
 matters as much as the event: a push to any other branch runs the
 workflow file as that branch has it, so anyone who can push a branch
-could make CI succeed there trivially and then tag the commit. Of the
-runs that count, the newest is judged, at its latest attempt, and must
-have completed with `success`.
+could make CI succeed there trivially and then tag the commit.
+
+A run's metadata does not tell a tag from a branch, though. Pushing a
+tag creates `push` runs whose `head_branch` is the tag's name, so a tag
+named `develop`, pushed onto any commit, would make runs that look like
+pushes to `develop`. So before it judges any run, the gate requires the
+tagged commit to be on the default branch: GitHub's comparison of the
+branch with the commit must say `identical` or `behind`, and anything
+else fails, saying the tagged commit is not on the default branch. That
+also refuses a merge queue run on a queue commit that never landed. It
+is checked once, on the tagged commit, because every first-parent
+ancestor of a commit on the branch is on it too.
+
+Every run that counts is judged, each at its latest attempt, and every
+one must have completed with `success`. A workflow with a failed
+`merge_group` run and a later successful `push` run on the same commit
+fails, naming the failed run: a later run does not outrank an earlier
+one.
 
 **Outcomes:**
 
 | On the commit | Result |
 |---|---|
-| Every named workflow succeeded | Pass |
-| A named workflow's run failed, was cancelled, or has not finished | Fail, naming the workflow, the run and its state |
+| The tagged commit is not on the default branch | Fail, before any run is judged |
+| Every run of every named workflow succeeded | Pass |
+| Any run of a named workflow failed, was cancelled, or has not finished, even beside a run that succeeded | Fail, naming the workflow, each such run and its state |
 | Some named workflows ran and others did not | Fail, naming the missing ones. The commit was only part-tested |
 | No named workflow ran | Step to the first parent and look again, if the commit can be crossed |
-| A named workflow file does not exist | Fail, naming it |
+| A named workflow file does not exist, or the token cannot read it | Fail, naming it |
 | GitHub could not be asked | Fail. Never a pass |
 
 A commit with no CI run at all is usually one that `prune-reviews.yml`
@@ -706,10 +731,13 @@ failure is recoverable:
 
 * If CI never ran on the tagged commit, delete the tag and tag the last
   commit CI ran on instead.
+* If the tagged commit is not on the default branch, delete the tag and
+  tag a commit that is.
 * If a CI run failed for a reason unrelated to the change, re-run it
   until it succeeds, then re-run the release's gate job with "Re-run
   jobs". That keeps the original tag `push` event, so the guards still
-  pass, and the gate reads the run's newest attempt.
+  pass, and the gate reads each run's newest attempt. Every failed run
+  on the commit needs re-running, not only the newest.
 * If a run is still going, wait for it, then re-run the gate job.
 
 **Why there is no override.** A CI run that failed for infrastructure
@@ -724,9 +752,12 @@ Fails when a built wheel contains something that must not ship. For every
 `*.whl` directly under `path`, it reads the member names through
 `zipfile` and fails if any member sits in a directory named `tests` or
 ending in `_tests`, or matches a `forbid` glob. Only directory
-components count, so `pkg/contests.py` and `pkg/tests.py` pass while
-`pkg/tests/test_x.py` and `pkg/corpus_tests/x.ovf` fail. Every offending
-member is printed, grouped by wheel, followed by a hint.
+components count, and only a component that is `tests` or ends in
+`_tests`, so `pkg/contests.py`, `pkg/tests.py` and `pkg/my_tests_x/a.py`
+pass while `pkg/tests/test_x.py` and `pkg/corpus_tests/x.ovf` fail.
+Every offending member is printed, grouped by wheel. When any of them
+sat in a test directory, a hint naming the usual cause follows; it is
+not printed for a `forbid` match or an unreadable archive alone.
 
 The usual cause is `include-package-data`, which defaults to true under
 `pyproject.toml`. `setuptools_scm`'s file finder then offers every

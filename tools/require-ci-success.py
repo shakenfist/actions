@@ -10,20 +10,31 @@ GITHUB_STEP_SUMMARY. Every read goes through `gh api`, and nothing here
 writes to GitHub.
 
 A run counts only if it ran on the default branch, as a push to it or as
-a merge queue run for it. Every other event is ignored: a `head_sha`
-query also returns scheduled runs (Renovate, CodeQL, configuration
-export) for as long as the commit is the tip, and a pull request run's
-head is never the merged commit. The branch matters as much as the event,
-because a push to any other branch runs the workflow file as that branch
-has it, and anyone who can push a branch can make CI there succeed
-trivially and then tag the commit.
+a merge queue run for it, from this repository rather than a fork. Every
+other event is ignored: a `head_sha` query also returns scheduled runs
+(Renovate, CodeQL, configuration export) for as long as the commit is the
+tip, and a pull request run's head is never the merged commit. The branch
+matters as much as the event, because a push to any other branch runs the
+workflow file as that branch has it, and anyone who can push a branch can
+make CI there succeed trivially and then tag the commit.
 
-Of the runs that count, the newest run of each workflow is judged, and
-within it the latest attempt, so a re-run that succeeded passes and a
-re-run that failed does not. A commit passes when every named workflow
-has such a run that completed successfully. If some do and the rest have
-no run there at all, the commit was only part-tested, and that fails
-rather than looking further back.
+A run's metadata does not tell a tag from a branch, though. Pushing a tag
+creates `push` runs whose head_branch is the tag's name, so a tag named
+like the default branch, pushed onto any commit, would produce runs that
+look like pushes to it. So before any run is judged, the commit must be
+reachable from the default branch: GitHub's comparison of the branch with
+the commit must find them identical, or the commit behind. That also
+refuses a merge queue run on a queue commit that never landed. It is
+checked once, on the starting commit, because every first-parent ancestor
+of a commit on the branch is on it too.
+
+Every run that counts is judged, each at its latest attempt, so a re-run
+that succeeded passes and a re-run that failed does not. A workflow
+passes only if all of its runs on the commit completed successfully: a
+later push run does not outrank a merge queue run on the same commit
+that failed. A commit passes when every named workflow passes. If some
+have runs and the rest have no run there at all, the commit was only
+part-tested, and that fails rather than looking further back.
 
 A commit that no named workflow ran on at all is usually one the
 prune-reviews workflow pushed after the merge CI did run on. So the gate
@@ -41,6 +52,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 
 
 # The files a commit may change and still be crossed on the way to an
@@ -69,6 +81,10 @@ MAX_RUN_PAGES = 10
 SHA_RE = re.compile(r'[0-9a-f]{40}')
 REPO_RE = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 WORKFLOW_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*\.ya?ml')
+
+# What GitHub's comparison of the default branch with a commit says when
+# the commit is on the branch: the branch's tip itself, or behind it.
+REACHABLE = ('identical', 'behind')
 
 RECOVERY = ('Tag the last commit CI ran on, or re-run CI on this commit and then re-run this job '
             'with "Re-run jobs".')
@@ -122,6 +138,22 @@ def default_branch(repo):
     return branch
 
 
+def require_on_branch(repo, branch, sha, workflows):
+    """Raise GateFailure unless sha is reachable from the default branch."""
+    path = 'repos/%s/compare/%s...%s' % (repo, urllib.parse.quote(branch, safe='/'), sha)
+    body = gh_api(path)
+    status = body.get('status') if isinstance(body, dict) else None
+    if not isinstance(status, str) or not status:
+        raise GitHubError('%s did not say how %s compares with %s' % (path, sha, branch))
+    if status not in REACHABLE:
+        raise GateFailure(
+            'The tagged commit %s is not on the default branch %s: compared with %s, GitHub says it is %s. A '
+            'run there is not CI on %s, whatever its head_branch says, because a tag named like a branch gives '
+            'its runs that branch name. Tag a commit on %s that CI succeeded on.'
+            % (sha, branch, branch, status, branch, branch),
+            {workflow: 'not checked: %s is not on %s' % (sha, branch) for workflow in workflows})
+
+
 def list_runs(repo, workflow, sha):
     """Every run of a workflow on a commit, or NotFound if there is no such workflow."""
     runs = []
@@ -131,21 +163,34 @@ def list_runs(repo, workflow, sha):
         body = gh_api(path)
         batch = body.get('workflow_runs') if isinstance(body, dict) else None
         total = body.get('total_count') if isinstance(body, dict) else None
-        if not isinstance(batch, list) or not isinstance(total, int):
+        if not isinstance(batch, list) or not isinstance(total, int) or isinstance(total, bool):
             raise GitHubError('%s did not list workflow runs' % path)
+        if not all(isinstance(run, dict) for run in batch):
+            raise GitHubError('%s lists a run that is not an object' % path)
         runs.extend(batch)
-        if not batch or len(runs) >= total:
+        if len(runs) >= total:
             return runs
+        # A missing run could be the one that failed, so a listing that
+        # stops short of its own count is not judged.
+        if not batch:
+            raise GitHubError('the listing ended early: %s lists %d of %d runs of %s on %s'
+                              % (path, len(runs), total, workflow, sha))
     raise GitHubError('%s has more than %d runs on %s, too many to judge'
                       % (workflow, RUNS_PER_PAGE * MAX_RUN_PAGES, sha))
 
 
-def qualifies(run, sha, branch):
+def qualifies(run, repo, sha, branch):
     """Whether a run is a push to, or a merge queue run for, the default branch, on this commit."""
     # The listing is asked for this commit's runs. Checking again costs
     # nothing, and a filter GitHub silently ignored would otherwise judge
     # some other commit's run.
     if run.get('head_sha') != sha:
+        return False
+    # A push or merge queue run comes from this repository. One that came
+    # from anywhere else ran on code nobody here merged.
+    head_repository = run.get('head_repository')
+    full_name = head_repository.get('full_name') if isinstance(head_repository, dict) else None
+    if not isinstance(full_name, str) or full_name.lower() != repo.lower():
         return False
     head_branch = run.get('head_branch') or ''
     if run.get('event') == 'push':
@@ -155,16 +200,21 @@ def qualifies(run, sha, branch):
     return False
 
 
-def latest_run(repo, workflow, sha, branch):
-    """The latest attempt of the newest qualifying run, or None if there is none."""
-    runs = [run for run in list_runs(repo, workflow, sha) if isinstance(run, dict) and qualifies(run, sha, branch)]
-    for run in runs:
+def qualifying_runs(repo, workflow, sha, branch):
+    """The latest attempt of every qualifying run, oldest run first; empty if there is none."""
+    latest = {}
+    for run in list_runs(repo, workflow, sha):
+        if not qualifies(run, repo, sha, branch):
+            continue
         if not isinstance(run.get('run_number'), int) or not isinstance(run.get('run_attempt'), int):
             raise GitHubError('a run of %s on %s has no run_number or run_attempt' % (workflow, sha))
-    # The listing shows each run once, at its latest attempt. Taking the
-    # highest attempt within the newest run is right whether that holds
-    # or every attempt is listed separately.
-    return max(runs, key=lambda run: (run['run_number'], run['run_attempt']), default=None)
+        # The listing shows each run once, at its latest attempt. Keeping
+        # the highest attempt of each run is right whether that holds or
+        # every attempt is listed separately.
+        number = run['run_number']
+        if number not in latest or run['run_attempt'] > latest[number]['run_attempt']:
+            latest[number] = run
+    return [latest[number] for number in sorted(latest)]
 
 
 def succeeded(run):
@@ -201,7 +251,9 @@ def step_back(repo, sha):
     parent = parents[0].get('sha') if isinstance(parents[0], dict) else None
     if not isinstance(parent, str) or not SHA_RE.fullmatch(parent):
         raise GitHubError('%s names a parent that is not a sha' % path)
-    if not isinstance(files, list) or not files:
+    if not isinstance(files, list):
+        raise GitHubError('%s does not list changed files' % path)
+    if not files:
         return None, 'lists no changed files, so what it changed cannot be checked'
     if len(files) >= COMMIT_FILES_CAP:
         return None, 'lists %d changed files, so the list may be truncated' % len(files)
@@ -220,18 +272,29 @@ def step_back(repo, sha):
     return parent, None
 
 
+def urls(runs):
+    return ', '.join(str(run.get('html_url')) for run in runs)
+
+
 def judge(workflows, commit, found):
-    """Pass or fail a commit on which at least one named workflow qualified."""
+    """Pass or fail a commit on which at least one named workflow qualified.
+
+    found maps each workflow that qualified to its runs there, each at its
+    latest attempt. Every one of them must have succeeded.
+    """
     summary = {}
     problems = []
     for workflow in workflows:
-        run = found.get(workflow)
-        if run is None:
+        runs = found.get(workflow)
+        if not runs:
             summary[workflow] = 'no push or merge queue run on %s' % commit
-        elif succeeded(run):
-            summary[workflow] = 'succeeded on %s: %s' % (commit, run.get('html_url'))
-        else:
-            summary[workflow] = '%s on %s: %s' % (state(run), commit, run.get('html_url'))
+            continue
+        failed = [run for run in runs if not succeeded(run)]
+        if not failed:
+            summary[workflow] = 'succeeded on %s: %s' % (commit, urls(runs))
+            continue
+        summary[workflow] = '; '.join('%s on %s: %s' % (state(run), commit, run.get('html_url')) for run in failed)
+        for run in failed:
             problems.append('%s %s on %s, in %s. Once it has succeeded, re-run this job.'
                             % (workflow, state(run), commit, describe(run)))
     missing = [workflow for workflow in workflows if workflow not in found]
@@ -249,22 +312,23 @@ def gate(repo, workflows, sha):
     """Return (commit, crossed, runs, summary) for the commit CI succeeded on, or raise GateFailure.
 
     crossed is the commits stepped across to reach it, and runs maps each
-    workflow to its run there.
+    workflow to its runs there.
     """
     branch = default_branch(repo)
+    require_on_branch(repo, branch, sha, workflows)
     commit = sha
     crossed = []
     while True:
         found = {}
         for workflow in workflows:
             try:
-                run = latest_run(repo, workflow, commit, branch)
+                runs = qualifying_runs(repo, workflow, commit, branch)
             except NotFound:
                 raise GateFailure(
-                    '%s has no workflow named %s. Name the workflow file as it is in .github/workflows/.'
-                    % (repo, workflow), {workflow: 'no such workflow in %s' % repo})
-            if run is not None:
-                found[workflow] = run
+                    '%s has no workflow named %s, or the token cannot read it. Name the workflow file as it is '
+                    'in .github/workflows/.' % (repo, workflow), {workflow: 'no such workflow in %s' % repo})
+            if runs:
+                found[workflow] = runs
         if found:
             return commit, crossed, found, judge(workflows, commit, found)
 
@@ -343,7 +407,7 @@ def main(env):
 
     print('CI succeeded on %s:' % commit)
     for workflow in workflows:
-        print('  %s: %s' % (workflow, runs[workflow].get('html_url')))
+        print('  %s: %s' % (workflow, urls(runs[workflow])))
     if crossed:
         print('The tag is on %s, %d commit%s above it. Crossed, each changing only review marks: %s'
               % (sha, len(crossed), '' if len(crossed) == 1 else 's', ', '.join(crossed)))

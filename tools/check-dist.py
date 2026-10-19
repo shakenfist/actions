@@ -7,6 +7,7 @@ For every *.whl directly under a directory, fail if any member has a
 directory component equal to 'tests' or ending in '_tests', or matches one
 of the extra fnmatch globs given in CHECK_DIST_FORBID (newline separated).
 Only directory components count, so pkg/contests.py and pkg/tests.py pass.
+When a test directory was found, a hint follows naming the usual cause.
 
 Member names are read through zipfile rather than by parsing the output of
 "python3 -m zipfile -l", which is a human-readable listing and not a stable
@@ -37,15 +38,23 @@ def is_test_component(component):
     return component == 'tests' or component.endswith('_tests')
 
 
-def offending_reason(member, forbid):
-    """Return why a wheel member must not ship, or None if it may."""
+def test_directory(member):
+    """Return the first test directory component of a wheel member, or None."""
     parts = member.split('/')
     # A trailing slash marks a directory entry, so its last component is a
     # directory too. Otherwise the last component is a file name.
     directories = parts if member.endswith('/') else parts[:-1]
     for component in directories:
         if is_test_component(component):
-            return 'test directory %r' % component
+            return component
+    return None
+
+
+def offending_reason(member, forbid):
+    """Return why a wheel member must not ship, or None if it may."""
+    component = test_directory(member)
+    if component is not None:
+        return 'test directory %r' % component
     for pattern in forbid:
         if fnmatch.fnmatchcase(member, pattern):
             return 'matches forbid glob %r' % pattern
@@ -79,6 +88,9 @@ def run(path, forbid):
         return 1
 
     failed = False
+    # The hint explains how tests reach a wheel, so it is printed only when
+    # some did, not for an unreadable archive or a forbid glob.
+    shipped_tests = False
     for wheel in wheels:
         try:
             count, offenders = check_wheel(wheel, forbid)
@@ -92,13 +104,14 @@ def run(path, forbid):
             print('::error::check-dist: %s contains %d member(s) that must not ship:' % (wheel, len(offenders)))
             for member, reason in offenders:
                 print('  %s (%s)' % (member, reason))
+                if test_directory(member) is not None:
+                    shipped_tests = True
         else:
             print('check-dist: %s OK (%d members)' % (wheel, count))
 
-    if failed:
+    if shipped_tests:
         print('check-dist: hint: ' + HINT)
-        return 1
-    return 0
+    return 1 if failed else 0
 
 
 def main(argv, environ):

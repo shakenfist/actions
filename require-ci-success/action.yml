@@ -1,26 +1,29 @@
 name: 'Require CI success'
 description: >-
   Fail unless the named CI workflows succeeded on a commit, so that a
-  release cannot publish code CI did not pass. A run counts only if it was
-  a push to the default branch or a merge queue run for it, and only its
-  latest attempt is judged. A commit no named workflow ran on is crossed
-  to its first parent only when it changed nothing but review marks
-  (REVIEWS.md and .vscode/*.weaudit*), and never when it is a merge. There
+  release cannot publish code CI did not pass. The commit must be on the
+  default branch. A run counts only if it was a push to the default branch
+  or a merge queue run for it, from this repository, and every such run is
+  judged at its latest attempt: one that did not succeed fails the gate.
+  A commit no named workflow ran on is crossed to its first parent only
+  when it changed nothing but review marks (REVIEWS.md, .vscode/*.weaudit
+  and .vscode/*.weaudit-shas.json), and never when it is a merge. There
   is no override: re-run the failed CI, then re-run this job. The logic is
   tools/require-ci-success.py, resolved through github.action_path, so it
-  comes from the same ref as this action.yml. The token needs
-  actions: read and contents: read. Composite-action steps cannot carry
-  timeouts, so put timeout-minutes on the step that uses this action.
+  comes from the same ref as this action.yml. It needs gh on the runner,
+  and the token needs actions: read and contents: read. Composite-action
+  steps cannot carry timeouts, so put timeout-minutes on the step that
+  uses this action.
 
 inputs:
   workflows:
     description: >-
-      The workflow files that must have succeeded, one per line, as named
-      in .github/workflows/ (for example ci.yml). Blank lines are ignored;
-      naming none is an error.
+      The workflow files that must have succeeded, one per line, each a
+      bare file name in .github/workflows/ such as ci.yml, not a path.
+      Blank lines and duplicates are ignored; naming none is an error.
     required: true
   sha:
-    description: 'The commit to check. Defaults to the commit the workflow runs on.'
+    description: 'The full 40-character sha of the commit to check. Defaults to the commit the workflow runs on.'
     required: false
     default: ${{ github.sha }}
   token:
@@ -33,9 +36,11 @@ runs:
   steps:
     # Inputs reach the script through env:, never interpolated into a
     # command line: an input carrying a quote or a shell metacharacter
-    # would otherwise run as shell here. -I keeps the script from
-    # importing anything from the working directory, which is the
-    # caller's checkout.
+    # would otherwise run as shell here. -I makes python ignore PYTHON*
+    # environment variables and the user site directory, either of which
+    # the caller's job could set to change what the script imports.
+    # Running a script already puts its own directory, not the working
+    # directory, first on the import path.
     - name: Require CI success on the commit
       shell: bash
       env:

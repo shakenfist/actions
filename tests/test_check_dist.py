@@ -55,6 +55,14 @@ class CheckDistTestCase(unittest.TestCase):
                               capture_output=True, text=True)
         self.assertEqual(0, proc.returncode, proc.stdout)
 
+    def test_empty_path_falls_back_to_dist(self):
+        self.wheel('a-1-py3-none-any.whl', ['pkg/tests/t.py'])
+        proc = subprocess.run([sys.executable, '-I', SCRIPT], env={'CHECK_DIST_PATH': ''},
+                              cwd=os.path.dirname(self.dist), capture_output=True, text=True)
+        self.assertEqual(1, proc.returncode, proc.stdout)
+        self.assertIn(os.path.join('dist', 'a-1-py3-none-any.whl'), proc.stdout)
+        self.assertIn('pkg/tests/t.py', proc.stdout)
+
     def test_tests_directory_fails(self):
         self.wheel('a.whl', ['pkg/__init__.py', 'pkg/tests/test_x.py'])
         rc, out = self.run_script(self.dist)
@@ -94,6 +102,23 @@ class CheckDistTestCase(unittest.TestCase):
         self.assertIn('pkg/data/secret.key', out)
         self.assertIn('forbid glob', out)
 
+    def test_forbid_only_match_gives_no_hint(self):
+        self.wheel('a.whl', ['pkg/__init__.py', 'pkg/data/secret.key'])
+        rc, out = self.run_script(self.dist, forbid='*.key')
+        self.assertEqual(1, rc)
+        self.assertIn('pkg/data/secret.key', out)
+        self.assertNotIn('hint', out)
+
+    def test_hint_follows_a_test_directory_beside_other_failures(self):
+        self.wheel('a.whl', ['pkg/data/secret.key'])
+        self.wheel('b.whl', ['pkg/tests/t.py'])
+        with open(os.path.join(self.dist, 'c.whl'), 'w') as f:
+            f.write('not a zip')
+        rc, out = self.run_script(self.dist, forbid='*.key')
+        self.assertEqual(1, rc)
+        self.assertEqual(1, out.count('check-dist: hint: '), out)
+        self.assertIn('include-package-data', out)
+
     def test_forbid_without_hit_passes(self):
         self.wheel('a.whl', ['pkg/__init__.py'])
         rc, out = self.run_script(self.dist, forbid='*.pem')
@@ -103,6 +128,13 @@ class CheckDistTestCase(unittest.TestCase):
         self.wheel('a.whl', ['pkg/contests.py', 'pkg/tests.py', 'pkg/attests/x.py', 'pkg/tests'])
         rc, out = self.run_script(self.dist)
         self.assertEqual(0, rc, out)
+
+    def test_tests_inside_a_component_name_passes(self):
+        # Only a component ending in _tests counts, not one containing it.
+        self.wheel('a.whl', ['pkg/my_tests_x/a.py', 'pkg/tests_x/b.py', 'pkg/_testsx/c.py'])
+        rc, out = self.run_script(self.dist)
+        self.assertEqual(0, rc, out)
+        self.assertIn('OK (3 members)', out)
 
     def test_two_wheels_one_bad_reports_both(self):
         self.wheel('good.whl', ['pkg/__init__.py'])
@@ -141,6 +173,7 @@ class CheckDistTestCase(unittest.TestCase):
         self.assertIn('::error::check-dist:', out)
         self.assertIn('not a readable zip', out)
         self.assertNotIn('Traceback', out)
+        self.assertNotIn('hint', out)
 
     def test_path_with_space(self):
         spaced = os.path.join(os.path.dirname(self.dist), 'my dist [x]')
@@ -168,6 +201,8 @@ class CheckDistTestCase(unittest.TestCase):
         self.assertIsNotNone(cd.offending_reason('pkg/tests/x', []))
         self.assertIsNotNone(cd.offending_reason('pkg/a_tests/x', []))
         self.assertIsNotNone(cd.offending_reason('pkg/x.bak', ['*.bak']))
+        self.assertEqual('a_tests', cd.test_directory('pkg/a_tests/tests/x'))
+        self.assertIsNone(cd.test_directory('pkg/x.bak'))
         self.assertEqual(['a', 'b'], cd.parse_forbid('a\n\n b \n'))
         self.assertEqual([], cd.parse_forbid(None))
         self.assertEqual(1, cd.run(self.dist, []))
@@ -183,6 +218,7 @@ class ActionTestCase(unittest.TestCase):
         steps = self.action['runs']['steps']
         self.assertTrue(steps)
         for step in steps:
+            self.assertIn('python3 -I ', step['run'])
             self.assertNotIn('inputs.', step['run'])
             self.assertNotIn('${{', step['run'])
             self.assertIn('check-dist.py', step['run'])
