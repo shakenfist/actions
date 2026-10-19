@@ -61,10 +61,29 @@ which the fleet
 requires. If you raise it, several merge groups are live at once and
 this key would cancel one the queue is still waiting on.
 
+Only a run's first attempt takes that key. A "Re-run jobs" on an old
+queue run keeps the `merge_group` event, and with it the base branch,
+but it is not a queue build: with the shared key it would cancel the
+entry the queue is building now, or be cancelled by it. A re-run
+therefore keeps its own queue branch's group, through a
+`github.run_attempt == '1'` test in the key.
+
 In Mode 2 the concurrency group is yours to declare, and the same rule
-applies to it; see the
+applies to it, first-attempt test included:
+
+```yaml
+concurrency:
+  group: >-
+    ${{ github.workflow }}-<job>-${{
+    github.event_name == 'merge_group' && github.run_attempt == '1'
+    && format('merge_group-{0}', github.event.merge_group.base_ref)
+    || github.ref }}
+  cancel-in-progress: true
+```
+
+The
 [merge-group-cancellation audit](https://github.com/shakenfist/development/blob/main/audits/merge-group-cancellation.md)
-for the pattern.
+explains the rest of the pattern.
 
 **Mode 2 — you want to run your own tests against a live cluster**
 (nothing of yours is inside the cluster; you test your integration with
