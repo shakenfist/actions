@@ -199,16 +199,21 @@ jobs:
     # shakenfist/development audits/merge-group-cancellation.md.
     #
     # Cancelling is safe because the fleet's merge queues are serial
-    # (max_entries_to_build: 1), so any other in-flight merge_group run is by
-    # definition superseded and its queue branch already abandoned. The
-    # merge_group- prefix keeps a queue run from sharing a group with a
-    # workflow_dispatch run on the base branch, whose github.ref is the same
-    # string.
+    # (max_entries_to_build: 1), so any other first attempt of a merge_group
+    # run is by definition superseded and its queue branch already abandoned.
+    # A re-run is not a queue build, though. It keeps its original event, so
+    # with the base-branch key a "Re-run jobs" on an old queue run -- which is
+    # how a caller recovers a release from a flaky queue run, since the
+    # require-ci-success gate counts only queue and push runs -- would cancel
+    # the live queue entry or be cancelled by it. Re-runs therefore keep their
+    # own queue branch's group. The merge_group- prefix keeps a queue run from
+    # sharing a group with a workflow_dispatch run on the base branch, whose
+    # github.ref is the same string.
     concurrency:
       group: >-
         smoke-cluster-${{ inputs.component }}-${{ inputs.tier }}-${{
         inputs.concurrency_key }}-${{
-        github.event_name == 'merge_group'
+        github.event_name == 'merge_group' && github.run_attempt == '1'
         && format('merge_group-{0}', github.event.merge_group.base_ref)
         || github.ref }}
       cancel-in-progress: true
