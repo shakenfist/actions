@@ -9,6 +9,10 @@
       "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
       "date": "2026-09-27"
     },
+    ".github/workflows/ci.yml": {
+      "sha": "d4e9fb4f999bcae22716eee9e26c6c3864afe3e6",
+      "date": "2026-10-20"
+    },
     ".github/workflows/codeql-analysis.yml": {
       "sha": "22c9962827b30e9fd4c606a7e3365bb81412761a",
       "date": "2026-10-03"
@@ -21,6 +25,18 @@
       "sha": "4e5b158307670d19c1fa45d791bd97803df1c3e0",
       "date": "2026-09-09"
     },
+    ".github/workflows/pr-auto-review.yml": {
+      "sha": "34c884bf744da34a00b6e513f553352a41405704",
+      "date": "2026-10-20"
+    },
+    ".github/workflows/pr-re-review.yml": {
+      "sha": "501583b681bc88c12846372364aa302b1b05aec3",
+      "date": "2026-10-20"
+    },
+    ".github/workflows/pr-retest.yml": {
+      "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
+      "date": "2026-10-20"
+    },
     ".github/workflows/proxmox-substrate.yml": {
       "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
       "date": "2026-09-25"
@@ -32,6 +48,10 @@
     ".github/workflows/renovate.yml": {
       "sha": "07e038ce4f1ba143eeb172e17e3d24c6e43e203a",
       "date": "2026-10-16"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "c786db2e4639d968b297ff2aaf00caa4d6114977",
+      "date": "2026-10-20"
     },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
