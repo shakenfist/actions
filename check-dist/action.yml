@@ -1,0 +1,44 @@
+name: 'Check dist'
+description: >-
+  Fail when a built wheel contains something that must not ship. For every
+  .whl directly under the given path, the step fails if any member sits in
+  a directory named tests or ending in _tests, or matches a forbid glob,
+  and prints every offending member grouped by wheel. Only directory
+  components count, so a module named contests.py is fine. Finding no wheel
+  under the path, or a .whl that is not a zip, is also a failure. The
+  usual cause of a failure is include-package-data defaulting to true
+  under pyproject.toml, which lets setuptools_scm's file finder add every
+  git-tracked file as package data. The logic is tools/check-dist.py,
+  resolved through github.action_path, so it comes from the same ref as
+  this action.yml. It needs no token and no permissions. Composite-action
+  steps cannot carry timeouts, so put timeout-minutes on the step that
+  uses this action.
+
+inputs:
+  path:
+    description: 'Directory holding the built wheels. Only *.whl directly in it are checked.'
+    required: false
+    default: 'dist/'
+  forbid:
+    description: >-
+      Extra fnmatch globs, one per line, matched case-sensitively against
+      each wheel member's full path.
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    # Inputs reach the script through env:, never interpolated into a
+    # command line: an input carrying a quote or a shell metacharacter
+    # would otherwise run as shell here. -I makes python ignore PYTHON*
+    # environment variables and the user site directory, either of which
+    # the caller's job could set to change what the script imports.
+    # Running a script already puts its own directory, not the working
+    # directory, first on the import path.
+    - name: Check the built wheels
+      shell: bash
+      env:
+        CHECK_DIST_PATH: ${{ inputs.path }}
+        CHECK_DIST_FORBID: ${{ inputs.forbid }}
+      run: 'python3 -I "${GITHUB_ACTION_PATH}/../tools/check-dist.py"'

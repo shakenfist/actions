@@ -604,3 +604,250 @@ finishes. A consumer needs no cleanup step of its own.
 good for about 30 seconds from the mint, so a consumer should call
 `mint_script` as the last thing before dialling, not earlier in the
 job -- and never re-use a ticket a previous step already minted.
+
+## require-ci-success
+
+Fails unless the named CI workflows succeeded on a commit, so that a
+release cannot sign or publish code that CI did not pass. It is meant
+for a `ci-gate` job that a release workflow's `build` job needs, which
+puts it upstream of every publishing job. The logic is
+`tools/require-ci-success.py`, resolved through `github.action_path`,
+so it always comes from the same ref as the `action.yml`, and
+`tests/test_require_ci_success.py` runs it.
+
+**Usage:**
+
+```yaml
+jobs:
+  ci-gate:
+    name: Require CI success on the tagged commit
+    # The same guard as the publishing jobs, so that a workflow_dispatch
+    # dry run skips the gate and still exercises the build.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, static]
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: shakenfist/actions/require-ci-success@main
+        # A few API calls per commit, at most 21 commits, and up to
+        # five pages of the default branch's history.
+        timeout-minutes: 5
+        with:
+          workflows: |
+            ci.yml
+
+  build:
+    name: Build distribution packages
+    needs: ci-gate
+    # A skipped gate would otherwise skip the build too. It may be
+    # skipped only on a run that publishes nothing.
+    if: >-
+      !cancelled() && (needs.ci-gate.result == 'success' ||
+      (github.event_name != 'push' && needs.ci-gate.result == 'skipped'))
+    runs-on: [self-hosted, static]
+    steps:
+      - uses: actions/checkout@v7
+      # The build, and check-dist, go here.
+```
+
+The job needs `actions: read` to list workflow runs and `contents:
+read` to read the repository, its default branch and its commits, and
+nothing else.
+
+It also needs `gh` on the runner, because every read goes through `gh
+api`. The fleet's static and vm runners have it. On a runner without
+it the gate fails closed, with "could not run gh".
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `workflows` | Yes | - | The workflow files that must have succeeded, one per line, each a bare file name in `.github/workflows/` such as `ci.yml`, not a path. Blank lines, surrounding whitespace and duplicates are ignored; naming none is an error |
+| `sha` | No | `github.sha` | The commit to check, as a full 40-character sha. In a release workflow leave it at its default unless the build checks out that same sha explicitly; otherwise the gate approves one commit and the release publishes another |
+| `token` | No | `github.token` | A token with `actions: read` and `contents: read` |
+
+There are no outputs. The step passes or fails, prints the commit CI
+succeeded on and each run's URL, and writes one line per workflow to
+the job summary.
+
+**What counts as CI.** For each named workflow, the gate lists its runs
+on the commit and keeps only those that ran on the default branch,
+which it reads from the repository rather than assuming: a `push`
+whose branch is the default branch, or a `merge_group` run for the
+default branch's queue (`gh-readonly-queue/<default>/...`), in either
+case from this repository rather than a fork. Every other event is
+ignored. A commit's run list also holds scheduled runs (Renovate,
+CodeQL, configuration export) for as long as it is the tip, and a
+`pull_request` run's head is never the merged commit. The branch
+matters as much as the event: a push to any other branch runs the
+workflow file as that branch has it, so anyone who can push a branch
+could make CI succeed there trivially and then tag the commit.
+
+A merge queue run counts only if its whole `head_branch` has the form
+`gh-readonly-queue/<default>/pr-<number>-<40 hex sha>`, so the queue of
+a branch nested under the default one, such as `develop/release`, does
+not.
+
+A tag named like the default branch, on a commit already on its
+first-parent history, still yields `push` runs with that `head_branch`.
+Inside those runs `github.ref` is `refs/tags/<name>`, so steps guarded
+on the ref are skipped. Gated CI workflows should restrict `on: push`
+to `branches:`, so that a tag push starts no CI at all. A tag ruleset
+that blocks branch-named tags is an alternative.
+
+A run's metadata does not tell a tag from a branch, though. Pushing a
+tag creates `push` runs whose `head_branch` is the tag's name, so a tag
+named `develop`, pushed onto any commit, would make runs that look like
+pushes to `develop`. So before it judges any run, the gate requires the
+tagged commit to be on the default branch's *first-parent history*: the
+commits its tip reaches by following first parents, which are the
+commits the branch itself pointed at. Only those can carry CI for the
+branch. Being reachable from the tip is not enough, because a commit on
+a feature branch that was merged with a merge commit is reachable too,
+though the branch never pointed at it: a tag named `develop` on such a
+commit, one whose own `ci.yml` passed trivially, would otherwise pass.
+A commit off that history fails, saying it is not on the first-parent
+history of the branch. That also refuses a merge queue run on a queue
+commit that never landed.
+
+The gate reads the branch's tip from the branch itself, lists the
+history from that sha rather than from the branch's name (which a tag
+named like it would make ambiguous), and looks through at most five
+pages, the newest 500 commits in GitHub's date-ordered listing. That
+is 500 listed commits, including commits merged in from feature
+branches, not 500 first-parent steps. A release is tagged at or near
+the tip, so a commit further back is refused rather than looked for; the bound
+is fixed in the script, and it only ever fails closed. Membership is
+checked once, on the tagged commit, because the walk described below
+follows first parents too, and the first parent of a commit on that
+history is on it.
+
+Every run that counts is judged, each at its latest attempt, and every
+one must have completed with `success`. A workflow with a failed
+`merge_group` run and a later successful `push` run on the same commit
+fails, naming the failed run: a later run does not outrank an earlier
+one.
+
+**Outcomes:**
+
+| On the commit | Result |
+|---|---|
+| The tagged commit is not on the default branch's first-parent history within its newest 500 commits, including a commit merged in from a feature branch | Fail, before any run is judged |
+| Every run of every named workflow succeeded | Pass |
+| Any run of a named workflow failed, was cancelled, or has not finished, even beside a run that succeeded | Fail, naming the workflow, each such run and its state |
+| Some named workflows ran and others did not | Fail, naming the missing ones. The commit was only part-tested |
+| No named workflow ran | Step to the first parent and look again, if the commit can be crossed |
+| A named workflow file does not exist, or the token cannot read it | Fail, naming it |
+| GitHub could not be asked | Fail. Never a pass |
+
+A commit with no CI run at all is usually one that `prune-reviews.yml`
+pushed after the merge CI did run on, and it is often the tip of the
+default branch when someone tags. So the gate steps across a commit
+that changed nothing but `REVIEWS.md` and `.vscode/*.weaudit` or
+`.vscode/*.weaudit-shas.json`, the files that workflow commits. It
+never steps across a merge commit, a commit whose file list may be
+truncated (300 files or more), or a commit with no files listed, and
+it gives up after 20 steps. The list of files is fixed in the script
+rather than taken as an input, because a per-repository list grows: it
+would gain "docs only", and then "anything that is not code", and a
+release would be gated by whatever the last person to edit it thought
+was harmless. So a tag on a docs-only commit that `paths-ignore`
+skipped fails.
+
+**Recovery.** Nothing has been published when the gate fails, so every
+failure is recoverable:
+
+* If CI never ran on the tagged commit, delete the tag and tag the last
+  commit CI ran on instead.
+* If the tagged commit is not on the default branch's first-parent
+  history, delete the tag and tag a commit that is: the merge commit
+  that brought the change in, or a later one.
+* If a CI run failed for a reason unrelated to the change, re-run it
+  until it succeeds, then re-run the release's gate job with "Re-run
+  jobs". That keeps the original tag `push` event, so the guards still
+  pass, and the gate reads each run's newest attempt. Every failed run
+  on the commit needs re-running, not only the newest.
+* If a run is still going, wait for it, then re-run the gate job.
+
+**Why there is no override.** A CI run that failed for infrastructure
+reasons is re-run in CI, and the gate job is then re-run, which is the
+path above. An input that skipped the check would be one more thing
+the reviewer approving the `release` environment has to notice, on a
+deployment review page that does not show CI status.
+
+## check-dist
+
+Fails when a built wheel contains something that must not ship. For every
+`*.whl` directly under `path`, it reads the member names through
+`zipfile` and fails if any member sits in a directory named `tests` or
+ending in `_tests`, or matches a `forbid` glob. Only directory
+components count, and only a component that is `tests` or ends in
+`_tests`, so `pkg/contests.py`, `pkg/tests.py` and `pkg/my_tests_x/a.py`
+pass while `pkg/tests/test_x.py` and `pkg/corpus_tests/x.ovf` fail.
+Every offending member is printed, grouped by wheel. When any of them
+sat in a test directory, a hint naming the usual cause follows; it is
+not printed for a `forbid` match or an unreadable archive alone.
+
+The usual cause is `include-package-data`, which defaults to true under
+`pyproject.toml`. `setuptools_scm`'s file finder then offers every
+git-tracked file as package data, so a `packages.find` exclude drops the
+tests *package* and the tests come back as *data*. Setting
+`include-package-data = false` under `[tool.setuptools]` is the usual
+fix.
+
+Only wheels are checked, not sdists. An sdist conventionally carries
+its tests, so their presence there is not a fault; what must not ship
+in one is guarded by the release-artifacts check in
+[shakenfist/development](https://github.com/shakenfist/development).
+
+The default rule looks only at directory names, so some test layouts
+pass it: `pkg/test/` and `pkg/testing/`, a `conftest.py` anywhere, and
+`test_*.py` modules outside a `tests` directory. A repository that uses
+one of those adds a `forbid` glob for it, such as `*/conftest.py` or
+`*/test_*.py`.
+
+Finding no wheel under `path`, or a `.whl` that is not a zip, is a
+failure with a one-line `::error::` message, never a traceback. On
+success it prints each wheel with its member count. The logic is
+`tools/check-dist.py`, standard library only, resolved through
+`github.action_path`; `tests/test_check_dist.py` runs it. It needs no
+token and no permissions.
+
+**Usage:**
+
+In a release workflow's `build` job, after `twine check`:
+
+```yaml
+- name: Build
+  run: python3 -m build
+- name: Check the metadata
+  run: twine check dist/*
+- name: Check the wheel contents
+  timeout-minutes: 2
+  uses: shakenfist/actions/check-dist@main
+```
+
+And in a CI job, straight after the build:
+
+```yaml
+- name: Build
+  run: python3 -m build --outdir dist/
+- name: Check the wheel contents
+  timeout-minutes: 2
+  uses: shakenfist/actions/check-dist@main
+  with:
+    path: dist/
+    forbid: |
+      *.pem
+      pkg/data/private/*
+```
+
+**Inputs:**
+
+| Name | Required | Default | Description |
+|------|----------|---------|-------------|
+| `path` | No | `dist/` | Directory holding the built wheels. Only `*.whl` directly in it are checked, not those in subdirectories |
+| `forbid` | No | `''` | Extra `fnmatch` globs, one per line, matched case-sensitively against each member's full path inside the wheel. A `*` matches across `/` |
+
+There are no outputs. A failure is the step's non-zero exit.

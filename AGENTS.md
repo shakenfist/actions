@@ -39,8 +39,10 @@ checkout. An action that resolves its own files through
 a relative `uses:` here, but only where a workflow does so:
 `deploy-proxmox-on-shakenfist` is (see "Path-filtered lane --
 `proxmox-substrate.yml`" in [docs/ci.md](docs/ci.md)), while
-`review-pr-with-claude` and `pr-review-ref` are not, and the latter's
-pre-merge coverage is `tests/test_pr_review_ref.py` alone.
+`review-pr-with-claude`, `pr-review-ref`, `require-ci-success` and
+`check-dist` are not. The last three are covered before merge only by
+`tests/test_pr_review_ref.py`, `tests/test_require_ci_success.py` and
+`tests/test_check_dist.py` respectively.
 
 What you can do:
 

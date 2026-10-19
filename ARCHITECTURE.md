@@ -52,8 +52,10 @@ them.
 |---|---|
 | `setup-test-environment` | Checks out `actions`, `shakenfist`, `client-python` and `agent-python` side by side |
 | `build-smoke-cluster` | Provisions test instances and deploys a Shaken Fist cluster onto them |
+| `check-dist` | Fails when a built wheel ships a test package or another member that must not ship |
 | `pr-bot-trigger` | Validates an `@shakenfist-bot` comment and the commenter's permissions |
 | `pr-review-ref` | Resolves which commit a requested re-review checks out, and confirms the checkout is that commit |
+| `require-ci-success` | Fails a release unless CI succeeded on the tagged commit, or on an ancestor that differs from it only by review marks |
 | `review-pr-with-claude` | Runs the Claude Code reviewer and posts the result |
 | `setup-kerbside-environment` | Checks out the Kerbside-side repositories |
 | `deploy-kolla-ansible` | Bootstraps and deploys Kolla-Ansible on a test VM |

@@ -24,8 +24,9 @@ own CI does and does not cover, and how to run the checks locally.
 ## What is published
 
 **Composite actions**, dropped into a consumer's job as a single step:
-`setup-test-environment`, `build-smoke-cluster`, `pr-bot-trigger`,
-`pr-review-ref`, `review-pr-with-claude`, `setup-kerbside-environment`,
+`setup-test-environment`, `build-smoke-cluster`, `check-dist`,
+`pr-bot-trigger`, `pr-review-ref`, `require-ci-success`,
+`review-pr-with-claude`, `setup-kerbside-environment`,
 `deploy-kolla-ansible`, `deploy-kerbside-on-shakenfist` and
 `deploy-proxmox-on-shakenfist`.
 
