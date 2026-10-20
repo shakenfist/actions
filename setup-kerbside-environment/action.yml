@@ -157,9 +157,11 @@ runs:
       run: |
         . $GITHUB_ENV
         deps_args=""
-        if [ "${{ inputs.install_docker }}" != "true" ]; then
-            deps_args="--no-docker"
-        fi
+        case "${{ inputs.install_docker }}" in
+            true) ;;
+            false) deps_args="--no-docker" ;;
+            *) echo "::error::install_docker must be true or false, not '${{ inputs.install_docker }}'"; exit 1 ;;
+        esac
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             ${{ inputs.base_user }}@10.0.2.2 \

@@ -58,9 +58,12 @@ runs:
             script="${script} --distro ${{ inputs.container_distro }}"
         fi
 
-        if [ "${{ inputs.deployer }}" != "venv" ]; then
-            script="${script} --deployer ${{ inputs.deployer }}"
-        fi
+        # Empty means venv, as bootstrap-kolla-ansible's own default does.
+        case "${{ inputs.deployer }}" in
+            ''|venv) ;;
+            launcher) script="${script} --deployer launcher" ;;
+            *) echo "::error::deployer must be venv or launcher, not '${{ inputs.deployer }}'"; exit 1 ;;
+        esac
 
         if [ -n "${{ inputs.registry_token }}" ]; then
             script="${script} --registry-token ${{ inputs.registry_token }}"
