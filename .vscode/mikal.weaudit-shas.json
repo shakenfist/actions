@@ -401,9 +401,21 @@
       "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",
       "date": "2026-09-07"
     },
+    "tools/check-dist.py": {
+      "sha": "f8f5c42e7bd792ab48b2dc5d467bb86904750c60",
+      "date": "2026-10-21"
+    },
     "tools/check-issue-links.py": {
       "sha": "e485107a0b9494221469b15da0a2657def658416",
       "date": "2026-09-10"
+    },
+    "tools/ci-apply-deploy-profile.py": {
+      "sha": "5513db5fd0dbd028d7c822c2831b3ab27ad8e3ea",
+      "date": "2026-10-21"
+    },
+    "tools/ci-deploy-cluster.sh": {
+      "sha": "9f87f74631f046a3a1e96bdf180c9c1417a7fd43",
+      "date": "2026-10-21"
     },
     "tools/ci-make-inventory.py": {
       "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
@@ -461,9 +473,17 @@
       "sha": "3bcad1457330a23921317d011b59e91f37340f19",
       "date": "2026-10-10"
     },
+    "tools/ci_sync_docs.sh": {
+      "sha": "f0df2951676381983eef782d35399b81596fff97",
+      "date": "2026-10-21"
+    },
     "tools/clone_with_depends.py": {
       "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
       "date": "2026-09-10"
+    },
+    "tools/deploy-collection.sh": {
+      "sha": "f839fa8c38021fc5080abddd7c9e484d7dfd6a6f",
+      "date": "2026-10-21"
     },
     "tools/event_statistics.py": {
       "sha": "4e22166ac4d4cbaf9bc4593b2a78fc68dc538a4e",
@@ -501,6 +521,10 @@
       "sha": "5669bb69a3c1ff56cbd19c50f149814a98bec1a8",
       "date": "2026-09-10"
     },
+    "tools/pr-review-ref.sh": {
+      "sha": "41c15d0e59467ee804cca740ae9943f800ab30c9",
+      "date": "2026-10-21"
+    },
     "tools/proxmox-connect-probe.py": {
       "sha": "bbdfa86125b915c20c38e0215c22999a233661e6",
       "date": "2026-09-25"
@@ -524,6 +548,14 @@
     "tools/report-proxmox-substrate-failure.sh": {
       "sha": "5a5f99cfce84892e3f96b5412e57016acadb269d",
       "date": "2026-09-25"
+    },
+    "tools/require-ci-success.py": {
+      "sha": "de9ce7ccd838d85a523ab34a55ff9f7903e2e22f",
+      "date": "2026-10-21"
+    },
+    "tools/review-tracking.sh": {
+      "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
+      "date": "2026-10-21"
     },
     "tools/run_remote": {
       "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",

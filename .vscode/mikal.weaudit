@@ -611,6 +611,38 @@
     {
       "path": "setup-kerbside-environment",
       "author": "mikal"
+    },
+    {
+      "path": "tools/check-dist.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_sync_docs.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-apply-deploy-profile.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-deploy-cluster.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/deploy-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/pr-review-ref.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/require-ci-success.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/review-tracking.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
