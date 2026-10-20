@@ -445,6 +445,7 @@ and configures the CI registry.
 | `openstack_release` | Yes | `master` | OpenStack release to target |
 | `topology` | Yes | `all-in-one` | Deployment topology (`all-in-one`, `multinode` or `multinode-2`), which selects the playbook |
 | `vip_address` | No | `10.0.2.3` | The address the deployment brings up as its own VIP, reserved in Shaken Fist before anything else is allocated. Must match `kolla_internal_vip_address` in the globals file being deployed -- see [The deployment VIP](ansible.md#the-deployment-vip) |
+| `install_docker` | No | `true` | Whether to install Docker on the test VM before Kolla-Ansible runs. Exactly `true` or `false`; anything else fails the step. `false` passes `--no-docker` to `_build/install-build-dependencies.sh`, so the host starts with no container engine (kerbside-patches uses this for its containerised deployer entries). Precondition: the checked-out kerbside-patches tree's `install-build-dependencies.sh` must accept `--no-docker`, or the step fails |
 
 ## deploy-kolla-ansible
 
@@ -485,9 +486,10 @@ is shared between kerbside and kerbside-patches CI to avoid duplication.
 | `registry_token` | No | `''` | CI registry token (omit for local builds) |
 | `enable_kerbside` | No | `true` | Enable kerbside in deployment |
 | `use_ci_registry` | No | `false` | Pull from CI registry; pass `--use-ci-registry` to bootstrap and post-install. When `false`, CI registry settings are stripped from `globals.yml` so Kolla-Ansible uses local images. |
+| `deployer` | No | `venv` | Which Kolla-Ansible deployer bootstrap installs: `venv` (an empty value behaves the same) or `launcher`, the containerised deployer prototype in kerbside-patches. Anything else fails the step. Needs a kerbside-patches tree whose `bootstrap-kolla-ansible` accepts `--deployer`. |
 
 **Steps performed:**
-1. Bootstrap Kolla-Ansible (with conditional registry/kerbside/ci-registry flags)
+1. Bootstrap Kolla-Ansible (with conditional registry/kerbside/ci-registry flags, and `--deployer` when `deployer` is not `venv`)
 2. Run pre-checks
 3. Pull images (only when `use_ci_registry` is `true`)
 4. Deploy
