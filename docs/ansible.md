@@ -546,7 +546,12 @@ which every topology attaches as its second disk and mounts at
 `/srv/ci`. The `get_url` loop in that playbook is therefore the
 definition of what CI can boot without going to the network;
 `debian:13` and `rocky:10` sit in it alongside the earlier releases,
-and the images alone now come to roughly 10.2GB.
+and the images alone came to roughly 10.2GiB when last measured in
+October 2026, by summing the `Content-Length` of each URL in the loop.
+Most of them are rebuilt upstream nightly, so treat that as an order of
+magnitude rather than a budget: what actually guards the disk is the
+free space check described under
+[Verifying what an image provides](#verifying-what-an-image-provides).
 
 That snapshot lands on the disk at
 `/srv/ci/cached/debian-gnome-agents`, and that name deliberately does
