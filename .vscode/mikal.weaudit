@@ -479,6 +479,74 @@
     {
       "path": "ansible/files",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-auto-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-re-review.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/pr-retest.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-instar-testdata.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-localhost.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-create-instance.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node-2.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-multi-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/kerbside-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
