@@ -5,6 +5,7 @@
     identifier: unknown
     base_image: "https://sfcbr.shakenfist.com/static/ubuntu2004-ci-template.qcow2"
     base_image_user: "ubuntu"
+    sshkey: '/srv/github/id_ci.pub'
     ssh_private_key: "/srv/github/id_ci"
 
     # Seconds this run may spend in total waiting out the cluster's
@@ -13,6 +14,26 @@
     # spent. Override with --extra-vars capacity_wait_budget=N; 0 turns the
     # wait off. See "Waiting for capacity" in docs/ansible.md.
     capacity_wait_budget: 600
+
+    # The nodes this topology creates, in order. The primary is created
+    # and booted first; the other two are not awaited, and the readiness
+    # play below waits for all of them.
+    topology_nodes:
+      # The primary VM is also a hypervisor and a member of the sf-database
+      # tier (database_node). Bumped from slim-primary's 4096 MiB to 12288 MiB
+      # because it now carries hypervisor workload in addition to primary,
+      # network, and sf-database duties.
+      - {hostname: primary, suffix: primary, cpu: 6, ram: 12288, address: 10.0.0.10, mesh_ip: 10.0.1.10,
+         groups: 'database_node,primary_node,network_node,hypervisors', await: true}
+      # sf-1 is the second sf-database tier member as well as a hypervisor.
+      # It runs sf-database against the same MariaDB that lives on the
+      # primary; the multi-instance sf-database CI coverage that drives the
+      # slim-tier topology asserts that both this instance and the primary
+      # see a share of inbound gRPC traffic.
+      - {hostname: sf1, suffix: '1', cpu: 6, ram: 12288, address: 10.0.0.20, mesh_ip: 10.0.1.11,
+         groups: 'hypervisors,database_node'}
+      - {hostname: sf2, suffix: '2', cpu: 6, ram: 12288, address: 10.0.0.21, mesh_ip: 10.0.1.12,
+         groups: hypervisors}
 
   tasks:
     # Derive a short per-run suffix for under-cloud instance names so that
@@ -37,128 +58,20 @@
         msg:
           - "Mesh traffic network is {{meshnetwork['meta']['uuid']}}"
 
-    # The primary VM is also a hypervisor and a member of the sf-database
-    # tier (database_node). Bumped from slim-primary's 4096 MiB to 12288 MiB
-    # because it now carries hypervisor workload in addition to primary,
-    # network, and sf-database duties.
-    - name: Create a primary instance
-      shakenfist.shakenfist.sf_instance:
-        name: "t-{{instance_suffix}}-primary"
-        cpu: 6
-        ram: 12288
-        disks:
-          - "100@{{base_image}}"
-          - "60@sf://label/ci-images/dependencies"
-        networkspecs:
-          - network_uuid={{identifier}},address=10.0.0.10
-          - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
-        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
-        namespace: "{{identifier}}"
-        state: present
-        await: true
-        await_timeout: 600
-        capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
-      register: primary
-
-    - name: Count the time primary waited for capacity
-      set_fact:
-        sf_capacity_waited: "{{ sf_capacity_waited | int + primary.capacity_waited.seconds | default(0) | int }}"
-
-    - name: Add primary to ansible
-      add_host:
-        hostname: primary
-        egress_ip: "{{primary['meta']['interfaces'][0]['ipv4']}}"
-        mesh_ip: "10.0.1.10"
-        mesh_mac: "{{primary['meta']['interfaces'][1]['macaddr']}}"
-        ansible_ssh_host: "{{primary['meta']['interfaces'][0]['ipv4']}}"
-        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-        ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
-        sf_uuid: "{{primary['meta']['uuid']}}"
-        groups: allsf,database_node,primary_node,network_node,hypervisors
-
-    # sf-1 is the second sf-database tier member as well as a hypervisor.
-    # It runs sf-database against the same MariaDB that lives on the
-    # primary; the multi-instance sf-database CI coverage that drives the
-    # slim-tier topology asserts that both this instance and the primary
-    # see a share of inbound gRPC traffic.
-    - name: Create sf-1
-      shakenfist.shakenfist.sf_instance:
-        name: "t-{{instance_suffix}}-1"
-        cpu: 6
-        ram: 12288
-        disks:
-          - "100@{{base_image}}"
-          - "60@sf://label/ci-images/dependencies"
-        networkspecs:
-          - network_uuid={{identifier}},address=10.0.0.20
-          - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
-        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
-        namespace: "{{identifier}}"
-        state: present
-        capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
-      register: sf1
-
-    - name: Count the time sf1 waited for capacity
-      set_fact:
-        sf_capacity_waited: "{{ sf_capacity_waited | int + sf1.capacity_waited.seconds | default(0) | int }}"
-
-    - name: Add sf-1 to ansible
-      add_host:
-        hostname: sf1
-        egress_ip: "{{sf1['meta']['interfaces'][0]['ipv4']}}"
-        mesh_ip: "10.0.1.11"
-        mesh_mac: "{{sf1['meta']['interfaces'][1]['macaddr']}}"
-        ansible_ssh_host: "{{sf1['meta']['interfaces'][0]['ipv4']}}"
-        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-        ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
-        sf_uuid: "{{sf1['meta']['uuid']}}"
-        groups: hypervisors, database_node, allsf
-
-    - name: Create sf-2
-      shakenfist.shakenfist.sf_instance:
-        name: "t-{{instance_suffix}}-2"
-        cpu: 6
-        ram: 12288
-        disks:
-          - "100@{{base_image}}"
-          - "60@sf://label/ci-images/dependencies"
-        networkspecs:
-          - network_uuid={{identifier}},address=10.0.0.21
-          - network_uuid={{meshnetwork['meta']['uuid']}},address=none
-        ssh_key: "{{ lookup('file', '/srv/github/id_ci.pub') }}"
-        user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
-        namespace: "{{identifier}}"
-        state: present
-        capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
-      register: sf2
-
-    - name: Count the time sf2 waited for capacity
-      set_fact:
-        sf_capacity_waited: "{{ sf_capacity_waited | int + sf2.capacity_waited.seconds | default(0) | int }}"
-
-    - name: Add sf-2 to ansible
-      add_host:
-        hostname: sf2
-        egress_ip: "{{sf2['meta']['interfaces'][0]['ipv4']}}"
-        mesh_ip: "10.0.1.12"
-        mesh_mac: "{{sf2['meta']['interfaces'][1]['macaddr']}}"
-        ansible_ssh_host: "{{sf2['meta']['interfaces'][0]['ipv4']}}"
-        ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
-        ansible_ssh_user: "{{base_image_user}}"
-        ansible_ssh_private_key_file: "{{ ssh_private_key }}"
-        sf_uuid: "{{sf2['meta']['uuid']}}"
-        groups: hypervisors, allsf
+    - name: Create the topology's nodes
+      include_tasks: tasks/create-topology-node.yml
+      loop: "{{ topology_nodes }}"
+      loop_control:
+        loop_var: node
+        label: "{{ node.hostname }}"
 
     - name: Log instance details
       debug:
-        msg:
-          - "Primary: is {{primary['meta']['uuid']}} at {{primary['meta']['interfaces'][0]['ipv4']}}"
-          - "   sf-1: is {{sf1['meta']['uuid']}} at {{sf1['meta']['interfaces'][0]['ipv4']}}"
-          - "   sf-2: is {{sf2['meta']['uuid']}} at {{sf2['meta']['interfaces'][0]['ipv4']}}"
+        msg: "{{ '%-7s' | format(node.hostname) }}: is {{ hostvars[node.hostname]['sf_uuid'] }} at {{ hostvars[node.hostname]['egress_ip'] }}"
+      loop: "{{ topology_nodes }}"
+      loop_control:
+        loop_var: node
+        label: "{{ node.hostname }}"
 
     - include_tasks: ci-include-common-localhost.yml
 

@@ -1,0 +1,74 @@
+---
+# Create one node of a CI topology and add it to the inventory.
+#
+# Included once per node, in a loop over the topology's node list, with
+# the item as node:
+#
+#   - include_tasks: tasks/create-topology-node.yml
+#     loop: "{{ topology_nodes }}"
+#     loop_control:
+#       loop_var: node
+#       label: "{{ node.hostname }}"
+#
+# Each node is a dict with:
+#
+#   hostname  inventory name, such as primary or sf1
+#   suffix    the part of the under-cloud instance name after the run
+#             suffix, so t-<run>-<suffix>
+#   cpu       vCPUs
+#   ram       MiB
+#   address   address on the run's egress network
+#   mesh_ip   address on the mesh network, configured by the deploy
+#             rather than by Shaken Fist, which allocates none
+#   groups    groups the node joins besides allsf, comma separated
+#   await     optional, true to wait for the instance to boot
+#
+# The calling play provides identifier, instance_suffix, base_image,
+# base_image_user, sshkey, ssh_private_key, meshnetwork,
+# capacity_wait_budget and sf_capacity_waited.
+#
+# This is an include rather than a looped sf_instance task so that each
+# create is counted before the next one starts. No other task runs
+# between the items of a looped task, so every create would see the same
+# sf_capacity_waited and be handed the whole budget; a looped include
+# runs its set_fact between items. kerbside-create-instance.yml does the
+# same, and "Waiting for capacity" in docs/ansible.md describes the
+# budget.
+- name: Create {{ node.hostname }}
+  shakenfist.shakenfist.sf_instance:
+    name: "t-{{ instance_suffix }}-{{ node.suffix }}"
+    cpu: "{{ node.cpu }}"
+    ram: "{{ node.ram }}"
+    disks:
+      - "100@{{ base_image }}"
+      - "60@sf://label/ci-images/dependencies"
+    networkspecs:
+      - network_uuid={{ identifier }},address={{ node.address }}
+      - network_uuid={{ meshnetwork['meta']['uuid'] }},address=none
+    ssh_key: "{{ lookup('file', sshkey) }}"
+    user_data: "{{ lookup('file', 'files/user-data') | b64encode }}"
+    namespace: "{{ identifier }}"
+    state: present
+    await: "{{ node.await | default(false) }}"
+    await_timeout: 600
+    capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
+  register: topology_node
+
+# A fact rather than an include var, so that the total carries over from
+# one include of this file to the next.
+- name: Count the time {{ node.hostname }} waited for capacity
+  set_fact:
+    sf_capacity_waited: "{{ sf_capacity_waited | int + topology_node.capacity_waited.seconds | default(0) | int }}"
+
+- name: Add {{ node.hostname }} to ansible
+  add_host:
+    hostname: "{{ node.hostname }}"
+    egress_ip: "{{ topology_node['meta']['interfaces'][0]['ipv4'] }}"
+    mesh_ip: "{{ node.mesh_ip }}"
+    mesh_mac: "{{ topology_node['meta']['interfaces'][1]['macaddr'] }}"
+    ansible_ssh_host: "{{ topology_node['meta']['interfaces'][0]['ipv4'] }}"
+    ansible_ssh_extra_args: "-o StrictHostKeyChecking=no -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile=/dev/null"
+    ansible_ssh_user: "{{ base_image_user }}"
+    ansible_ssh_private_key_file: "{{ ssh_private_key }}"
+    sf_uuid: "{{ topology_node['meta']['uuid'] }}"
+    groups: "allsf,{{ node.groups }}"
