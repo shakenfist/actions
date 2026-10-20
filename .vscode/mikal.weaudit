@@ -349,14 +349,6 @@
       "author": "mikal"
     },
     {
-      "path": "deploy-kolla-ansible/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "deploy-kolla-ansible",
-      "author": "mikal"
-    },
-    {
       "path": ".github/workflows/codeql-analysis.yml",
       "author": "mikal"
     },
@@ -382,14 +374,6 @@
     },
     {
       "path": "tools/ci-ship-test-env.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "setup-kerbside-environment/action.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "setup-kerbside-environment",
       "author": "mikal"
     },
     {

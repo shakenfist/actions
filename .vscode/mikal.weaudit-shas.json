@@ -213,10 +213,6 @@
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
     },
-    "deploy-kolla-ansible/action.yml": {
-      "sha": "68c2158bebdf8e0bcb7aad165524ee5f867cd7c4",
-      "date": "2026-10-01"
-    },
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
@@ -240,10 +236,6 @@
     "renovate.json": {
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
       "date": "2026-09-07"
-    },
-    "setup-kerbside-environment/action.yml": {
-      "sha": "8cb3b36dccfb1924ec15b5635bbce759e924acd6",
-      "date": "2026-10-10"
     },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",
