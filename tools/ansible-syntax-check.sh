@@ -50,7 +50,14 @@ echo "Syntax checking ${#playbooks[@]} playbook(s)."
 # No inventory: --syntax-check parses the playbook and does not need
 # one. It warns that the host patterns match nothing, which is true and
 # not interesting here.
-ANSIBLE_LOCALHOST_WARNING=False \
-    ansible-playbook --syntax-check "${playbooks[@]}" 2>&1 \
-    | grep -v 'Could not match supplied host pattern'
-exit "${PIPESTATUS[0]}"
+#
+# The output is captured rather than piped through the filter, so the
+# verdict is ansible-playbook's exit status and nothing else. Under
+# errexit and pipefail a pipeline stops the script at a failing check
+# before the status line can run, and fails a passing check whenever
+# grep -v filters every line, since grep then exits 1.
+status=0
+output="$(ANSIBLE_LOCALHOST_WARNING=False ansible-playbook --syntax-check "${playbooks[@]}" 2>&1)" \
+    || status=$?
+grep -v 'Could not match supplied host pattern' <<< "${output}" || true
+exit "${status}"
