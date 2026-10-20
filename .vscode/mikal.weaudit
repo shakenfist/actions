@@ -337,10 +337,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_mesh_interface.py",
       "author": "mikal"
     },
@@ -521,14 +517,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-slim-primary.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-topology-slim-tier.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/kerbside-create-instance.yml",
       "author": "mikal"
     },
@@ -542,10 +530,6 @@
     },
     {
       "path": "ansible/kerbside-single-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     }
   ],

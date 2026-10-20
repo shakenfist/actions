@@ -109,14 +109,6 @@
       "sha": "ddc07af70c9184047efcf7e8dc31b1663b410ff9",
       "date": "2026-09-30"
     },
-    "ansible/ci-topology-slim-primary.yml": {
-      "sha": "5caebe8d932f088175bd961f8302cad560d2b6f4",
-      "date": "2026-10-20"
-    },
-    "ansible/ci-topology-slim-tier.yml": {
-      "sha": "bd9fdf846005591037748d701c6eb199e97c4a05",
-      "date": "2026-10-20"
-    },
     "ansible/files/cache-action-archives.py": {
       "sha": "97106245dd3531d45934002d9e988e2637b1c0f7",
       "date": "2026-10-17"
