@@ -221,9 +221,21 @@
       "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
       "date": "2026-09-25"
     },
+    "build-smoke-cluster/action.yml": {
+      "sha": "0b01329f18138e4f9dd332ceea9692e561f69cf5",
+      "date": "2026-10-21"
+    },
+    "check-dist/action.yml": {
+      "sha": "1a7cf043d1989e439e2b7550cc78994791fe73da",
+      "date": "2026-10-21"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
+    },
+    "deploy-kolla-ansible/action.yml": {
+      "sha": "e43b8636bdbaf2180b81b8969fb8d9f9b6ddbfce",
+      "date": "2026-10-21"
     },
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
@@ -245,9 +257,49 @@
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
     },
+    "pr-bot-trigger/action.yml": {
+      "sha": "e32b5fc5070964313813eabb4f21a799187253f4",
+      "date": "2026-10-21"
+    },
+    "pr-review-ref/action.yml": {
+      "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
+      "date": "2026-10-21"
+    },
     "renovate.json": {
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
       "date": "2026-09-07"
+    },
+    "require-ci-success/action.yml": {
+      "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/action.yml": {
+      "sha": "d2dd7596f1fc9d4727ab239130eeb5572d38c72a",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/extract-review-json.py": {
+      "sha": "176a5207fd544e94474a24a256080ad912ddb850",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/render-review.py": {
+      "sha": "390ef753cb5a8fc218ba730a4ed374e73d7337b0",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/render-unparsed-review.py": {
+      "sha": "0807b924d442ef0ddb0468a2abaf74fd370d65c8",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/review-pr-with-claude.sh": {
+      "sha": "518f5f8000d9a2a2fb8ee9e583a82383c1f381d0",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/review-schema.json": {
+      "sha": "c277f514d08cdedf88671c6a520e107b9529a1e7",
+      "date": "2026-10-21"
+    },
+    "setup-kerbside-environment/action.yml": {
+      "sha": "e8c46ee0cfb0d7dffc19891557861216efa8c613",
+      "date": "2026-10-21"
     },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",

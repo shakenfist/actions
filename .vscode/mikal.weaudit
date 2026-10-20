@@ -531,6 +531,86 @@
     {
       "path": "ansible",
       "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "check-dist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "check-dist",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kolla-ansible/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kolla-ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-review-ref/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-review-ref",
+      "author": "mikal"
+    },
+    {
+      "path": "require-ci-success/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "require-ci-success",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/extract-review-json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-unparsed-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-pr-with-claude.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-schema.json",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
