@@ -511,6 +511,26 @@
     {
       "path": "ansible/kerbside-single-node.yml",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/create-topology-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

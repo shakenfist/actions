@@ -109,6 +109,14 @@
       "sha": "ddc07af70c9184047efcf7e8dc31b1663b410ff9",
       "date": "2026-09-30"
     },
+    "ansible/ci-topology-slim-primary.yml": {
+      "sha": "3c70f5f5d92b785a0e48435dbc84858a335d5750",
+      "date": "2026-10-21"
+    },
+    "ansible/ci-topology-slim-tier.yml": {
+      "sha": "acf844c55bd15378dfd23f3c4554f85d844e5be4",
+      "date": "2026-10-21"
+    },
     "ansible/files/cache-action-archives.py": {
       "sha": "97106245dd3531d45934002d9e988e2637b1c0f7",
       "date": "2026-10-17"
@@ -152,6 +160,10 @@
     "ansible/proxmox-single-node.yml": {
       "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
       "date": "2026-09-25"
+    },
+    "ansible/tasks/create-topology-node.yml": {
+      "sha": "45e24a234ce85432f35cd05a8baa8800bb0e766d",
+      "date": "2026-10-21"
     },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "8d6b42185c313782fa8e7a66b8151c5b76e9a0cb",
