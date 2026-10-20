@@ -22,7 +22,7 @@ inputs:
     required: false
     default: '10.0.2.3'
   install_docker:
-    description: 'Whether to install Docker on the target before Kolla-Ansible runs. kerbside-patches sets this to false for its containerised deployer entries, which must start from a host with no container engine. Needs a kerbside-patches tree whose _build/install-build-dependencies.sh accepts --no-docker.'
+    description: 'Whether to install Docker on the target before Kolla-Ansible runs. kerbside-patches sets this to false for its containerised deployer entries, which must start from a host with no container engine. Exactly true or false; anything else fails the step. Setting false needs a kerbside-patches tree whose _build/install-build-dependencies.sh accepts --no-docker.'
     required: false
     default: 'true'
 runs:
@@ -154,13 +154,17 @@ runs:
 
     - name: Install dependencies
       shell: bash
+      env:
+        # Through the environment rather than interpolated into the script,
+        # for the same reason as VIP_ADDRESS above.
+        INSTALL_DOCKER: ${{ inputs.install_docker }}
       run: |
         . $GITHUB_ENV
         deps_args=""
-        case "${{ inputs.install_docker }}" in
+        case "${INSTALL_DOCKER}" in
             true) ;;
             false) deps_args="--no-docker" ;;
-            *) echo "::error::install_docker must be true or false, not '${{ inputs.install_docker }}'"; exit 1 ;;
+            *) echo "::error::install_docker must be true or false, not '${INSTALL_DOCKER}'"; exit 1 ;;
         esac
         ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \

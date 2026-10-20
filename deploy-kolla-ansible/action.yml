@@ -36,7 +36,7 @@ inputs:
     required: false
     default: ''
   deployer:
-    description: 'Which Kolla-Ansible deployer bootstrap installs: venv (default) or launcher, the containerised deployer prototype in kerbside-patches'
+    description: 'Which Kolla-Ansible deployer bootstrap installs: venv (default, or empty) or launcher, the containerised deployer prototype in kerbside-patches. Anything else fails the step. Setting launcher needs a kerbside-patches tree whose bootstrap-kolla-ansible accepts --deployer.'
     required: false
     default: 'venv'
 runs:
@@ -45,6 +45,11 @@ runs:
     - name: Bootstrap Kolla-Ansible
       if: inputs.skip_bootstrap != 'true'
       shell: bash
+      env:
+        # Through the environment rather than interpolated into the script:
+        # a value carrying a quote or a shell metacharacter would otherwise
+        # run as shell here, including in the error branch that rejects it.
+        DEPLOYER: ${{ inputs.deployer }}
       run: |
         . $GITHUB_ENV
 
@@ -59,10 +64,10 @@ runs:
         fi
 
         # Empty means venv, as bootstrap-kolla-ansible's own default does.
-        case "${{ inputs.deployer }}" in
+        case "${DEPLOYER}" in
             ''|venv) ;;
             launcher) script="${script} --deployer launcher" ;;
-            *) echo "::error::deployer must be venv or launcher, not '${{ inputs.deployer }}'"; exit 1 ;;
+            *) echo "::error::deployer must be venv or launcher, not '${DEPLOYER}'"; exit 1 ;;
         esac
 
         if [ -n "${{ inputs.registry_token }}" ]; then
