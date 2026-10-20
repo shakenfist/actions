@@ -181,10 +181,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ansible-syntax-check.sh",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/tasks/reserve-deployment-vip.yml",
       "author": "mikal"
     },

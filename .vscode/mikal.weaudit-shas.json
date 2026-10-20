@@ -333,10 +333,6 @@
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
     },
-    "tools/ansible-syntax-check.sh": {
-      "sha": "e20a428c58e26ee5f5e71a7dfb1c35c7742087f5",
-      "date": "2026-09-16"
-    },
     "tools/buffer.py": {
       "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",
       "date": "2026-09-07"
