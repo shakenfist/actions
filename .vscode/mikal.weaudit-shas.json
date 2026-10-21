@@ -237,9 +237,25 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
+    "docs/actions.md": {
+      "sha": "d5c64e20843f94c3c6a1c9b1da07be19494415c3",
+      "date": "2026-10-22"
+    },
+    "docs/ansible.md": {
+      "sha": "ba45c893021d0076dd173ad2bbe51eabf789992c",
+      "date": "2026-10-22"
+    },
+    "docs/ci.md": {
+      "sha": "c5b2ad810d39513b2d6bdd917cd0c4c2bc1b4795",
+      "date": "2026-10-22"
+    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
+    },
+    "docs/consuming.md": {
+      "sha": "53d5fcd40e0db6165245e34d605b0faa535bec1d",
+      "date": "2026-10-22"
     },
     "etc/ovirt-45-rocky-8-answers.conf.j2": {
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
