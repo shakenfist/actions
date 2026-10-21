@@ -511,6 +511,138 @@
     {
       "path": "ansible/kerbside-single-node.yml",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/create-topology-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "build-smoke-cluster",
+      "author": "mikal"
+    },
+    {
+      "path": "check-dist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "check-dist",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kolla-ansible/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-kolla-ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-bot-trigger",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-review-ref/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "pr-review-ref",
+      "author": "mikal"
+    },
+    {
+      "path": "require-ci-success/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "require-ci-success",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/extract-review-json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/render-unparsed-review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-pr-with-claude.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "review-pr-with-claude/review-schema.json",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "setup-kerbside-environment",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/check-dist.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_sync_docs.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-apply-deploy-profile.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci-deploy-cluster.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/deploy-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/pr-review-ref.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/require-ci-success.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/review-tracking.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

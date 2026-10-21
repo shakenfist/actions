@@ -109,6 +109,14 @@
       "sha": "ddc07af70c9184047efcf7e8dc31b1663b410ff9",
       "date": "2026-09-30"
     },
+    "ansible/ci-topology-slim-primary.yml": {
+      "sha": "3c70f5f5d92b785a0e48435dbc84858a335d5750",
+      "date": "2026-10-21"
+    },
+    "ansible/ci-topology-slim-tier.yml": {
+      "sha": "acf844c55bd15378dfd23f3c4554f85d844e5be4",
+      "date": "2026-10-21"
+    },
     "ansible/files/cache-action-archives.py": {
       "sha": "97106245dd3531d45934002d9e988e2637b1c0f7",
       "date": "2026-10-17"
@@ -152,6 +160,10 @@
     "ansible/proxmox-single-node.yml": {
       "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
       "date": "2026-09-25"
+    },
+    "ansible/tasks/create-topology-node.yml": {
+      "sha": "45e24a234ce85432f35cd05a8baa8800bb0e766d",
+      "date": "2026-10-21"
     },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "8d6b42185c313782fa8e7a66b8151c5b76e9a0cb",
@@ -209,9 +221,21 @@
       "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
       "date": "2026-09-25"
     },
+    "build-smoke-cluster/action.yml": {
+      "sha": "0b01329f18138e4f9dd332ceea9692e561f69cf5",
+      "date": "2026-10-21"
+    },
+    "check-dist/action.yml": {
+      "sha": "1a7cf043d1989e439e2b7550cc78994791fe73da",
+      "date": "2026-10-21"
+    },
     "deploy-kerbside-on-shakenfist/action.yml": {
       "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
       "date": "2026-09-07"
+    },
+    "deploy-kolla-ansible/action.yml": {
+      "sha": "e43b8636bdbaf2180b81b8969fb8d9f9b6ddbfce",
+      "date": "2026-10-21"
     },
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
@@ -233,9 +257,49 @@
       "sha": "4802c385bd667ac7a7dd9fa7dda3f85df861f3bc",
       "date": "2026-09-07"
     },
+    "pr-bot-trigger/action.yml": {
+      "sha": "e32b5fc5070964313813eabb4f21a799187253f4",
+      "date": "2026-10-21"
+    },
+    "pr-review-ref/action.yml": {
+      "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
+      "date": "2026-10-21"
+    },
     "renovate.json": {
       "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
       "date": "2026-09-07"
+    },
+    "require-ci-success/action.yml": {
+      "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/action.yml": {
+      "sha": "d2dd7596f1fc9d4727ab239130eeb5572d38c72a",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/extract-review-json.py": {
+      "sha": "176a5207fd544e94474a24a256080ad912ddb850",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/render-review.py": {
+      "sha": "390ef753cb5a8fc218ba730a4ed374e73d7337b0",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/render-unparsed-review.py": {
+      "sha": "0807b924d442ef0ddb0468a2abaf74fd370d65c8",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/review-pr-with-claude.sh": {
+      "sha": "518f5f8000d9a2a2fb8ee9e583a82383c1f381d0",
+      "date": "2026-10-21"
+    },
+    "review-pr-with-claude/review-schema.json": {
+      "sha": "c277f514d08cdedf88671c6a520e107b9529a1e7",
+      "date": "2026-10-21"
+    },
+    "setup-kerbside-environment/action.yml": {
+      "sha": "e8c46ee0cfb0d7dffc19891557861216efa8c613",
+      "date": "2026-10-21"
     },
     "setup-test-environment/action.yml": {
       "sha": "abd3cc38508e29755801041d1981405a36eea161",
@@ -337,9 +401,21 @@
       "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",
       "date": "2026-09-07"
     },
+    "tools/check-dist.py": {
+      "sha": "f8f5c42e7bd792ab48b2dc5d467bb86904750c60",
+      "date": "2026-10-21"
+    },
     "tools/check-issue-links.py": {
       "sha": "e485107a0b9494221469b15da0a2657def658416",
       "date": "2026-09-10"
+    },
+    "tools/ci-apply-deploy-profile.py": {
+      "sha": "5513db5fd0dbd028d7c822c2831b3ab27ad8e3ea",
+      "date": "2026-10-21"
+    },
+    "tools/ci-deploy-cluster.sh": {
+      "sha": "9f87f74631f046a3a1e96bdf180c9c1417a7fd43",
+      "date": "2026-10-21"
     },
     "tools/ci-make-inventory.py": {
       "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
@@ -397,9 +473,17 @@
       "sha": "3bcad1457330a23921317d011b59e91f37340f19",
       "date": "2026-10-10"
     },
+    "tools/ci_sync_docs.sh": {
+      "sha": "f0df2951676381983eef782d35399b81596fff97",
+      "date": "2026-10-21"
+    },
     "tools/clone_with_depends.py": {
       "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
       "date": "2026-09-10"
+    },
+    "tools/deploy-collection.sh": {
+      "sha": "f839fa8c38021fc5080abddd7c9e484d7dfd6a6f",
+      "date": "2026-10-21"
     },
     "tools/event_statistics.py": {
       "sha": "4e22166ac4d4cbaf9bc4593b2a78fc68dc538a4e",
@@ -437,6 +521,10 @@
       "sha": "5669bb69a3c1ff56cbd19c50f149814a98bec1a8",
       "date": "2026-09-10"
     },
+    "tools/pr-review-ref.sh": {
+      "sha": "41c15d0e59467ee804cca740ae9943f800ab30c9",
+      "date": "2026-10-21"
+    },
     "tools/proxmox-connect-probe.py": {
       "sha": "bbdfa86125b915c20c38e0215c22999a233661e6",
       "date": "2026-09-25"
@@ -460,6 +548,14 @@
     "tools/report-proxmox-substrate-failure.sh": {
       "sha": "5a5f99cfce84892e3f96b5412e57016acadb269d",
       "date": "2026-09-25"
+    },
+    "tools/require-ci-success.py": {
+      "sha": "de9ce7ccd838d85a523ab34a55ff9f7903e2e22f",
+      "date": "2026-10-21"
+    },
+    "tools/review-tracking.sh": {
+      "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
+      "date": "2026-10-21"
     },
     "tools/run_remote": {
       "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",
