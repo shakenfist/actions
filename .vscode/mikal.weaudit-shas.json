@@ -57,6 +57,26 @@
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "c8d2d5b296cc7dfd502e872d6f578483ab69d7bc",
+      "date": "2026-10-22"
+    },
+    "AGENTS.md": {
+      "sha": "b9e03c925bc962ceb9d352bffd6f9c90feb5c490",
+      "date": "2026-10-22"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "31689b332942083eac72d2e680d031289f6aab01",
+      "date": "2026-10-22"
+    },
+    "PUSH-AUDIT.md": {
+      "sha": "19ae3b818dbcc7b4b89e35e087e17cf85dece369",
+      "date": "2026-10-22"
+    },
+    "README.md": {
+      "sha": "693f6d2c6086cbfb5ef8b2d6290fbea25a8bd1a0",
+      "date": "2026-10-22"
+    },
     "ansible/ci-dependencies.yml": {
       "sha": "26695d29c0f213fadd615a051513e83902fe29d3",
       "date": "2026-10-20"
@@ -455,6 +475,10 @@
     },
     "tests/test_workflow_references.py": {
       "sha": "e409a41ac7961ca404147e896f95e9ec4eaa1164",
+      "date": "2026-10-22"
+    },
+    "tools/ansible-syntax-check.sh": {
+      "sha": "b5b302533ef9fc0e07b14004f9beb30cf3daa2f2",
       "date": "2026-10-22"
     },
     "tools/buffer.py": {
