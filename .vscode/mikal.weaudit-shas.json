@@ -57,10 +57,6 @@
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
     },
-    ".pre-commit-config.yaml": {
-      "sha": "9ca3dcbf675965a1c8bf94b676dd2f53304dae51",
-      "date": "2026-10-05"
-    },
     "ansible/ci-dependencies.yml": {
       "sha": "26695d29c0f213fadd615a051513e83902fe29d3",
       "date": "2026-10-20"

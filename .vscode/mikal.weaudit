@@ -353,10 +353,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_headroom_collect.py",
       "author": "mikal"
     },
