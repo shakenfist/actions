@@ -317,13 +317,29 @@
       "sha": "39499da82b6fdaeb3d02fcbebfc9a5e22ed103eb",
       "date": "2026-10-14"
     },
+    "tests/test_ansible_syntax_check.py": {
+      "sha": "11266558def7dca991835e85aa42cb21925b69e4",
+      "date": "2026-10-22"
+    },
     "tests/test_cache_action_archives.py": {
       "sha": "d17941726f022c076db905cbc967d59df982c6c0",
       "date": "2026-10-17"
     },
+    "tests/test_capacity_wait.py": {
+      "sha": "b363101cf5a347e70f197a46c8cce26a3d8ada5b",
+      "date": "2026-10-22"
+    },
+    "tests/test_check_dist.py": {
+      "sha": "09abfef885f3a4c2294af817400692033dd6be19",
+      "date": "2026-10-22"
+    },
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
+    },
+    "tests/test_ci_apply_deploy_profile.py": {
+      "sha": "f38384f6e7ed579018919a8e9ac0157ecd75e3b4",
+      "date": "2026-10-22"
     },
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "e482ca37078b4f84addccba1f935a21b4f8147a7",
@@ -336,6 +352,10 @@
     "tests/test_ci_headroom_verdict.py": {
       "sha": "f16ea142f6c71226a37d1430588f9070afca360d",
       "date": "2026-10-06"
+    },
+    "tests/test_ci_instar_testdata.py": {
+      "sha": "b8f748f1abaf1792d248d764ffbdb50e74d2be83",
+      "date": "2026-10-22"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",
@@ -353,13 +373,25 @@
       "sha": "c2832dbe5ed7aa8e0b653ca507170295ba756feb",
       "date": "2026-10-10"
     },
+    "tests/test_ci_redeploy_check.py": {
+      "sha": "0b0cf1599fdf5fdbff465b6c5ed8c6caeef3b2c2",
+      "date": "2026-10-22"
+    },
     "tests/test_documentation_links.py": {
       "sha": "72342d376d1ec685076d50c0bb8f8982e06d3a40",
       "date": "2026-09-07"
     },
+    "tests/test_extract_review_json.py": {
+      "sha": "210664aec585ac56c308837e2d4de5b324f76e89",
+      "date": "2026-10-22"
+    },
     "tests/test_mesh_interface.py": {
       "sha": "df93f0d1c703c5a38b2745105b409c945564091f",
       "date": "2026-09-30"
+    },
+    "tests/test_pr_review_ref.py": {
+      "sha": "92755b841f125b2cbab79601cb4041986c2e7702",
+      "date": "2026-10-22"
     },
     "tests/test_proxmox_action_outputs.py": {
       "sha": "12558cd32b1f9c698051f2c7808eae59bef460e5",
@@ -373,9 +405,21 @@
       "sha": "f6635a8138ed046ef6f7d72aa90d915dbe8086b4",
       "date": "2026-09-25"
     },
+    "tests/test_render_review.py": {
+      "sha": "08a529c95c20ebcce76834d9f49af4eb8eacb872",
+      "date": "2026-10-22"
+    },
     "tests/test_render_unparsed_review.py": {
       "sha": "fdc7bb260f7b53af5b35b953694ef726a0b59740",
       "date": "2026-09-25"
+    },
+    "tests/test_require_ci_success.py": {
+      "sha": "31f31aaaa4740c5699886c04686f73629a22dcd2",
+      "date": "2026-10-22"
+    },
+    "tests/test_review_pr_with_claude.py": {
+      "sha": "e9c00cc0c82ee9c59568818764cf3ab8fb98ddd5",
+      "date": "2026-10-22"
     },
     "tests/test_run_remote.py": {
       "sha": "a0778f7c03c11c37d2472b12fe3ffa6ff7facacf",
@@ -392,6 +436,10 @@
     "tests/test_vip_reservation.py": {
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
+    },
+    "tests/test_workflow_references.py": {
+      "sha": "e409a41ac7961ca404147e896f95e9ec4eaa1164",
+      "date": "2026-10-22"
     },
     "tools/buffer.py": {
       "sha": "f619f14e53364cd0c9270b855ea4c8004cb63832",

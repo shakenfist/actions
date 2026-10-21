@@ -639,6 +639,54 @@
     {
       "path": "tools/review-tracking.sh",
       "author": "mikal"
+    },
+    {
+      "path": "tests/test_ansible_syntax_check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_capacity_wait.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_check_dist.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_apply_deploy_profile.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_instar_testdata.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_redeploy_check.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_extract_review_json.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_pr_review_ref.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_render_review.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_require_ci_success.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_review_pr_with_claude.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
