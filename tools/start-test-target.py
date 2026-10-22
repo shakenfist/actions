@@ -482,6 +482,106 @@ def wait_for_datacenter(system_service, datacenter_name, timeout_secs):
     return _wait_for(f'datacenter {datacenter_name!r}', check, timeout_secs)
 
 
+# The engine picks a transfer host only from hosts that are UP *and* whose
+# storage domain report -- cached engine-side, refreshed by the ~15s host
+# stats poll -- lists the target domain as valid. A storage domain activated
+# moments before is already valid on the host but missing from that cache
+# until the next poll, so the engine refuses the transfer with this message
+# (a 409) while the host is UP, and deletes the disk it was handed. No API
+# exposes the cache to wait on, so retry the disk and transfer together on
+# this refusal only, for long enough to span several polls.
+NO_TRANSFER_HOST_MARKER = 'There is no active Host in the Data Center'
+TRANSFER_HOST_RETRY_SECS = 180
+TRANSFER_HOST_RETRY_INTERVAL_SECS = 10
+
+
+def _create_upload_disk(system_service, image_size, virtual_size, storage_domain_name, timeout_secs):
+    """Create the disk that will receive an upload and wait for it to be ready.
+
+    Returns the disk and a check function that reports it ready (or exits
+    if oVirt removed it or marked it illegal), for reuse after the upload.
+    """
+    disks_service = system_service.disks_service()
+    disk = disks_service.add(
+        types.Disk(
+            name='smoke-test-disk',
+            content_type=types.DiskContentType.DATA,
+            format=types.DiskFormat.COW,
+            initial_size=image_size,
+            provisioned_size=virtual_size,
+            storage_domains=[
+                types.StorageDomain(name=storage_domain_name),
+            ],
+        )
+    )
+    print(f'  Created disk {disk.id}')
+
+    disk_service = disks_service.disk_service(disk.id)
+
+    def check_disk():
+        try:
+            d = disk_service.get()
+        except sdk.NotFoundError:
+            print('  Disk was removed by oVirt (404)')
+            _dump_events(
+                system_service, f'disk.id={disk.id}',
+                f'disk {disk.id}',
+            )
+            print('ERROR: Disk disappeared after upload — oVirt '
+                  'likely rejected the image data')
+            sys.exit(1)
+
+        print(f'  Disk status: {d.status}')
+        if d.status == types.DiskStatus.ILLEGAL:
+            _dump_events(
+                system_service, f'disk.id={disk.id}',
+                f'disk {disk.id}',
+            )
+            print('ERROR: Disk entered illegal state — the '
+                  'uploaded image was rejected by oVirt')
+            sys.exit(1)
+        return d if d.status == types.DiskStatus.OK else None
+
+    _wait_for('disk to be ready', check_disk, timeout_secs)
+    return disk, check_disk
+
+
+def _start_upload_transfer(system_service, image_size, virtual_size, storage_domain_name, timeout_secs):
+    """Create an upload disk and start its image transfer.
+
+    Returns (disk, check_disk, transfer_service). Retries the pair while
+    the engine has no transfer host for the new storage domain yet; see
+    NO_TRANSFER_HOST_MARKER.
+    """
+    transfers_service = system_service.image_transfers_service()
+    start = time.time()
+    while True:
+        disk, check_disk = _create_upload_disk(
+            system_service, image_size, virtual_size, storage_domain_name,
+            timeout_secs,
+        )
+        try:
+            transfer = transfers_service.add(
+                types.ImageTransfer(
+                    disk=types.Disk(id=disk.id),
+                    direction=types.ImageTransferDirection.UPLOAD,
+                    format=types.DiskFormat.COW,
+                )
+            )
+            break
+        except sdk.Error as e:
+            if (NO_TRANSFER_HOST_MARKER not in str(e)
+                    or time.time() - start > TRANSFER_HOST_RETRY_SECS):
+                raise
+            print(f'  Engine has no transfer host for the storage domain yet '
+                  f'(disk {disk.id} discarded by the engine); retrying in '
+                  f'{TRANSFER_HOST_RETRY_INTERVAL_SECS}s with a new disk...')
+            time.sleep(TRANSFER_HOST_RETRY_INTERVAL_SECS)
+
+    print(f'  Transfer started (id={transfer.id})')
+    return disk, check_disk, transfers_service.image_transfer_service(transfer.id)
+
+
 def upload_disk_image(connection, system_service, disk_image_path, storage_domain_name, timeout_secs):
     """Upload a QCOW2 disk image to oVirt and return the disk object.
 
@@ -513,64 +613,10 @@ def upload_disk_image(connection, system_service, disk_image_path, storage_domai
     print(f'Uploading disk image {disk_image_path} '
           f'({image_size} bytes, virtual {virtual_size} bytes)...')
 
-    # Create the disk that will receive the upload
-    disks_service = system_service.disks_service()
-    disk = disks_service.add(
-        types.Disk(
-            name='smoke-test-disk',
-            content_type=types.DiskContentType.DATA,
-            format=types.DiskFormat.COW,
-            initial_size=image_size,
-            provisioned_size=virtual_size,
-            storage_domains=[
-                types.StorageDomain(name=storage_domain_name),
-            ],
-        )
+    disk, check_disk, transfer_service = _start_upload_transfer(
+        system_service, image_size, virtual_size, storage_domain_name,
+        timeout_secs,
     )
-    print(f'  Created disk {disk.id}')
-
-    # Wait for the disk to be ready
-    disk_service = disks_service.disk_service(disk.id)
-
-    def check_disk():
-        try:
-            d = disk_service.get()
-        except sdk.NotFoundError:
-            print('  Disk was removed by oVirt (404)')
-            _dump_events(
-                system_service, f'disk.id={disk.id}',
-                f'disk {disk.id}',
-            )
-            print('ERROR: Disk disappeared after upload — oVirt '
-                  'likely rejected the image data')
-            sys.exit(1)
-
-        print(f'  Disk status: {d.status}')
-        if d.status == types.DiskStatus.ILLEGAL:
-            _dump_events(
-                system_service, f'disk.id={disk.id}',
-                f'disk {disk.id}',
-            )
-            print('ERROR: Disk entered illegal state — the '
-                  'uploaded image was rejected by oVirt')
-            sys.exit(1)
-        return d if d.status == types.DiskStatus.OK else None
-
-    _wait_for('disk to be ready', check_disk, timeout_secs)
-
-    # Start an upload transfer
-    transfers_service = system_service.image_transfers_service()
-    transfer = transfers_service.add(
-        types.ImageTransfer(
-            disk=types.Disk(id=disk.id),
-            direction=types.ImageTransferDirection.UPLOAD,
-            format=types.DiskFormat.COW,
-        )
-    )
-    print(f'  Transfer started (id={transfer.id})')
-
-    # Wait for the transfer to be ready
-    transfer_service = transfers_service.image_transfer_service(transfer.id)
 
     def check_transfer():
         t = transfer_service.get()

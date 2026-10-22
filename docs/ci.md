@@ -652,6 +652,7 @@ one.
 | `review-pr-with-claude/render-unparsed-review.py` | Posts model output to a pull request verbatim when no review could be recovered from it, so what is pinned is that it cannot escape its fence, fire a bot trigger, or overrun the comment size limit |
 | `review-pr-with-claude/review-pr-with-claude.sh` | Launches the reviewer over an untrusted diff and tree. The test runs the shipped script against a stub `gh` and a stub `claude` and pins what the reviewer is given: only read tools, confined to the checkout, no GitHub token, and no Claude settings files or MCP servers. It also pins the step outputs a caller reads to tell a posted review from a green run that posted nothing, and the gate that decides whether to review at all: an earlier bot review, `force`, the turn budget, and the once-per-PR explanation, with a failed reviews or comments query posting nothing rather than reading as "none there" |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
+| `tools/start-test-target.py` | The oVirt smoke test consumers copy onto an engine node; nothing here runs it against a real engine. The tests stub `ovirtsdk4` and pin that only the engine's 409 "no active Host in the Data Center" refusal is retried, with a new disk each attempt because the engine deletes the refused one, and that the retry gives up after its time bound |
 
 The documentation gets `tests/test_documentation_links.py`, which
 checks that every relative link resolves and that the two link
