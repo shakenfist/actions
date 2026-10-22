@@ -49,10 +49,6 @@
       "author": "mikal"
     },
     {
-      "path": "deploy-kerbside-on-shakenfist/action.yml",
-      "author": "mikal"
-    },
-    {
       "path": "deploy-kerbside-on-shakenfist",
       "author": "mikal"
     },
@@ -685,10 +681,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/actions.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ansible.md",
       "author": "mikal"
     },
@@ -705,15 +697,7 @@
       "author": "mikal"
     },
     {
-      "path": "ARCHITECTURE.md",
-      "author": "mikal"
-    },
-    {
       "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
-      "path": "README.md",
       "author": "mikal"
     },
     {

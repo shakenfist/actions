@@ -65,16 +65,8 @@
       "sha": "b9e03c925bc962ceb9d352bffd6f9c90feb5c490",
       "date": "2026-10-22"
     },
-    "ARCHITECTURE.md": {
-      "sha": "31689b332942083eac72d2e680d031289f6aab01",
-      "date": "2026-10-22"
-    },
     "PUSH-AUDIT.md": {
       "sha": "19ae3b818dbcc7b4b89e35e087e17cf85dece369",
-      "date": "2026-10-22"
-    },
-    "README.md": {
-      "sha": "693f6d2c6086cbfb5ef8b2d6290fbea25a8bd1a0",
       "date": "2026-10-22"
     },
     "ansible/ci-dependencies.yml": {
@@ -245,10 +237,6 @@
       "sha": "1a7cf043d1989e439e2b7550cc78994791fe73da",
       "date": "2026-10-21"
     },
-    "deploy-kerbside-on-shakenfist/action.yml": {
-      "sha": "b75ba3aa3d2bb8b85fcbe45c5bfbe6d05261a008",
-      "date": "2026-09-07"
-    },
     "deploy-kolla-ansible/action.yml": {
       "sha": "e43b8636bdbaf2180b81b8969fb8d9f9b6ddbfce",
       "date": "2026-10-21"
@@ -256,10 +244,6 @@
     "deploy-proxmox-on-shakenfist/action.yml": {
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
-    },
-    "docs/actions.md": {
-      "sha": "d5c64e20843f94c3c6a1c9b1da07be19494415c3",
-      "date": "2026-10-22"
     },
     "docs/ansible.md": {
       "sha": "ba45c893021d0076dd173ad2bbe51eabf789992c",
