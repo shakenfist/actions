@@ -59,7 +59,6 @@ them.
 | `review-pr-with-claude` | Runs the Claude Code reviewer and posts the result |
 | `setup-kerbside-environment` | Checks out the Kerbside-side repositories |
 | `deploy-kolla-ansible` | Bootstraps and deploys Kolla-Ansible on a test VM |
-| `deploy-kerbside-on-shakenfist` | Deploys a Kerbside proxy onto a running cluster's primary |
 | `deploy-proxmox-on-shakenfist` | Deploys a single-node Proxmox VE hypervisor, with a booted SPICE guest and an API token, in the runner's own namespace |
 
 **Reusable workflows** are invoked as whole jobs, and bring their own

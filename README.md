@@ -27,8 +27,7 @@ own CI does and does not cover, and how to run the checks locally.
 `setup-test-environment`, `build-smoke-cluster`, `check-dist`,
 `pr-bot-trigger`, `pr-review-ref`, `require-ci-success`,
 `review-pr-with-claude`, `setup-kerbside-environment`,
-`deploy-kolla-ansible`, `deploy-kerbside-on-shakenfist` and
-`deploy-proxmox-on-shakenfist`.
+`deploy-kolla-ansible` and `deploy-proxmox-on-shakenfist`.
 
 **Reusable workflows**, invoked as whole jobs: `smoke-cluster.yml` (the
 full deploy-and-test lane), `pr-auto-review.yml` (the automated

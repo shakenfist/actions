@@ -527,8 +527,8 @@ workflow files; the pre-commit hook restricts itself to
 `.github/workflows/`, and actionlint invoked with no arguments globs the
 same directory. So `pr-bot-trigger/`, `review-pr-with-claude/`,
 `setup-test-environment/`, `build-smoke-cluster/`,
-`deploy-kolla-ansible/`, `setup-kerbside-environment/`,
-`deploy-kerbside-on-shakenfist/` and `deploy-proxmox-on-shakenfist/`
+`deploy-kolla-ansible/`, `setup-kerbside-environment/` and
+`deploy-proxmox-on-shakenfist/`
 are checked by nothing here -- lint and integration testing are
 separate gaps, and the paragraph above is about the latter only.
 Nearly all of that list also cannot be integration-tested pre-merge
