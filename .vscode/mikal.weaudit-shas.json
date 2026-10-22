@@ -265,10 +265,6 @@
       "sha": "ba45c893021d0076dd173ad2bbe51eabf789992c",
       "date": "2026-10-22"
     },
-    "docs/ci.md": {
-      "sha": "c5b2ad810d39513b2d6bdd917cd0c4c2bc1b4795",
-      "date": "2026-10-22"
-    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
@@ -643,10 +639,6 @@
     },
     "tools/run_remote": {
       "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",
-      "date": "2026-09-10"
-    },
-    "tools/start-test-target.py": {
-      "sha": "cda05255a0848a4c554941fd662a7c6e1a9e4bc1",
       "date": "2026-09-10"
     },
     "tools/sync_component_docs.py": {
