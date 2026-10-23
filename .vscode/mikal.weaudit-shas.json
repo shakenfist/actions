@@ -45,10 +45,6 @@
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
       "date": "2026-10-16"
     },
-    ".github/workflows/renovate.yml": {
-      "sha": "07e038ce4f1ba143eeb172e17e3d24c6e43e203a",
-      "date": "2026-10-16"
-    },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "c786db2e4639d968b297ff2aaf00caa4d6114977",
       "date": "2026-10-20"
