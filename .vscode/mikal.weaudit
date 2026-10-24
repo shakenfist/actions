@@ -77,10 +77,6 @@
       "author": "mikal"
     },
     {
-      "path": "renovate.json",
-      "author": "mikal"
-    },
-    {
       "path": "tools/buffer.py",
       "author": "mikal"
     },
@@ -429,10 +425,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_cache_action_archives.py",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/files/cache-action-archives.py",
       "author": "mikal"
     },
@@ -462,10 +454,6 @@
     },
     {
       "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-instar-testdata.yml",
       "author": "mikal"
     },
     {
@@ -502,10 +490,6 @@
     },
     {
       "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {

@@ -89,10 +89,6 @@
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
     },
-    "ansible/ci-instar-testdata.yml": {
-      "sha": "0f39657e5df707ecc908a017ff7b43c8aab1d850",
-      "date": "2026-10-20"
-    },
     "ansible/ci-node-checks.yml": {
       "sha": "4d42b36d9114e44df128f29fe3fa2c28367db8fe",
       "date": "2026-09-09"
@@ -273,10 +269,6 @@
       "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
       "date": "2026-10-21"
     },
-    "renovate.json": {
-      "sha": "9a52fb66e21c003da56f2fb78cc40d604a222a02",
-      "date": "2026-09-07"
-    },
     "require-ci-success/action.yml": {
       "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
       "date": "2026-10-21"
@@ -332,10 +324,6 @@
     "tests/test_ansible_syntax_check.py": {
       "sha": "11266558def7dca991835e85aa42cb21925b69e4",
       "date": "2026-10-22"
-    },
-    "tests/test_cache_action_archives.py": {
-      "sha": "d17941726f022c076db905cbc967d59df982c6c0",
-      "date": "2026-10-17"
     },
     "tests/test_capacity_wait.py": {
       "sha": "b363101cf5a347e70f197a46c8cce26a3d8ada5b",
