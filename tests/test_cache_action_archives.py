@@ -61,6 +61,9 @@ def good(sha=SHA, repo='checkout'):
                         comment=sha)
 
 
+# A test fixture bound to loopback that only sends the headers the tests themselves put in
+# server.routes, so no outside data reaches send_header().
+# audit-ok: header-sanitization
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass

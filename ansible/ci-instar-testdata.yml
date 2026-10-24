@@ -3,8 +3,9 @@
 # CI runners whose job asks for the `instar` label mount at
 # /srv/ci/cached/instar-testdata. It is modelled play by play on
 # ci-dependencies.yml, and where a comment here is short, the reasoning is
-# in the matching place there. The design is in private-ci's
-# docs/plans/PLAN-instar-testdata-disk.md.
+# in the matching place there. What the disk holds, who mounts it, why
+# it is writable and why the GitLab token is scrubbed before publishing
+# are in "The instar-testdata disk" in docs/ansible.md.
 - hosts: localhost
   gather_facts: no
   connection: ssh
