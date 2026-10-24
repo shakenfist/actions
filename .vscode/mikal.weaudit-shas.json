@@ -601,10 +601,6 @@
       "sha": "de9ce7ccd838d85a523ab34a55ff9f7903e2e22f",
       "date": "2026-10-21"
     },
-    "tools/review-tracking.sh": {
-      "sha": "db83f953a7b90229111cf75bd24504a19a032c2f",
-      "date": "2026-10-21"
-    },
     "tools/run_remote": {
       "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",
       "date": "2026-09-10"

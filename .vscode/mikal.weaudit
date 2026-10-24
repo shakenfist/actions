@@ -601,10 +601,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/review-tracking.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ansible_syntax_check.py",
       "author": "mikal"
     },
