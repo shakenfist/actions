@@ -445,7 +445,7 @@ deliberately rather than in passing.
 ### Dependency lane -- `renovate.yml`
 
 Renovate runs hourly on a `static` runner, autodiscovering only
-`shakenfist/actions`, and opens pull requests for two managers:
+`shakenfist/actions`, and opens pull requests for three managers:
 
 * **github-actions** -- the third-party action pins in
   `.github/workflows/` and in the composite `action.yml` files. Those
@@ -464,6 +464,10 @@ Renovate runs hourly on a `static` runner, autodiscovering only
   means the thing judging everything else is itself unjudged. `instar`
   found this the hard way, four months behind on `actionlint` while its
   other dependencies stayed current.
+* **Renovate itself** -- `PINNED_RENOVATE_VERSION` in `renovate.yml`,
+  which the `customManagers:githubActionsVersions` preset that
+  `renovate.json` extends reads through its `# renovate:` comment.
+  Without the preset nothing would ever bump that pin.
 
 Nothing is automerged. `minimumReleaseAge` is three days and every
 update type is left for a human, which is the right default here for the
@@ -501,6 +505,20 @@ cover queue time, so an hourly cron can fire while the previous run is
 still waiting for a static runner; two instances autodiscovering the
 same repository race on branch creation. It does not cancel in progress
 -- killing Renovate mid-push is worse than skipping an hour.
+
+Renovate runs from npm through `npx`, not through
+`renovatebot/github-action`, because the action runs it as a container
+and so needs a Docker daemon the runner may not have. Two things follow.
+Renovate refreshes lock files with whatever tools the runner has, which
+the container used to install for it; this repository has no lock files,
+so nothing extra is set up. And the pin covers Renovate but not its
+dependency tree: `npx` resolves those within their declared ranges on
+each fresh install, and their install scripts run in the step holding
+`RENOVATE_TOKEN`. A Renovate major can also raise `engines.node` past
+the `node-version` the workflow sets up, so `renovate.json` attaches a
+note to those pull requests telling the reviewer to check it. The
+workflow is copied verbatim from `templates/renovate/` in
+`shakenfist/development`, whose README covers both in more depth.
 
 One thing renovate cannot help with: the `shakenfist/actions/...@main`
 references, both the ones downstream and the ones this repository makes
