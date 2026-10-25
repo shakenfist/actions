@@ -750,6 +750,176 @@ class ToolScriptReferenceTest(unittest.TestCase):
         self.assertTrue(found, 'no tools/ references found to check')
 
 
+def github_glob(pattern):
+    """A compiled regex for a GitHub Actions path filter pattern.
+
+    '**' matches across directories and '*' within one, which is the
+    part of GitHub's filter syntax canary.yml uses.
+    """
+    out = ''
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith('**', i):
+            out += '.*'
+            i += 2
+        elif pattern[i] == '*':
+            out += '[^/]*'
+            i += 1
+        else:
+            out += re.escape(pattern[i])
+            i += 1
+    return re.compile('^' + out + '$')
+
+
+class CanaryScopeTest(unittest.TestCase):
+    """canary.yml skips only what the smoke lane cannot run.
+
+    Its paths-ignore names composite actions, tests and workflows that a
+    smoke cluster never touches, so that merging one of them does not
+    book a cluster that cannot fail. The risk runs the other way: a path
+    the smoke lane does use, listed there, would make the canary skip
+    exactly the merge it exists to check, and nothing would say so. This
+    walks the smoke lane from canary.yml's jobs -- the workflow they
+    call, the composite actions it names, and every tracked file their
+    YAML values or script lines name -- and fails if any of it is
+    ignored. Documentation is never walked: it names everything.
+    """
+
+    # The documentation and review-tracking group, whose rules are
+    # ReviewTrackingExclusionTest's. '**.md' is the one broad glob.
+    PROSE = {'**.md', 'docs/**', '.vscode/*.weaudit',
+             '.vscode/*.weaudit-shas.json', '.vscode/review-scope.toml'}
+
+    def ignored(self):
+        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
+            canary = yaml.safe_load(f)
+        # 'on' is parsed as the boolean True by YAML 1.1.
+        return canary[True]['push']['paths-ignore']
+
+    def tracked(self):
+        out = subprocess.run(['git', 'ls-files'], cwd=REPO_ROOT,
+                             capture_output=True, text=True, check=True)
+        return out.stdout.split()
+
+    @staticmethod
+    def strings(node):
+        """Every string in a parsed YAML document: comments are gone."""
+        if isinstance(node, str):
+            yield node
+        elif isinstance(node, dict):
+            for key, value in node.items():
+                yield from CanaryScopeTest.strings(key)
+                yield from CanaryScopeTest.strings(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from CanaryScopeTest.strings(value)
+
+    def text_of(self, path):
+        """What a file says, without its comments."""
+        full = os.path.join(REPO_ROOT, path)
+        with open(full, encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        if path.endswith(('.yml', '.yaml')):
+            try:
+                return '\n'.join(self.strings(yaml.safe_load(content)))
+            except yaml.YAMLError:
+                pass
+        return '\n'.join(line for line in content.splitlines()
+                         if not line.lstrip().startswith('#'))
+
+    @staticmethod
+    def prose(path):
+        return path.endswith('.md') or path.startswith(('docs/', '.vscode/'))
+
+    def smoke_lane(self):
+        tracked = self.tracked()
+        # canary.yml's jobs, not its triggers: its paths-ignore names
+        # the very paths under test, and would be read as references.
+        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
+            jobs = yaml.safe_load(f)['jobs']
+        reached = {'.github/workflows/canary.yml'}
+        queue = []
+        pending = [('.github/workflows/canary.yml', '\n'.join(self.strings(jobs)))]
+        while pending or queue:
+            if pending:
+                path, text = pending.pop()
+            else:
+                path = queue.pop()
+                if path in reached or self.prose(path):
+                    continue
+                reached.add(path)
+                text = self.text_of(path)
+            found = set()
+            # A composite action named by repository: all of it.
+            for name in re.findall(r'shakenfist/actions/([\w.-]+)@', text):
+                found.update(f for f in tracked if f.startswith(name + '/'))
+            # Anything path-shaped: every tracked file it names or is a
+            # prefix of, which also covers a name assembled from an
+            # expression, like ansible/ci-topology-${{ ... }}.yml. A
+            # path is often written under the runner's checkout, as
+            # .../actions/tools/run_remote, so every tail of it after a
+            # '/' is tried too.
+            for token in re.findall(r'(?<![\w.-])((?:[\w.-]+/)+[\w.-]*)', text):
+                parts = token.split('/')
+                for i in range(len(parts) - 1):
+                    if parts[i] in ('', '.', '..'):
+                        continue
+                    tail = '/'.join(parts[i:])
+                    found.update(f for f in tracked if f.startswith(tail))
+            # A script calling a sibling by bare name, as
+            # $(dirname "$0")/ci_headroom_verdict.sh does.
+            directory = os.path.dirname(path)
+            if directory:
+                for f in tracked:
+                    if (os.path.dirname(f) == directory
+                            and re.search(r'(?<![\w.-])' + re.escape(os.path.basename(f))
+                                          + r'(?![\w.-])', text)):
+                        found.add(f)
+            queue.extend(found - reached)
+        return reached
+
+    def test_nothing_the_smoke_lane_uses_is_ignored(self):
+        reached = self.smoke_lane()
+        # The walk has to reach well past the two workflows to mean
+        # anything: if it stops there, every assertion below is vacuous.
+        for expected in ('build-smoke-cluster/action.yml',
+                         'setup-test-environment/action.yml',
+                         'tools/run_remote'):
+            self.assertIn(expected, reached,
+                          'the smoke-lane walk no longer reaches %s' % expected)
+        for pattern in self.ignored():
+            regex = github_glob(pattern)
+            used = sorted(f for f in reached if regex.match(f)
+                          and not f.endswith('.md'))
+            with self.subTest(pattern=pattern):
+                self.assertEqual(
+                    [], used,
+                    "canary.yml's paths-ignore has %s, but the smoke lane "
+                    'uses %s, so a merged change to it would skip the very '
+                    'canary that tests it' % (pattern, ', '.join(used)))
+
+    def test_ignored_code_paths_are_named_not_globbed(self):
+        # Outside the prose group every entry is one file or one
+        # directory that exists. A broad glob would ignore whatever is
+        # added under it next, and a stale entry is a list nobody is
+        # checking against the tree any more.
+        tracked = self.tracked()
+        for pattern in self.ignored():
+            if pattern in self.PROSE:
+                continue
+            with self.subTest(pattern=pattern):
+                if pattern.endswith('/**'):
+                    directory = pattern[:-len('/**')]
+                    self.assertNotIn('*', directory)
+                    self.assertTrue(
+                        any(f.startswith(directory + '/') for f in tracked),
+                        '%s names a directory with no tracked files' % pattern)
+                else:
+                    self.assertNotIn('*', pattern)
+                    self.assertIn(pattern, tracked,
+                                  '%s names a file that is not tracked' % pattern)
+
+
 class ReviewTrackingExclusionTest(unittest.TestCase):
     """The review-tracking exclusions have to agree across three files.
 

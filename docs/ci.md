@@ -303,6 +303,32 @@ tests read it and a typo in a pattern silently shrinks the set of
 files under review. Content scanners get no exemption in either place
 -- see the `gitleaks` note above.
 
+**Code the smoke cluster never runs is skipped too.** A smoke cluster
+exercises `smoke-cluster.yml`, the composite actions it names
+(`setup-test-environment`, `build-smoke-cluster`), and the `tools/`
+and `ansible/` files those reach. A merge that touches only something
+else -- another composite action such as `review-pr-with-claude` or
+`require-ci-success`, this repository's `tests/`, a workflow other than
+`smoke-cluster.yml` and `canary.yml`, or repository configuration like
+`renovate.json` -- books a cluster that passes whatever the change
+did. From 25 September to 25 October that was 21 of 68 canaries, about
+14 runner-hours on the `s-cloud` pool, so those paths are in
+`paths-ignore` as well. They are covered where they are used: their own
+unit tests in `ci.yml`, `proxmox-substrate.yml`, and the downstream
+runs that consume them.
+
+Two tests in `tests/test_workflow_references.py` (`CanaryScopeTest`)
+keep that list safe. One walks the smoke lane from `canary.yml`'s jobs
+through every file their YAML values and script lines name, siblings
+called by bare name included, and fails if any `paths-ignore` pattern
+matches something it reached. The other requires every code entry to
+name one existing file or directory, never a broader glob, so a new
+composite action or workflow books a canary until someone decides it
+should not. Listing a path there is safe only for code the smoke lane
+does not use. If a smoke-lane file starts depending on a listed
+directory, the first test fails, and the directory has to come off the
+list.
+
 ### Path-filtered lane -- `proxmox-substrate.yml`
 
 The one lane where "assume you cannot test it before merge" (AGENTS.md)
