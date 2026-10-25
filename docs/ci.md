@@ -345,8 +345,12 @@ consumer, not merely internally consistent with the action's own
 self-check.
 
 It runs on `pull_request`, path-filtered to the action, the playbook,
-its task and vars files and the `tools/proxmox-*` helpers; on
-`workflow_dispatch`; and weekly, Sunday 03:17 UTC -- offset from
+its task and vars files, the `tools/proxmox-*` helpers and the shared
+files those reach, such as `install-collection.sh`;
+`ProxmoxSubstrateScopeTest` in `tests/test_workflow_references.py`
+walks the lane the same way `CanaryScopeTest` walks the smoke lane, and
+fails on anything it runs that the filter does not match. It also runs on
+`workflow_dispatch`, and weekly, Sunday 03:17 UTC -- offset from
 renovate's hourly cron and `codeql-analysis.yml`'s Tuesday run so the
 scheduled workflows in this repository do not all wake the fleet at
 once. The weekly run is where upstream Proxmox drift (a rotated

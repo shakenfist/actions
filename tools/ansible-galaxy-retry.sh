@@ -27,10 +27,24 @@ set -o pipefail
 attempts="${GALAXY_RETRY_ATTEMPTS:-4}"
 delay="${GALAXY_RETRY_DELAY:-15}"
 
+# Checked, because a non-integer makes the attempt test below fail
+# rather than stop the loop, which would retry forever.
+if ! [[ "${attempts}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "GALAXY_RETRY_ATTEMPTS must be a positive integer, not '${attempts}'" >&2
+    exit 2
+fi
+if ! [[ "${delay}" =~ ^[0-9]+$ ]]; then
+    echo "GALAXY_RETRY_DELAY must be a whole number of seconds, not '${delay}'" >&2
+    exit 2
+fi
+
 # What a transient failure looks like in ansible-galaxy's output: a 5xx
-# from Galaxy or the proxy in front of it, a timeout, a dropped
-# connection, or a name that briefly would not resolve.
-transient='HTTP Error 5[0-9][0-9]|returned error: 5[0-9][0-9]|timed out|[Tt]imeout|Connection reset|Connection refused|Remote end closed|Temporary failure in name resolution|Name or service not known'
+# or a 429 from Galaxy or the proxy in front of it, a timeout, a
+# dropped connection, or a name that briefly would not resolve. A
+# collection tarball download fails as urllib's "HTTP Error 500"; a
+# Galaxy API call as "(HTTP Code: 500, ...)", once ansible-galaxy's own
+# retries of those have run out.
+transient='HTTP Error (5[0-9][0-9]|429)|HTTP Code: (5[0-9][0-9]|429)|returned error: 5[0-9][0-9]|timed out|TimeoutError|Connection reset|Connection refused|Remote end closed|Temporary failure in name resolution|Name or service not known'
 
 output=$(mktemp)
 trap 'rm -f "${output}"' EXIT

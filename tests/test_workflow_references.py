@@ -771,30 +771,16 @@ def github_glob(pattern):
     return re.compile('^' + out + '$')
 
 
-class CanaryScopeTest(unittest.TestCase):
-    """canary.yml skips only what the smoke lane cannot run.
+class LaneWalk:
+    """What a lane runs, found by following the names its files use.
 
-    Its paths-ignore names composite actions, tests and workflows that a
-    smoke cluster never touches, so that merging one of them does not
-    book a cluster that cannot fail. The risk runs the other way: a path
-    the smoke lane does use, listed there, would make the canary skip
-    exactly the merge it exists to check, and nothing would say so. This
-    walks the smoke lane from canary.yml's jobs -- the workflow they
-    call, the composite actions it names, and every tracked file their
-    YAML values or script lines name -- and fails if any of it is
-    ignored. Documentation is never walked: it names everything.
+    Shared by the tests that hold a path filter against the code it
+    guards. From a starting text, every tracked file it names -- a
+    composite action by repository or by relative path, anything
+    path-shaped, a sibling script called by bare name -- is read and
+    followed in turn, comments aside. Documentation is never walked: it
+    names everything.
     """
-
-    # The documentation and review-tracking group, whose rules are
-    # ReviewTrackingExclusionTest's. '**.md' is the one broad glob.
-    PROSE = {'**.md', 'docs/**', '.vscode/*.weaudit',
-             '.vscode/*.weaudit-shas.json', '.vscode/review-scope.toml'}
-
-    def ignored(self):
-        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
-            canary = yaml.safe_load(f)
-        # 'on' is parsed as the boolean True by YAML 1.1.
-        return canary[True]['push']['paths-ignore']
 
     def tracked(self):
         out = subprocess.run(['git', 'ls-files'], cwd=REPO_ROOT,
@@ -808,11 +794,11 @@ class CanaryScopeTest(unittest.TestCase):
             yield node
         elif isinstance(node, dict):
             for key, value in node.items():
-                yield from CanaryScopeTest.strings(key)
-                yield from CanaryScopeTest.strings(value)
+                yield from LaneWalk.strings(key)
+                yield from LaneWalk.strings(value)
         elif isinstance(node, list):
             for value in node:
-                yield from CanaryScopeTest.strings(value)
+                yield from LaneWalk.strings(value)
 
     def text_of(self, path):
         """What a file says, without its comments."""
@@ -831,15 +817,22 @@ class CanaryScopeTest(unittest.TestCase):
     def prose(path):
         return path.endswith('.md') or path.startswith(('docs/', '.vscode/'))
 
-    def smoke_lane(self):
-        tracked = self.tracked()
-        # canary.yml's jobs, not its triggers: its paths-ignore names
-        # the very paths under test, and would be read as references.
-        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
+    def jobs_of(self, workflow):
+        """A workflow's jobs, not its triggers.
+
+        A trigger's path filter names the very paths under test, and
+        would be read as references.
+        """
+        with open(os.path.join(WORKFLOW_DIR, workflow)) as f:
             jobs = yaml.safe_load(f)['jobs']
-        reached = {'.github/workflows/canary.yml'}
+        return ('.github/workflows/' + workflow, '\n'.join(self.strings(jobs)))
+
+    def walk(self, start):
+        """Every tracked file reachable from start, a (path, text) pair."""
+        tracked = self.tracked()
+        reached = {start[0]}
         queue = []
-        pending = [('.github/workflows/canary.yml', '\n'.join(self.strings(jobs)))]
+        pending = [start]
         while pending or queue:
             if pending:
                 path, text = pending.pop()
@@ -852,6 +845,12 @@ class CanaryScopeTest(unittest.TestCase):
             found = set()
             # A composite action named by repository: all of it.
             for name in re.findall(r'shakenfist/actions/([\w.-]+)@', text):
+                found.update(f for f in tracked if f.startswith(name + '/'))
+            # A composite action named by relative path, as uses:
+            # ./deploy-proxmox-on-shakenfist does: all of it. The walk
+            # below never tries a token's last part on its own, so it
+            # would not reach one of these.
+            for name in re.findall(r'(?<![\w.-])\./([\w.-]+)(?![\w./-])', text):
                 found.update(f for f in tracked if f.startswith(name + '/'))
             # Anything path-shaped: every tracked file it names or is a
             # prefix of, which also covers a name assembled from an
@@ -877,6 +876,42 @@ class CanaryScopeTest(unittest.TestCase):
                         found.add(f)
             queue.extend(found - reached)
         return reached
+
+
+class CanaryScopeTest(LaneWalk, unittest.TestCase):
+    """canary.yml skips only what the smoke lane cannot run.
+
+    Its paths-ignore names composite actions, tests and workflows that a
+    smoke cluster never touches, so that merging one of them does not
+    book a cluster that cannot fail. The risk runs the other way: a path
+    the smoke lane does use, listed there, would make the canary skip
+    exactly the merge it exists to check, and nothing would say so. This
+    walks the smoke lane from canary.yml's jobs -- the workflow they
+    call, the composite actions it names, and every tracked file their
+    YAML values or script lines name -- and fails if any of it is
+    ignored.
+    """
+
+    # The documentation and review-tracking group, whose rules are
+    # ReviewTrackingExclusionTest's. '**.md' is the one broad glob.
+    PROSE = {'**.md', 'docs/**', '.vscode/*.weaudit',
+             '.vscode/*.weaudit-shas.json', '.vscode/review-scope.toml'}
+
+    def ignored(self):
+        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
+            canary = yaml.safe_load(f)
+        # 'on' is parsed as the boolean True by YAML 1.1.
+        return canary[True]['push']['paths-ignore']
+
+    def smoke_lane(self):
+        return self.walk(self.jobs_of('canary.yml'))
+
+    def test_the_walk_follows_a_relative_action(self):
+        # canary.yml may call a composite action as ./<name>, which
+        # AGENTS.md says is correct there; the smoke lane does not today,
+        # so the tree alone would not show this rule going missing.
+        reached = self.walk(('example.yml', 'uses: ./build-smoke-cluster'))
+        self.assertIn('build-smoke-cluster/action.yml', reached)
 
     def test_nothing_the_smoke_lane_uses_is_ignored(self):
         reached = self.smoke_lane()
@@ -918,6 +953,39 @@ class CanaryScopeTest(unittest.TestCase):
                     self.assertNotIn('*', pattern)
                     self.assertIn(pattern, tracked,
                                   '%s names a file that is not tracked' % pattern)
+
+
+class ProxmoxSubstrateScopeTest(LaneWalk, unittest.TestCase):
+    """proxmox-substrate.yml runs for a change to anything it runs.
+
+    Its pull_request path filter is the lane's whole pre-merge trigger,
+    and the action reaches well outside its own directory: the playbook
+    and its task files, and shared helpers such as install-collection.sh
+    and whatever those call in turn. A pull request changing a file the
+    filter misses skips the one lane that tests that file before merge.
+    This walks the lane from its jobs and fails on anything the filter
+    does not match.
+    """
+
+    def test_the_path_filter_covers_what_the_lane_runs(self):
+        with open(os.path.join(WORKFLOW_DIR, 'proxmox-substrate.yml')) as f:
+            paths = yaml.safe_load(f)[True]['pull_request']['paths']
+        reached = self.walk(self.jobs_of('proxmox-substrate.yml'))
+        # The jobs reach the action only as ./deploy-proxmox-on-shakenfist,
+        # and the rest only through it: if the walk stops short, the
+        # check below is vacuous.
+        for expected in ('deploy-proxmox-on-shakenfist/action.yml',
+                         'ansible/proxmox-single-node.yml',
+                         'tools/install-collection.sh'):
+            self.assertIn(expected, reached,
+                          'the proxmox-substrate walk no longer reaches %s' % expected)
+        missed = sorted(f for f in reached
+                        if not any(github_glob(p).match(f) for p in paths))
+        self.assertEqual(
+            [], missed,
+            "proxmox-substrate.yml's path filter does not match %s, which "
+            'the lane runs, so a pull request changing only that would '
+            'skip it' % ', '.join(missed))
 
 
 class ReviewTrackingExclusionTest(unittest.TestCase):

@@ -28,9 +28,12 @@ on:
       # otherwise never run the lane that lints and owns it.
       - 'tools/*proxmox*'
       # Shared files the action runs too: proxmox-single-node.yml imports
-      # the first and proxmox-deploy.sh calls the second.
+      # the first, proxmox-deploy.sh calls the second, and that calls the
+      # third. ProxmoxSubstrateScopeTest walks the lane and fails on
+      # anything it runs that this list does not match.
       - 'ansible/tasks/wait-for-cloud-init.yml'
       - 'tools/install-collection.sh'
+      - 'tools/ansible-galaxy-retry.sh'
       - '.github/workflows/proxmox-substrate.yml'
   workflow_dispatch:
   schedule:
