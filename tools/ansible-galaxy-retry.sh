@@ -17,7 +17,10 @@
 # Only output that looks like the network or the server failing is
 # retried. A bad requirements file, a missing tarball or an unknown
 # collection fails at once, as ansible-galaxy alone would, because
-# retrying those only delays the same answer.
+# retrying those only delays the same answer. The whole output of a
+# failed attempt is matched, so a real failure that follows a transient
+# error ansible-galaxy logged is still retried, at most
+# GALAXY_RETRY_ATTEMPTS times, and still exits with its own status.
 #
 # ansible-galaxy's stderr is merged into its stdout, so a caller that
 # captures stdout gets any error text too.

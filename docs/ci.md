@@ -321,7 +321,10 @@ Two tests in `tests/test_workflow_references.py` (`CanaryScopeTest`)
 keep that list safe. One walks the smoke lane from `canary.yml`'s jobs
 through every file their YAML values and script lines name, siblings
 called by bare name included, and fails if any `paths-ignore` pattern
-matches something it reached. The other requires every code entry to
+matches something it reached. Inside `ansible/` it resolves a relative
+name as Ansible does, against the naming file's directory and the
+playbook's (every playbook lives directly in `ansible/`, which a test
+holds), so `import_tasks: tasks/...` and `src: files/...` are followed. The other requires every code entry to
 name one existing file or directory, never a broader glob, so a new
 composite action or workflow books a canary until someone decides it
 should not. Listing a path there is safe only for code the smoke lane
@@ -700,6 +703,7 @@ one.
 | `review-pr-with-claude/render-unparsed-review.py` | Posts model output to a pull request verbatim when no review could be recovered from it, so what is pinned is that it cannot escape its fence, fire a bot trigger, or overrun the comment size limit |
 | `review-pr-with-claude/review-pr-with-claude.sh` | Launches the reviewer over an untrusted diff and tree. The test runs the shipped script against a stub `gh` and a stub `claude` and pins what the reviewer is given: only read tools, confined to the checkout, no GitHub token, and no Claude settings files or MCP servers. It also pins the step outputs a caller reads to tell a posted review from a green run that posted nothing, and the gate that decides whether to review at all: an earlier bot review, `force`, the turn budget, and the once-per-PR explanation, with a failed reviews or comments query posting nothing rather than reading as "none there" |
 | `tools/run_remote` | Its local branches word-split the command; quoting them silently kills the single-node path, which no CI run exercises |
+| `tools/ansible-galaxy-retry.sh` | Wraps every collection install a smoke cluster deploy makes. The tests use a fake `ansible-galaxy` to pin that only network or server failures (5xx, 429, timeouts, resets, DNS) are retried, with the delay doubling each time, that a real or silent failure is not, that ansible-galaxy's own exit status reaches the caller, and that non-integer tuning is refused rather than looping |
 | `tools/start-test-target.py` | The oVirt smoke test consumers copy onto an engine node; nothing here runs it against a real engine. The tests stub `ovirtsdk4` and pin that only the engine's 409 "no active Host in the Data Center" refusal is retried, with a new disk each attempt because the engine deletes the refused one, and that the retry gives up after its time bound |
 
 The documentation gets `tests/test_documentation_links.py`, which

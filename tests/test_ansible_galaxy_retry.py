@@ -44,14 +44,13 @@ class AnsibleGalaxyRetryTest(unittest.TestCase):
         self.calls = os.path.join(self.tmp.name, 'calls')
         open(self.calls, 'w').close()
 
-    def run_wrapper(self, fail_times, message=GALAXY_500, rc=1,
-                    GALAXY_RETRY_ATTEMPTS='4', GALAXY_RETRY_DELAY='0'):
+    def run_wrapper(self, fail_times, message=GALAXY_500, rc=1, env_overrides=None):
         env = dict(os.environ,
                    PATH=self.tmp.name + os.pathsep + os.environ['PATH'],
                    CALLS=self.calls, FAIL_TIMES=str(fail_times),
                    FAIL_MESSAGE=message, FAIL_RC=str(rc),
-                   GALAXY_RETRY_ATTEMPTS=GALAXY_RETRY_ATTEMPTS,
-                   GALAXY_RETRY_DELAY=GALAXY_RETRY_DELAY)
+                   GALAXY_RETRY_ATTEMPTS='4', GALAXY_RETRY_DELAY='0')
+        env.update(env_overrides or {})
         result = subprocess.run(
             [WRAPPER, 'collection', 'install', 'x.tar.gz', '--force'],
             env=env, capture_output=True, text=True, timeout=60)
@@ -67,11 +66,23 @@ class AnsibleGalaxyRetryTest(unittest.TestCase):
         self.assertEqual(['collection install x.tar.gz --force'] * 3, calls)
 
     def test_retrying_stops_at_the_attempt_limit(self):
-        result, calls = self.run_wrapper(fail_times=10, rc=7, GALAXY_RETRY_ATTEMPTS='3')
+        result, calls = self.run_wrapper(fail_times=10, rc=7, env_overrides={'GALAXY_RETRY_ATTEMPTS': '3'})
         self.assertEqual(3, len(calls))
         # ansible-galaxy's own status, not one the wrapper made up.
         self.assertEqual(7, result.returncode)
         self.assertIn('giving up', result.stderr)
+
+    def test_the_delay_doubles_after_each_attempt(self):
+        # A sleep stub on PATH records what it was asked to wait.
+        slept = os.path.join(self.tmp.name, 'slept')
+        sleep = os.path.join(self.tmp.name, 'sleep')
+        with open(sleep, 'w') as f:
+            f.write('#!/bin/bash\necho "$1" >> %s\n' % slept)
+        os.chmod(sleep, os.stat(sleep).st_mode | stat.S_IEXEC)
+        result, calls = self.run_wrapper(fail_times=10, env_overrides={'GALAXY_RETRY_DELAY': '15'})
+        self.assertEqual(4, len(calls))
+        with open(slept) as f:
+            self.assertEqual(['15', '30', '60'], f.read().split())
 
     def test_a_real_failure_is_not_retried(self):
         result, calls = self.run_wrapper(
@@ -128,7 +139,7 @@ class AnsibleGalaxyRetryTest(unittest.TestCase):
                             ('GALAXY_RETRY_DELAY', '1.5')):
             with self.subTest(name=name, value=value):
                 open(self.calls, 'w').close()
-                result, calls = self.run_wrapper(fail_times=10, **{name: value})
+                result, calls = self.run_wrapper(fail_times=10, env_overrides={name: value})
                 self.assertEqual(2, result.returncode)
                 self.assertIn(name, result.stderr)
                 self.assertEqual([], calls)
