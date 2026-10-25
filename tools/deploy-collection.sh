@@ -67,15 +67,18 @@ pip install ansible-core setuptools_scm packaging build
 python3 tools/build-collection.py
 
 # Install the freshly built collection tarball (the same artifact release.yml
-# publishes), forcing over any previously installed copy.
-ansible-galaxy collection install dist-collection/*.tar.gz --force
+# publishes), forcing over any previously installed copy. Its dependencies
+# come from galaxy.ansible.com, which fails transiently often enough to have
+# broken merge CI (shakenfist/shakenfist#4632), so the install retries.
+galaxy="$(dirname "$0")/ansible-galaxy-retry.sh"
+"${galaxy}" collection install dist-collection/*.tar.gz --force
 
 # Then the profile's collections, into the same default collections path, so
 # site.yml finds them as it finds Shaken Fist's. --force because a runner can
 # keep an earlier job's copy of a collection, and without it ansible-galaxy
 # keeps that copy rather than installing a dir source's working tree.
 if [ -n "${REQUIREMENTS_FILE}" ]; then
-    ansible-galaxy collection install -r "${REQUIREMENTS_FILE}" --force
+    "${galaxy}" collection install -r "${REQUIREMENTS_FILE}" --force
 fi
 
 # Run the deploy from this controller against the generated inventory. Play 0

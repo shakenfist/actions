@@ -426,6 +426,10 @@ class DeployCollectionCommandTest(unittest.TestCase):
         self.script = os.path.join(self.tmp, 'deploy-collection.sh')
         with open(self.script, 'w') as f:
             f.write(script.replace('/tmp/collection-venv', os.path.join(self.tmp, 'venv')))
+        # The script installs through its sibling ansible-galaxy-retry.sh,
+        # which runs the ansible-galaxy stub below on PATH, so the recorded
+        # argv is ansible-galaxy's own whether or not it went through it.
+        shutil.copy(os.path.join(os.path.dirname(DEPLOY_COLLECTION), 'ansible-galaxy-retry.sh'), self.tmp)
 
         # python3 is a stub here, so the recording stubs are plain bash: each
         # call is its name and argv, NUL separated, ended by a record separator.
