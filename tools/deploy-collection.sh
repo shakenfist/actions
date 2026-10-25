@@ -55,6 +55,10 @@ if [ -n "${EXTRA_VARS_FILE}" ]; then
     extra_vars_file_args=(--extra-vars "@${EXTRA_VARS_FILE}")
 fi
 
+# Resolved before the cd below, so a relative "$0" still finds the sibling
+# ansible-galaxy-retry.sh.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 cd "${GITHUB_WORKSPACE}/shakenfist"
 
 # Build the collection tarball into dist-collection/ using a dedicated venv so
@@ -70,7 +74,7 @@ python3 tools/build-collection.py
 # publishes), forcing over any previously installed copy. Its dependencies
 # come from galaxy.ansible.com, which fails transiently often enough to have
 # broken merge CI (shakenfist/shakenfist#4632), so the install retries.
-galaxy="$(dirname "$0")/ansible-galaxy-retry.sh"
+galaxy="${here}/ansible-galaxy-retry.sh"
 "${galaxy}" collection install dist-collection/*.tar.gz --force
 
 # Then the profile's collections, into the same default collections path, so

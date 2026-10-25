@@ -19,6 +19,9 @@
 # collection fails at once, as ansible-galaxy alone would, because
 # retrying those only delays the same answer.
 #
+# ansible-galaxy's stderr is merged into its stdout, so a caller that
+# captures stdout gets any error text too.
+#
 # GALAXY_RETRY_ATTEMPTS (default 4) and GALAXY_RETRY_DELAY (default 15,
 # doubled after each attempt) tune it; the tests set the delay to 0.
 

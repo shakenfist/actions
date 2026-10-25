@@ -271,7 +271,9 @@ server, up to four attempts 15, 30 and 60 seconds apart. Anything else
 fails at once with ansible-galaxy's own status. That covers a bad
 requirements file, a missing tarball and an unresolvable dependency.
 `tests/test_ansible_galaxy_retry.py` holds that line with a fake
-`ansible-galaxy`.
+`ansible-galaxy`. One install is not wrapped yet: smoke-cluster.yml's
+ansible module tests install the collection on the primary node, where
+the wrapper is not shipped (#206).
 
 ## The mesh interface
 
