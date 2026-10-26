@@ -5,10 +5,6 @@
       "sha": "6987cac290912889c8048971979cb7c22dff103f",
       "date": "2026-10-14"
     },
-    ".github/workflows/canary.yml": {
-      "sha": "028f724e4146e412e396c69c8945a232bb6b8e85",
-      "date": "2026-09-27"
-    },
     ".github/workflows/ci.yml": {
       "sha": "d4e9fb4f999bcae22716eee9e26c6c3864afe3e6",
       "date": "2026-10-20"
@@ -36,10 +32,6 @@
     ".github/workflows/pr-retest.yml": {
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-20"
-    },
-    ".github/workflows/proxmox-substrate.yml": {
-      "sha": "3768966cec10597b36f2be7318eac269c90cfdf7",
-      "date": "2026-09-25"
     },
     ".github/workflows/prune-reviews.yml": {
       "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
@@ -237,10 +229,6 @@
       "sha": "a0482369068dad005b507e65eec0fc7091df433c",
       "date": "2026-09-25"
     },
-    "docs/ansible.md": {
-      "sha": "ba45c893021d0076dd173ad2bbe51eabf789992c",
-      "date": "2026-10-22"
-    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
@@ -336,10 +324,6 @@
     "tests/test_check_issue_links.py": {
       "sha": "7b1e968d592c045800d267c0f56d83eff02c28d6",
       "date": "2026-09-09"
-    },
-    "tests/test_ci_apply_deploy_profile.py": {
-      "sha": "f38384f6e7ed579018919a8e9ac0157ecd75e3b4",
-      "date": "2026-10-22"
     },
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "e482ca37078b4f84addccba1f935a21b4f8147a7",
@@ -437,10 +421,6 @@
       "sha": "cd5f1ccbb843737639899242acd0d4ccfcb70608",
       "date": "2026-09-19"
     },
-    "tests/test_workflow_references.py": {
-      "sha": "e409a41ac7961ca404147e896f95e9ec4eaa1164",
-      "date": "2026-10-22"
-    },
     "tools/ansible-syntax-check.sh": {
       "sha": "b5b302533ef9fc0e07b14004f9beb30cf3daa2f2",
       "date": "2026-10-22"
@@ -529,20 +509,12 @@
       "sha": "caf9375af0cc1e598b566e6b49e1ac80cb30dfc4",
       "date": "2026-09-10"
     },
-    "tools/deploy-collection.sh": {
-      "sha": "f839fa8c38021fc5080abddd7c9e484d7dfd6a6f",
-      "date": "2026-10-21"
-    },
     "tools/event_statistics.py": {
       "sha": "4e22166ac4d4cbaf9bc4593b2a78fc68dc538a4e",
       "date": "2026-09-10"
     },
     "tools/gitleaks-scan.sh": {
       "sha": "9b977285ed648ba55848d242a5aab8ce73492bb1",
-      "date": "2026-09-10"
-    },
-    "tools/install-collection.sh": {
-      "sha": "b89d65d668077c899361278fb11349b37332dd78",
       "date": "2026-09-10"
     },
     "tools/network_allocation_torture.sh": {

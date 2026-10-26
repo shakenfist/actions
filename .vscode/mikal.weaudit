@@ -137,10 +137,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/install-collection.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/network_allocation_torture.sh",
       "author": "mikal"
     },
@@ -186,10 +182,6 @@
     },
     {
       "path": "ansible/tasks/wait-for-cloud-init.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/proxmox-substrate.yml",
       "author": "mikal"
     },
     {
@@ -290,10 +282,6 @@
     },
     {
       "path": ".github/workflows/export-repo-config.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows/canary.yml",
       "author": "mikal"
     },
     {
@@ -589,10 +577,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/deploy-collection.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/pr-review-ref.sh",
       "author": "mikal"
     },
@@ -610,10 +594,6 @@
     },
     {
       "path": "tests/test_check_dist.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_ci_apply_deploy_profile.py",
       "author": "mikal"
     },
     {
@@ -642,14 +622,6 @@
     },
     {
       "path": "tests/test_review_pr_with_claude.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_workflow_references.py",
-      "author": "mikal"
-    },
-    {
-      "path": "docs/ansible.md",
       "author": "mikal"
     },
     {
