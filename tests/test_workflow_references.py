@@ -750,6 +750,316 @@ class ToolScriptReferenceTest(unittest.TestCase):
         self.assertTrue(found, 'no tools/ references found to check')
 
 
+def github_glob(pattern):
+    """A compiled regex for a GitHub Actions path filter pattern.
+
+    '**' matches across directories and '*' within one, which is the
+    part of GitHub's filter syntax canary.yml uses.
+    """
+    out = ''
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith('**', i):
+            out += '.*'
+            i += 2
+        elif pattern[i] == '*':
+            out += '[^/]*'
+            i += 1
+        else:
+            out += re.escape(pattern[i])
+            i += 1
+    return re.compile('^' + out + '$')
+
+
+class LaneWalk:
+    """What a lane runs, found by following the names its files use.
+
+    Shared by the tests that hold a path filter against the code it
+    guards. From a starting text, every tracked file it names -- a
+    composite action by repository or by relative path, anything
+    path-shaped, a sibling script called by bare name -- is read and
+    followed in turn, comments aside. Documentation is never walked: it
+    names everything. Inside ansible/, a relative name is also resolved
+    the way Ansible resolves it, against the naming file's directory
+    and the playbook's.
+    """
+
+    # Every playbook lives directly in ansible/, so this is the playbook
+    # directory Ansible resolves a relative import_tasks, vars_files or
+    # src against. test_every_playbook_lives_in_the_playbook_directory
+    # holds that.
+    PLAYBOOK_DIR = 'ansible'
+
+    def bases(self, path):
+        """Where Ansible looks for a relative name used in path.
+
+        The naming file's directory and the playbook's, and for a bare
+        name given to copy or template, their files/ and templates/.
+        Nothing outside ansible/ is resolved this way.
+        """
+        if not path.startswith(self.PLAYBOOK_DIR + '/'):
+            return set()
+        directories = {os.path.dirname(path), self.PLAYBOOK_DIR}
+        return directories | {d + '/' + sub for d in directories
+                              for sub in ('files', 'templates')}
+
+    def tracked(self):
+        out = subprocess.run(['git', 'ls-files'], cwd=REPO_ROOT,
+                             capture_output=True, text=True, check=True)
+        return out.stdout.split()
+
+    @staticmethod
+    def strings(node):
+        """Every string in a parsed YAML document: comments are gone."""
+        if isinstance(node, str):
+            yield node
+        elif isinstance(node, dict):
+            for key, value in node.items():
+                yield from LaneWalk.strings(key)
+                yield from LaneWalk.strings(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from LaneWalk.strings(value)
+
+    def text_of(self, path):
+        """What a file says, without its comments."""
+        full = os.path.join(REPO_ROOT, path)
+        with open(full, encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        if path.endswith(('.yml', '.yaml')):
+            try:
+                return '\n'.join(self.strings(yaml.safe_load(content)))
+            except yaml.YAMLError:
+                pass
+        return '\n'.join(line for line in content.splitlines()
+                         if not line.lstrip().startswith('#'))
+
+    @staticmethod
+    def prose(path):
+        return path.endswith('.md') or path.startswith(('docs/', '.vscode/'))
+
+    def jobs_of(self, workflow):
+        """A workflow's jobs, not its triggers.
+
+        A trigger's path filter names the very paths under test, and
+        would be read as references.
+        """
+        with open(os.path.join(WORKFLOW_DIR, workflow)) as f:
+            jobs = yaml.safe_load(f)['jobs']
+        return ('.github/workflows/' + workflow, '\n'.join(self.strings(jobs)))
+
+    def walk(self, start):
+        """Every tracked file reachable from start, a (path, text) pair."""
+        tracked = self.tracked()
+        reached = {start[0]}
+        queue = []
+        pending = [start]
+        while pending or queue:
+            if pending:
+                path, text = pending.pop()
+            else:
+                path = queue.pop()
+                if path in reached or self.prose(path):
+                    continue
+                reached.add(path)
+                text = self.text_of(path)
+            found = set()
+            # A composite action named by repository: all of it.
+            for name in re.findall(r'shakenfist/actions/([\w.-]+)@', text):
+                found.update(f for f in tracked if f.startswith(name + '/'))
+            # A composite action named by relative path, as uses:
+            # ./deploy-proxmox-on-shakenfist does: all of it. The walk
+            # below never tries a token's last part on its own, so it
+            # would not reach one of these.
+            for name in re.findall(r'(?<![\w.-])\./([\w.-]+)(?![\w./-])', text):
+                found.update(f for f in tracked if f.startswith(name + '/'))
+            # Anything path-shaped: every tracked file it names or is a
+            # prefix of, which also covers a name assembled from an
+            # expression, like ansible/ci-topology-${{ ... }}.yml. A
+            # path is often written under the runner's checkout, as
+            # .../actions/tools/run_remote, so every tail of it after a
+            # '/' is tried too.
+            for token in re.findall(r'(?<![\w.-])((?:[\w.-]+/)+[\w.-]*)', text):
+                parts = token.split('/')
+                for i in range(len(parts) - 1):
+                    if parts[i] in ('', '.', '..'):
+                        continue
+                    tail = '/'.join(parts[i:])
+                    found.update(f for f in tracked if f.startswith(tail))
+                # Ansible's relative forms: import_tasks: tasks/x.yml
+                # from a playbook, include_tasks: tasks/proxmox/y.yml
+                # from a task file below it, and the like. Whole path
+                # components only: against files/, a prefix match would
+                # turn a sed expression's s/ into every file there
+                # starting with s.
+                for base in self.bases(path):
+                    relative = os.path.normpath(os.path.join(base, token))
+                    if relative.startswith('..'):
+                        continue
+                    found.update(f for f in tracked
+                                 if f == relative or f.startswith(relative + '/'))
+            # A script calling a sibling by bare name, as
+            # $(dirname "$0")/ci_headroom_verdict.sh does, or an Ansible
+            # file naming one in a directory it resolves against, as
+            # src: ci-runner-alloy.alloy does for ansible/files/.
+            directories = ({os.path.dirname(path)} | self.bases(path)) - {''}
+            for f in tracked:
+                if (os.path.dirname(f) in directories
+                        and re.search(r'(?<![\w.-])' + re.escape(os.path.basename(f))
+                                      + r'(?![\w.-])', text)):
+                    found.add(f)
+            queue.extend(found - reached)
+        return reached
+
+
+class CanaryScopeTest(LaneWalk, unittest.TestCase):
+    """canary.yml skips only what the smoke lane cannot run.
+
+    Its paths-ignore names composite actions, tests and workflows that a
+    smoke cluster never touches, so that merging one of them does not
+    book a cluster that cannot fail. The risk runs the other way: a path
+    the smoke lane does use, listed there, would make the canary skip
+    exactly the merge it exists to check, and nothing would say so. This
+    walks the smoke lane from canary.yml's jobs -- the workflow they
+    call, the composite actions it names, and every tracked file their
+    YAML values or script lines name -- and fails if any of it is
+    ignored.
+    """
+
+    # The documentation and review-tracking group, whose rules are
+    # ReviewTrackingExclusionTest's. '**.md' is the one broad glob.
+    PROSE = {'**.md', 'docs/**', '.vscode/*.weaudit',
+             '.vscode/*.weaudit-shas.json', '.vscode/review-scope.toml'}
+
+    def ignored(self):
+        with open(os.path.join(WORKFLOW_DIR, 'canary.yml')) as f:
+            canary = yaml.safe_load(f)
+        # 'on' is parsed as the boolean True by YAML 1.1.
+        return canary[True]['push']['paths-ignore']
+
+    def smoke_lane(self):
+        return self.walk(self.jobs_of('canary.yml'))
+
+    def test_the_walk_follows_a_relative_action(self):
+        # canary.yml may call a composite action as ./<name>, which
+        # AGENTS.md says is correct there; the smoke lane does not today,
+        # so the tree alone would not show this rule going missing.
+        reached = self.walk(('example.yml', 'uses: ./build-smoke-cluster'))
+        self.assertIn('build-smoke-cluster/action.yml', reached)
+
+    def test_the_walk_resolves_ansible_names_as_ansible_does(self):
+        # A task file's include_tasks resolves against the playbook
+        # directory, not its own; a bare src against files/.
+        reached = self.walk(('ansible/tasks/example.yml',
+                             'include_tasks: tasks/proxmox/resolver-check.yml\n'
+                             'src: ci-runner-alloy.alloy'))
+        self.assertIn('ansible/tasks/proxmox/resolver-check.yml', reached)
+        self.assertIn('ansible/files/ci-runner-alloy.alloy', reached)
+        # Outside ansible/ a relative name is only ever from the root.
+        reached = self.walk(('tools/example.sh', 'tasks/proxmox/resolver-check.yml'))
+        self.assertNotIn('ansible/tasks/proxmox/resolver-check.yml', reached)
+
+    def test_every_playbook_lives_in_the_playbook_directory(self):
+        # The walk resolves an Ansible name against PLAYBOOK_DIR. A
+        # playbook anywhere else would have its imports resolved against
+        # the wrong directory, and reach nothing.
+        for f in self.tracked():
+            if not (f.startswith(self.PLAYBOOK_DIR + '/') and f.endswith(('.yml', '.yaml'))):
+                continue
+            with open(os.path.join(REPO_ROOT, f)) as stream:
+                try:
+                    document = yaml.safe_load(stream)
+                except yaml.YAMLError:
+                    continue
+            plays = (isinstance(document, list) and document
+                     and all(isinstance(play, dict) and ('hosts' in play or 'import_playbook' in play)
+                             for play in document))
+            if plays:
+                with self.subTest(playbook=f):
+                    self.assertEqual(self.PLAYBOOK_DIR, os.path.dirname(f))
+
+    def test_nothing_the_smoke_lane_uses_is_ignored(self):
+        reached = self.smoke_lane()
+        # The walk has to reach well past the two workflows to mean
+        # anything: if it stops there, every assertion below is vacuous.
+        for expected in ('build-smoke-cluster/action.yml',
+                         'setup-test-environment/action.yml',
+                         'tools/run_remote',
+                         'ansible/tasks/create-topology-node.yml',
+                         'ansible/files/netplan-eth1.yaml'):
+            self.assertIn(expected, reached,
+                          'the smoke-lane walk no longer reaches %s' % expected)
+        for pattern in self.ignored():
+            regex = github_glob(pattern)
+            used = sorted(f for f in reached if regex.match(f)
+                          and not f.endswith('.md'))
+            with self.subTest(pattern=pattern):
+                self.assertEqual(
+                    [], used,
+                    "canary.yml's paths-ignore has %s, but the smoke lane "
+                    'uses %s, so a merged change to it would skip the very '
+                    'canary that tests it' % (pattern, ', '.join(used)))
+
+    def test_ignored_code_paths_are_named_not_globbed(self):
+        # Outside the prose group every entry is one file or one
+        # directory that exists. A broad glob would ignore whatever is
+        # added under it next, and a stale entry is a list nobody is
+        # checking against the tree any more.
+        tracked = self.tracked()
+        for pattern in self.ignored():
+            if pattern in self.PROSE:
+                continue
+            with self.subTest(pattern=pattern):
+                if pattern.endswith('/**'):
+                    directory = pattern[:-len('/**')]
+                    self.assertNotIn('*', directory)
+                    self.assertTrue(
+                        any(f.startswith(directory + '/') for f in tracked),
+                        '%s names a directory with no tracked files' % pattern)
+                else:
+                    self.assertNotIn('*', pattern)
+                    self.assertIn(pattern, tracked,
+                                  '%s names a file that is not tracked' % pattern)
+
+
+class ProxmoxSubstrateScopeTest(LaneWalk, unittest.TestCase):
+    """proxmox-substrate.yml runs for a change to anything it runs.
+
+    Its pull_request path filter is the lane's whole pre-merge trigger,
+    and the action reaches well outside its own directory: the playbook
+    and its task files, and shared helpers such as install-collection.sh
+    and whatever those call in turn. A pull request changing a file the
+    filter misses skips the one lane that tests that file before merge.
+    This walks the lane from its jobs and fails on anything the filter
+    does not match.
+    """
+
+    def test_the_path_filter_covers_what_the_lane_runs(self):
+        with open(os.path.join(WORKFLOW_DIR, 'proxmox-substrate.yml')) as f:
+            paths = yaml.safe_load(f)[True]['pull_request']['paths']
+        reached = self.walk(self.jobs_of('proxmox-substrate.yml'))
+        # The jobs reach the action only as ./deploy-proxmox-on-shakenfist,
+        # the rest only through it, and the task files only by names
+        # relative to the playbook: if the walk stops short, the check
+        # below is vacuous.
+        for expected in ('deploy-proxmox-on-shakenfist/action.yml',
+                         'ansible/proxmox-single-node.yml',
+                         'ansible/tasks/wait-for-cloud-init.yml',
+                         'ansible/tasks/proxmox/install.yml',
+                         'ansible/tasks/proxmox/resolver-check.yml',
+                         'ansible/vars/proxmox.yml',
+                         'tools/install-collection.sh'):
+            self.assertIn(expected, reached,
+                          'the proxmox-substrate walk no longer reaches %s' % expected)
+        missed = sorted(f for f in reached
+                        if not any(github_glob(p).match(f) for p in paths))
+        self.assertEqual(
+            [], missed,
+            "proxmox-substrate.yml's path filter does not match %s, which "
+            'the lane runs, so a pull request changing only that would '
+            'skip it' % ', '.join(missed))
+
+
 class ReviewTrackingExclusionTest(unittest.TestCase):
     """The review-tracking exclusions have to agree across three files.
 

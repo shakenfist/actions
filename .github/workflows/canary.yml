@@ -48,12 +48,57 @@ on:
     # lands. That is why ci.yml's gitleaks job does not consume its
     # path filter, and it is why nothing here is a reason to widen
     # this list to documentation the scanner should still read.
+    #
+    # The second group is code, but code the smoke cluster never runs:
+    # the composite actions it does not use, this repository's own
+    # tests, the workflows other than smoke-cluster.yml and this one,
+    # and repository configuration. A canary for a change to
+    # review-pr-with-claude or a Renovate bump boots a cluster and
+    # passes, whatever the change did -- 21 of the 68 canaries from
+    # 25 September to 25 October were that, about 14 runner-hours on
+    # the s-cloud pool, and none of them could have failed. Those
+    # changes are covered where they are used: by their own unit tests
+    # in ci.yml, by proxmox-substrate.yml, and by the downstream runs
+    # that consume them.
+    #
+    # Two things keep this list honest, both in
+    # tests/test_workflow_references.py. Nothing listed here may be
+    # used by the smoke lane -- smoke-cluster.yml, the composite
+    # actions it names and the tools/ scripts those run -- so that a
+    # change the canary does exercise is never skipped. And the list
+    # names paths, never a broader glob, so that something new (a new
+    # composite action, a new workflow) books a canary until somebody
+    # decides it should not: the default stays the safe direction.
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - '.vscode/*.weaudit'
       - '.vscode/*.weaudit-shas.json'
       - '.vscode/review-scope.toml'
+      - 'check-dist/**'
+      - 'deploy-kolla-ansible/**'
+      - 'deploy-proxmox-on-shakenfist/**'
+      - 'pr-bot-trigger/**'
+      - 'pr-review-ref/**'
+      - 'require-ci-success/**'
+      - 'review-pr-with-claude/**'
+      - 'setup-kerbside-environment/**'
+      - 'tests/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/codeql-analysis.yml'
+      - '.github/workflows/export-repo-config.yml'
+      - '.github/workflows/issue-link-check.yml'
+      - '.github/workflows/pr-auto-review.yml'
+      - '.github/workflows/pr-re-review.yml'
+      - '.github/workflows/pr-retest.yml'
+      - '.github/workflows/proxmox-substrate.yml'
+      - '.github/workflows/prune-reviews.yml'
+      - '.github/workflows/renovate.yml'
+      - '.github/actionlint.yaml'
+      - '.flake8'
+      - '.gitleaks.toml'
+      - '.pre-commit-config.yaml'
+      - 'renovate.json'
   workflow_dispatch:
 
 permissions:

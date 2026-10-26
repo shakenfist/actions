@@ -260,6 +260,21 @@ older run builds that run's original merge commit. If that commit
 predates the option, the re-run fails as shown above. Pushing to the
 pull request again builds a new merge commit, which fixes it.
 
+**Installing the collection reaches galaxy.ansible.com.** The tarball is
+local, but its dependencies are not: `shakenfist.kerbside` among them
+comes from Galaxy on every install. Galaxy answers HTTP 500 often enough
+to have failed merge groups on changes that could not cause it
+(shakenfist/shakenfist#4632). So `install-collection.sh` and
+`deploy-collection.sh` install through `tools/ansible-galaxy-retry.sh`,
+which retries a failure whose output looks like the network or the
+server, up to four attempts 15, 30 and 60 seconds apart. Anything else
+fails at once with ansible-galaxy's own status. That covers a bad
+requirements file, a missing tarball and an unresolvable dependency.
+`tests/test_ansible_galaxy_retry.py` holds that line with a fake
+`ansible-galaxy`. One install is not wrapped yet: smoke-cluster.yml's
+ansible module tests install the collection on the primary node, where
+the wrapper is not shipped (#206).
+
 ## The mesh interface
 
 Multi-node topologies give each node a second NIC on a private mesh

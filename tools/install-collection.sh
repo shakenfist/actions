@@ -31,5 +31,7 @@ trap 'rm -rf ${builddir}' EXIT
 ansible-galaxy collection build \
     "${CHECKOUT}/shakenfist/deploy/collection" \
     --output-path "${builddir}"
-ansible-galaxy collection install \
+# The install resolves the collection's dependencies from galaxy.ansible.com,
+# so it goes through the retrying wrapper (shakenfist/shakenfist#4632).
+"$(dirname "$0")/ansible-galaxy-retry.sh" collection install \
     "${builddir}"/shakenfist-shakenfist-*.tar.gz --force

@@ -426,6 +426,10 @@ class DeployCollectionCommandTest(unittest.TestCase):
         self.script = os.path.join(self.tmp, 'deploy-collection.sh')
         with open(self.script, 'w') as f:
             f.write(script.replace('/tmp/collection-venv', os.path.join(self.tmp, 'venv')))
+        # The script installs through its sibling ansible-galaxy-retry.sh,
+        # which runs the ansible-galaxy stub below on PATH, so the recorded
+        # argv is ansible-galaxy's own whether or not it went through it.
+        shutil.copy(os.path.join(os.path.dirname(DEPLOY_COLLECTION), 'ansible-galaxy-retry.sh'), self.tmp)
 
         # python3 is a stub here, so the recording stubs are plain bash: each
         # call is its name and argv, NUL separated, ended by a record separator.
@@ -445,12 +449,12 @@ class DeployCollectionCommandTest(unittest.TestCase):
             f.write('#!/bin/bash\n%s\n' % body)
         os.chmod(path, 0o755)
 
-    def run_calls(self, *extra):
+    def run_calls(self, *extra, script=None, cwd=None):
         """Run the deploy and return every recorded command, in order."""
         if os.path.exists(self.record):
             os.unlink(self.record)
-        subprocess.run(['bash', self.script] + self.POSITIONAL + list(extra), check=True, env=self.environment,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['bash', script or self.script] + self.POSITIONAL + list(extra), check=True,
+                       env=self.environment, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         with open(self.record) as f:
             return [call.split('\0')[:-1] for call in f.read().split('\036')[:-1]]
 
@@ -471,6 +475,13 @@ class DeployCollectionCommandTest(unittest.TestCase):
     def test_without_a_profile_only_shakenfist_is_installed(self):
         calls = self.run_calls()
         self.assertEqual([call[0] for call in calls], ['ansible-galaxy', 'ansible-playbook'])
+        self.assertEqual(calls[0], self.TARBALL_INSTALL)
+
+    def test_a_relative_path_still_finds_the_retry_wrapper(self):
+        # The script cds into the workspace before it installs, so the
+        # wrapper must be located from where the script was, not from "$0"
+        # read against the new working directory.
+        calls = self.run_calls(script='deploy-collection.sh', cwd=self.tmp)
         self.assertEqual(calls[0], self.TARBALL_INSTALL)
 
     def test_an_empty_seventh_argument_changes_nothing(self):
