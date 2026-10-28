@@ -643,6 +643,86 @@
     {
       "path": "tools/ansible-syntax-check.sh",
       "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_cache_action_archives.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ansible_galaxy_retry.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_apply_deploy_profile.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_start_test_target.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_workflow_references.py",
+      "author": "mikal"
+    },
+    {
+      "path": "README.md",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/proxmox-substrate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/start-test-target.py",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-instar-testdata.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/install-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ansible-galaxy-retry.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/deploy-collection.sh",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/canary.yml",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
