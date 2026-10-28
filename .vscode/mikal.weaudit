@@ -437,10 +437,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/smoke-cluster.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-dependencies.yml",
       "author": "mikal"
     },
@@ -625,10 +621,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/consuming.md",
-      "author": "mikal"
-    },
-    {
       "path": ".pre-commit-config.yaml",
       "author": "mikal"
     },
@@ -654,10 +646,6 @@
     },
     {
       "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
-      "path": "docs",
       "author": "mikal"
     },
     {
