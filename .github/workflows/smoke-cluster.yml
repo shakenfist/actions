@@ -196,7 +196,7 @@ jobs:
     # groups ran to completion: shakenfist runs four nested clusters through
     # this workflow per merge group, on the under-cloud every other repository
     # shares. See shakenfist/kerbside#284 and
-    # shakenfist/development audits/merge-group-cancellation.md.
+    # shakenfist/development docs/audits/merge-group-cancellation.md.
     #
     # Cancelling is safe because the fleet's merge queues are serial
     # (max_entries_to_build: 1), so any other first attempt of a merge_group
