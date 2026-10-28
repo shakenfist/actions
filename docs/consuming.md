@@ -57,7 +57,7 @@ clusters against the shared under-cloud
 so the key now uses `github.event.merge_group.base_ref` in the queue.
 That relies on your merge queue being serial — `max_entries_to_build: 1`,
 which the fleet
-[merge-queue-config audit](https://github.com/shakenfist/development/blob/main/audits/merge-queue-config.md)
+[merge-queue-config audit](https://github.com/shakenfist/development/blob/main/docs/audits/merge-queue-config.md)
 requires. If you raise it, several merge groups are live at once and
 this key would cancel one the queue is still waiting on.
 
@@ -81,8 +81,11 @@ concurrency:
   cancel-in-progress: true
 ```
 
+Replace `<job>` with the job's own id. Two jobs that kept the literal
+placeholder would share a group and cancel each other.
+
 The
-[merge-group-cancellation audit](https://github.com/shakenfist/development/blob/main/audits/merge-group-cancellation.md)
+[merge-group-cancellation audit](https://github.com/shakenfist/development/blob/main/docs/audits/merge-group-cancellation.md)
 explains the rest of the pattern.
 
 **Mode 2 — you want to run your own tests against a live cluster**
