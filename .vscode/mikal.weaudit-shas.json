@@ -281,10 +281,6 @@
       "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
       "date": "2026-10-21"
     },
-    "renovate.json": {
-      "sha": "7713d99804e373ae578f99ec405ec3018e49c2cc",
-      "date": "2026-10-28"
-    },
     "require-ci-success/action.yml": {
       "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
       "date": "2026-10-21"
