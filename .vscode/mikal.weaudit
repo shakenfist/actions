@@ -569,10 +569,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_ci_instar_testdata.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_ci_redeploy_check.py",
       "author": "mikal"
     },
@@ -654,10 +650,6 @@
     },
     {
       "path": "tools/start-test-target.py",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-instar-testdata.yml",
       "author": "mikal"
     },
     {
