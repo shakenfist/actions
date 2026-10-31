@@ -148,7 +148,9 @@
     # disk at the end of this playbook carries until it is deleted.
     # Pipelined, a module and its arguments reach the builder's python on
     # the ssh session's stdin and are never written to disk. It needs a
-    # sudo without requiretty, which debian:13 is.
+    # sudo without requiretty, which debian:13 is. no_log on those tasks
+    # is the other half: without it, the module logs "Invoked with" and
+    # its arguments, stdin included, to the builder's journal, on vda.
     ansible_pipelining: true
     # The credential is staged in this directory, on tmpfs, for the clone
     # and the LFS pull, and nowhere else; see "Stage the GitLab credential
@@ -226,7 +228,10 @@
     # repository runs. Without the always, a failed clone would leave the
     # token in /dev/shm on a builder that runs until something deletes
     # it. There is deliberately no rescue: a failure still fails the
-    # build, after the cleanup.
+    # build, after the cleanup. ansible skips the always if the builder
+    # becomes unreachable or the playbook is killed; the token then stays
+    # in the builder's memory until the conductor deletes the instance at
+    # the start of the next build.
     - name: Fetch instar-testdata with the staged GitLab credential
       block:
         # The GitLab token never touches the instar-testdata disk. This disk

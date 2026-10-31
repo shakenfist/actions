@@ -46,6 +46,8 @@ BACKSTOP_ASSERT_TASK = 'Confirm no credential URL is on the raw instar-testdata 
 COMMAND_MODULES = ('shell', 'command', 'raw')
 # The modules that fetch something from outside this repository.
 DOWNLOAD_MODULES = ('get_url', 'uri', 'unarchive', 'git')
+# The same, done on a command line.
+DOWNLOAD_COMMAND = re.compile(r'\b(curl|wget)\b')
 # The URL form a credential takes when it is embedded in a remote.
 EMBEDDED_CREDENTIAL = re.compile(r'://oauth2:')
 # git -c before the subcommand applies to one run; clone -c or --config
@@ -124,12 +126,16 @@ def first_download(plays):
 
     apt's signed packages aside, anything downloaded is code or data from
     outside this repository, so this is where the tasks that may carry the
-    token must already have finished, whatever the download is called.
+    token must already have finished, whatever the download is called and
+    whether a module or curl or wget on a command line does it.
     """
-    play_tasks = flatten(build_play(plays)['tasks'])
-    offset = all_tasks(plays).index(play_tasks[0])
-    for index, task in enumerate(play_tasks):
+    play = build_play(plays)
+    before = next(index for index, candidate in enumerate(plays) if candidate is play)
+    offset = sum(len(flatten(p.get('tasks', []))) for p in plays[:before])
+    for index, task in enumerate(flatten(play['tasks'])):
         if any(key.split('.')[-1] in DOWNLOAD_MODULES for key in task):
+            return offset + index
+        if any(DOWNLOAD_COMMAND.search(command) for command in command_strings(task)):
             return offset + index
     raise AssertionError('no task downloads anything')
 
@@ -270,7 +276,8 @@ class InstarTestdataTests(unittest.TestCase):
 
     def test_every_task_handling_the_credential_has_no_log(self):
         # A failed task prints its arguments, stdin included, into the
-        # build log. The backstop after the unmount names the oauth2: URL
+        # build log, and any task logs them to the builder's journal, on
+        # the boot disk the resparsify script can read. The backstop after the unmount names the oauth2: URL
         # form in a pattern but holds no token, so it is not one of these.
         checked = 0
         for task in all_tasks(self.plays):

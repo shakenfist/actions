@@ -725,7 +725,11 @@ output, and because the play enables ansible pipelining, the module
 carrying it is never written to the builder's disk either. The file
 is removed before anything fetched from outside this repository runs,
 and also when the clone or the LFS pull fails, so a failed build does
-not leave the token on a builder that is still running.
+not leave the token on a builder that is still running. That cleanup
+does not run if the builder becomes unreachable or the playbook is
+killed part way through; the token then stays in the builder's memory
+until the conductor deletes the instance at the start of the next
+build.
 
 The build then checks, and fails rather than publishing, if `oauth2`
 or the token appears in a file under `.git/` outside the object
@@ -739,8 +743,9 @@ device as it will be snapshotted for the credential URL form,
 It looks for that rather than for `oauth2` alone because the test
 images include whole operating system images, where an OAuth library
 can put the string in directory and file names. Every task that carries
-the token has `no_log: true`; the clone and the pull do not carry it,
-so their failures reach the log.
+the token has `no_log: true`, which keeps its arguments out of the
+build log and also out of the builder's journal, on its boot disk; the
+clone and the pull do not carry it, so their failures reach the log.
 
 What remains exposed: on the builder, debian and root can read the
 token while it is staged, and it survives in freed memory after it is
@@ -758,8 +763,10 @@ to instar's `develop` runs code as root on the builder and can change
 what is published on this disk, and so what every instar job finds
 there, but it finds no token on the disk to read. How the
 conductor builds, orders and verifies cache disks is in
-[docs/cache-disks.md](https://github.com/shakenfist/private-ci/blob/master/docs/cache-disks.md)
-in the private-ci repository, which is not public.
+[docs/cache-disks.md](https://github.com/shakenfist/private-ci/blob/master/docs/cache-disks.md),
+and the design of this disk is in
+[PLAN-instar-testdata-disk.md](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-instar-testdata-disk.md),
+both in the private-ci repository, which is not public.
 
 ## Package resolution policy
 
