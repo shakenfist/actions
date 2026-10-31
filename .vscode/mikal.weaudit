@@ -457,22 +457,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-slim-primary.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/ci-topology-slim-tier.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks/create-topology-node.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible/tasks",
-      "author": "mikal"
-    },
-    {
       "path": "build-smoke-cluster/action.yml",
       "author": "mikal"
     },
@@ -581,10 +565,6 @@
       "author": "mikal"
     },
     {
-      "path": "tests/test_capacity_wait.py",
-      "author": "mikal"
-    },
-    {
       "path": "tests/test_check_dist.py",
       "author": "mikal"
     },
@@ -637,10 +617,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ansible.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ci.md",
       "author": "mikal"
     },
@@ -682,10 +658,6 @@
     },
     {
       "path": "ansible/ci-instar-testdata.yml",
-      "author": "mikal"
-    },
-    {
-      "path": "ansible",
       "author": "mikal"
     },
     {
