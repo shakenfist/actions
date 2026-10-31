@@ -305,11 +305,13 @@
 
     # Source tarballs of the GitHub actions the CI workflows use, for
     # runners to unpack instead of fetching from codeload on every job.
-    # https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-action-archive-cache.md
-    # describes the design. The sfcbr runners read this directory
-    # through ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE, which private-ci's
-    # conductor/templates/userdata.yaml.j2 sets. docs/ansible.md has the
-    # longer account.
+    # https://github.com/shakenfist/private-ci/blob/master/docs/action-archive-cache.md
+    # describes the design. The conductor's single-use (ephemeral) sfcbr
+    # runners read this directory from the dependencies disk through
+    # ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE, which private-ci's
+    # conductor/templates/userdata.yaml.j2 sets. The static runners set
+    # the same variable to their own directory, filled by a separate
+    # fetcher. docs/ansible.md has the longer account.
     #
     # This is a script and not another get_url loop because an archive
     # needs more than a Content-Length check: it must be a gzipped
