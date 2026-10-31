@@ -75,8 +75,9 @@
         mesh_ip: 10.0.1.29
 
     # The nodes this topology creates, in order. The primary is created
-    # and booted first, as it always has been; the hypervisors are not
-    # awaited, and the readiness play below waits for all of them.
+    # and booted first, as it always has been; the hypervisors are awaited
+    # only to placement, not to boot, and the readiness play below waits for
+    # their boots.
     topology_nodes:
       - {hostname: primary, suffix: primary, cpu: 4, ram: 4096, address: 10.0.0.10, mesh_ip: 10.0.1.10,
          groups: 'database_node,primary_node', await: true}

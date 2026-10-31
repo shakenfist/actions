@@ -169,7 +169,8 @@ The topology and kerbside playbooks wait for room instead, with
 It replays two kinds of refusal, and no others:
 
 - a 507 that the server marked `transient`;
-- on an awaited create, a preflight abort for capacity.
+- a preflight abort for capacity, on a create awaited to boot (`await`) or
+  only to placement (`await_placement`).
 
 Replays are at least a minute apart. Before each replay, the module
 deletes the refused instance record, so the replay can reuse the name.
@@ -215,8 +216,18 @@ over a bare `sf_instance` task would not work: no other task runs
 between the items of a loop, so every create would see the same
 `sf_capacity_waited` and be handed the whole budget.
 
-The `slim-*` worker nodes are created without `await`. For those, only
-a 507 is replayed, because the module returns before preflight runs.
+The `slim-*` worker nodes are awaited to placement with
+`await_placement`, not to boot. An unawaited create returns before the
+scheduler has run preflight, so the wait cannot see a capacity abort,
+and the build would fail at the SSH banner wait instead
+(shakenfist/actions#207). Awaiting placement lets the wait replay the
+abort within seconds, while the boots still overlap and the readiness
+play waits for them. A node awaited only to placement gets a 300
+second `await_timeout`. `tasks/create-topology-node.yml` passes the
+option only when `ansible-doc` says the installed collection has it
+(shakenfist/shakenfist#4746). Otherwise it logs a warning and leaves
+the option out, so a shakenfist checkout without it still builds, but
+without the replay.
 
 To change the budget, set it as an extra var:
 `--extra-vars capacity_wait_budget=N`. Setting it to 0 turns the wait
@@ -229,7 +240,8 @@ homelab overlay that imports `kerbside-single-node.yml` and passes
 collection that does not have the option.
 
 **Worst case.** A single create can take `capacity_wait` plus its
-`await_timeout`, which is 600 seconds in every one of these playbooks.
+`await_timeout`, which is 600 seconds in every one of these playbooks,
+or 300 for a `slim-*` node awaited only to placement.
 The capacity clock and the boot clock are separate. The wait ends
 when the cluster accepts the create, and the boot then gets its full
 `await_timeout`. A whole run can spend at most its budget waiting, on
