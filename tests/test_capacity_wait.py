@@ -97,6 +97,11 @@ def creates(name):
     return found
 
 
+def builtin(task, module):
+    """A task's arguments to an ansible.builtin module, under its short or its full name."""
+    return task.get(module) or task.get('ansible.builtin.' + module)
+
+
 def documented_budgets():
     """The playbook -> budget table under "Waiting for capacity"."""
     with open(DOCS) as f:
@@ -130,6 +135,50 @@ class CapacityWaitTest(unittest.TestCase):
                     counted = re.findall(r'(\w+)\.capacity_waited\.seconds', str(facts['sf_capacity_waited']))
                     self.assertEqual([task['register']], counted,
                                      'the count reads %s, not this create\'s register' % counted)
+
+    def test_every_topology_node_create_awaits_placement(self):
+        """Each create passes await_placement when the collection has it, and omits it otherwise.
+
+        An unawaited create cannot replay a preflight capacity abort, so a slim build refused at
+        preflight fails at the SSH banner wait instead (#207). But the collection is built from the
+        job's shakenfist checkout, and one without the option rejects it even when it is false, so
+        a literal true would fail every slim build on such a branch. The include asks ansible-doc
+        first and passes the option only when it is there.
+        """
+        found = creates(NODE_INCLUDE)
+        self.assertTrue(found, '%s has no sf_instance create; the list here is stale' % NODE_INCLUDE)
+
+        tasks = load(NODE_INCLUDE)
+        asks = [t for t in tasks
+                if 'ansible-doc' in str(builtin(t, 'command')) and MODULE in str(builtin(t, 'command'))]
+        self.assertEqual(1, len(asks), 'the include does not ask ansible-doc whether %s has await_placement, '
+                                       'so it cannot tell whether passing the option is safe' % MODULE)
+        records = [builtin(t, 'set_fact') for t in tasks
+                   if 'sf_instance_has_await_placement' in (builtin(t, 'set_fact') or {})]
+        self.assertEqual(1, len(records), 'nothing sets sf_instance_has_await_placement from the ansible-doc answer')
+        recorded = str(records[0]['sf_instance_has_await_placement'])
+        self.assertIn(asks[0]['register'], recorded, 'the fact is not computed from the ansible-doc task\'s output')
+        self.assertIn("'await_placement'", recorded, 'the fact does not look for await_placement in the options')
+
+        # Rendered with plain Jinja2 and stand-ins for Ansible's omit
+        # sentinel and its bool filter, as below.
+        environment = jinja2.Environment()
+        environment.filters['bool'] = lambda v: str(v).lower() in ('true', 'yes', 'on', '1')
+        omit = '__omit_place_holder__'
+        for task, _ in found:
+            with self.subTest(task=task.get('name')):
+                self.assertLess(tasks.index(asks[0]), tasks.index(task), 'the create runs before the question')
+                value = task[MODULE].get('await_placement')
+                self.assertIsInstance(value, str,
+                                      'await_placement must be passed when the collection has it, or an unawaited '
+                                      'create cannot replay a preflight capacity abort (#207), and omitted when it '
+                                      'has not, or every slim build against such a collection fails; a literal '
+                                      'cannot do both')
+                self.assertIn('sf_instance_has_await_placement', value)
+                self.assertIn('omit', value)
+                template = environment.from_string(value.strip())
+                self.assertEqual('True', template.render(omit=omit, sf_instance_has_await_placement=True).strip())
+                self.assertEqual(omit, template.render(omit=omit, sf_instance_has_await_placement=False).strip())
 
     def test_each_budget_matches_the_documented_table(self):
         documented = documented_budgets()
