@@ -193,8 +193,8 @@ phase 2 watches the first `canary.yml` run after its own merge.
 
 | Phase | Status | Merged |
 |-------|--------|--------|
-| 1. `sf_instance` awaits placement (shakenfist/shakenfist) | Not started | |
-| 2. Slim topologies await placement (shakenfist/actions) | Not started | |
+| 1. `sf_instance` awaits placement (shakenfist/shakenfist) | In progress | |
+| 2. Slim topologies await placement (shakenfist/actions) | In progress | |
 | 3. Push audit | Not started | |
 
 ### Phase 1: `sf_instance` awaits placement
@@ -310,6 +310,14 @@ Project-specific checks, per repository:
 - shakenfist/shakenfist#4568 asks preflight to record its stage and
   a transient flag on the instance. When it lands, the module's
   message matching can give way to it.
+- The `sf_instance` test harness's `_Succeeded` and `_Failed` outcome
+  exceptions subclass `SystemExit`. When a test expects one and the
+  module raises the other, it escapes `assertRaises` and kills its
+  stestr worker, so that worker's remaining tests drop out of the
+  totals; `python -m testtools.run` on a single test then exits 0.
+  tox still fails, so nothing is hidden in CI. Found while
+  mutation-testing step 1b; it predates this plan. File it as a
+  shakenfist issue.
 - `ci-topology-slim-primary-released.yml`, `ci-topology-localhost-released.yml`
   and `ci-topology-localhost-upgrade.yml` still pass no
   `capacity_wait`. No workflow runs them.

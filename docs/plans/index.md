@@ -9,4 +9,4 @@ shakenfist/development's `plan-status-vocabulary` block: `Proposed`,
 
 | Date | Plan | Intent | Status |
 |------|------|--------|--------|
-| 2026-10-31 | [PLAN-slim-preflight-replay.md](PLAN-slim-preflight-replay.md) | Let `sf_instance` await placement so slim hypervisor nodes replay a preflight capacity abort instead of dying five minutes later at the SSH wait (#207) | Not started |
+| 2026-10-31 | [PLAN-slim-preflight-replay.md](PLAN-slim-preflight-replay.md) | Let `sf_instance` await placement so slim hypervisor nodes replay a preflight capacity abort instead of dying five minutes later at the SSH wait (#207) | In progress |
