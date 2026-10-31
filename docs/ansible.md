@@ -710,14 +710,52 @@ instar's `prepare-testdata.sh` updates the clone in place. The
 filesystem is made with exactly the feature list the dependencies disk
 uses, and `tests/test_ci_instar_testdata.py` compares the two.
 
-The disk is attached to runners that run pull request code, so the
-build removes the GitLab token before publishing. The clone leaves it
-in the `origin` URL, and git-lfs records an `[lfs "<url>"]` section
-naming it. The build resets `origin`, removes every `lfs.*` section
-containing `oauth2:`, and then fails if `oauth2` or the token itself
-appears anywhere under `.git/` outside the object stores. Every task
-that carries the token has `no_log: true`. The design is in
-[PLAN-instar-testdata-disk.md](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-instar-testdata-disk.md),
+The disk is attached to runners that run pull request code as root,
+so the build never writes the GitLab token to it. Removing a
+credential from a file is not enough: ext4 frees the old blocks
+without zeroing them, so a token that was ever in `.git/config` stays
+in the published image for anyone who reads the raw device, even
+after every file has been cleaned. The remote URL is therefore clean
+from the start, and git and git-lfs authenticate through git's `store`
+credential helper, named with `git -c` on the clone and the LFS pull
+and reading a file on tmpfs (`/dev/shm`), in the builder's memory
+rather than on any disk. The token reaches that file on a task's stdin:
+it is on no command line, in no environment prefix and in no `-vvv`
+output, and because the play enables ansible pipelining, the module
+carrying it is never written to the builder's disk either. The file
+is removed before anything fetched from outside this repository runs.
+
+The build then checks, and fails rather than publishing, if `oauth2`
+or the token appears in a file under `.git/` outside the object
+stores, or if the token appears anywhere on the raw `vdc` device,
+free space included. Both of those carry the token, so both run
+before the resparsify script is fetched; no task after the fetch
+carries it in any form. After the unmount, a last search reads the raw
+device as it will be snapshotted for the credential URL form,
+`oauth2:<anything>@gitlab.home.stillhq.com`, which needs no secret.
+It looks for that rather than for `oauth2` alone because the test
+images include whole operating system images, where an OAuth library
+can put the string in directory and file names. Every task that carries
+the token has `no_log: true`; the clone and the pull do not carry it,
+so their failures reach the log.
+
+What remains exposed: on the builder, debian and root can read the
+token while it is staged, and it survives in freed memory after it is
+removed, which a root process could in principle scrape. The
+resparsify script runs as `debian`, who has passwordless sudo, after
+that point.
+
+That script is fetched from instar's `develop` branch by name on every
+build, not pinned to a commit and checksum. This is an accepted
+exception to pinning what a build runs: pinning would let the script
+this build runs drift from the one instar's own jobs run, which is the
+thing fetching it exists to prevent, and a pin nobody remembers to bump
+fails silently in exactly that way. The cost is that whoever can push
+to instar's `develop` runs code as root on the builder and can change
+what is published on this disk, and so what every instar job finds
+there, but it finds no token on the disk to read. How the
+conductor builds, orders and verifies cache disks is in
+[docs/cache-disks.md](https://github.com/shakenfist/private-ci/blob/master/docs/cache-disks.md)
 in the private-ci repository, which is not public.
 
 ## Package resolution policy
@@ -806,12 +844,16 @@ it can only answer for the machine the playbook built -- which is why
 without anybody noticing it was Debian 11. Only an instance booted
 from the snapshot speaks for the artifact that will carry the label.
 
-`ci-dependencies.yml` is the exception, and has to be. Its artifact is
-a data disk rather than a bootable image, so there is no test instance
-to boot; its check runs in the `allsf` play on the builder, against
-the mounted filesystem, immediately before the unmount and snapshot.
-That is a real limitation and not a preference: it speaks for the
-filesystem as the builder saw it, not for the blob that gets labelled.
+The two cache disk playbooks, `ci-dependencies.yml` and
+`ci-instar-testdata.yml`, are the exception, and have to be. Their
+artifact is a data disk rather than a bootable image, so there is no
+test instance to boot; their checks run in the `allsf` play on the
+builder, against the mounted filesystem, immediately before the
+unmount and snapshot. That is a real limitation and not a preference:
+it speaks for the filesystem as the builder saw it, not for the blob
+that gets labelled. The instar-testdata disk's last credential search
+narrows the gap: it runs after the unmount and reads the raw device,
+which is what the snapshot copies.
 
 | Playbook | What the image exists to provide | How it is exercised | Where |
 |----------|----------------------------------|---------------------|-------|
@@ -822,6 +864,11 @@ filesystem as the builder saw it, not for the blob that gets labelled.
 | `ci-image-desktop.yml` | A graphical session a console can see | `systemctl get-default`, `systemctl is-active display-manager`, and an active graphical session on `seat0` | test instance |
 | `ci-dependencies.yml` | Cache entries CI jobs can read | Each download matches its `Content-Length` | builder, as downloaded |
 | `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a megabyte, and at least 2GB still free | builder, pre-unmount |
+| `ci-instar-testdata.yml` | No GitLab credential on a disk PR code can read | `oauth2` or the token in `.git/` outside the object stores, and the token anywhere on the raw device | builder, before the resparsify script is fetched |
+| `ci-instar-testdata.yml` | No GitLab credential on a disk PR code can read | The credential URL form anywhere on the raw device | builder, post-unmount |
+| `ci-instar-testdata.yml` | Test images, not LFS pointers | The first bytes of two canary files are not an LFS pointer, and `.git/lfs/objects` is not empty | builder, pre-unmount |
+| `ci-instar-testdata.yml` | An index runners need not rewrite | `git update-index --refresh`, then `git diff-files --quiet` | builder, pre-unmount |
+| `ci-instar-testdata.yml` | A clone git will work in, with room left | The tree is owned by `debian`, and at least 2GB still free | builder, pre-unmount |
 
 Three of those are deliberately weaker than they first appear, and all
 three are worth knowing before you tighten them:

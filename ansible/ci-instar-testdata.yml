@@ -4,8 +4,8 @@
 # /srv/ci/cached/instar-testdata. It is modelled play by play on
 # ci-dependencies.yml, and where a comment here is short, the reasoning is
 # in the matching place there. What the disk holds, who mounts it, why
-# it is writable and why the GitLab token is scrubbed before publishing
-# are in "The instar-testdata disk" in docs/ansible.md.
+# it is writable and how the GitLab token is kept off it are in "The
+# instar-testdata disk" in docs/ansible.md.
 - hosts: localhost
   gather_facts: no
   connection: ssh
@@ -139,6 +139,22 @@
     NO_PROXY: localhost,127.0.0.1,10.0.0.0/8
   vars:
     gitlab_testdata_token: ""
+    # Without pipelining, ansible copies each module, its arguments
+    # included, to a file under ~/.ansible/tmp on the builder's boot disk
+    # and deletes it afterwards. Three tasks below carry the token in
+    # their arguments, so each would leave a copy in freed blocks of vda,
+    # where the resparsify script fetched below could read it back
+    # through debian's passwordless sudo, and which the snapshot of every
+    # disk at the end of this playbook carries until it is deleted.
+    # Pipelined, a module and its arguments reach the builder's python on
+    # the ssh session's stdin and are never written to disk. It needs a
+    # sudo without requiretty, which debian:13 is.
+    ansible_pipelining: true
+    # The credential is staged in this directory, on tmpfs, for the clone
+    # and the LFS pull, and nowhere else; see "Stage the GitLab credential
+    # in memory".
+    testdata_credential_dir: /dev/shm/instar-testdata-credential
+    testdata_credential_helper: "store --file={{ testdata_credential_dir }}/store"
 
   tasks:
     # The ansible git module knows nothing about git-lfs, so the clone
@@ -205,15 +221,59 @@
         owner: debian
         group: debian
 
-    # no_log on every task that carries the token: a failed command would
-    # otherwise print its arguments, token included, into the build log.
-    - name: Clone instar-testdata from GitLab
-      command: >-
-        git clone --depth 1
-        https://oauth2:{{ gitlab_testdata_token }}@gitlab.home.stillhq.com/private/instar-testdata.git
-        /srv/ci/cached/instar-testdata
+    # The GitLab token never touches the instar-testdata disk. This disk
+    # is attached to runners that run pull request code as root, and
+    # removing a credential from a file on it does not remove it from the
+    # disk: ext4 frees the old blocks without zeroing them, so a token
+    # that was ever written to .git/config is still in the published
+    # image, readable by anyone who can read the raw device. The remote
+    # URL is therefore clean from the start, and git and git-lfs get the
+    # credential from git's own store helper, reading a file on tmpfs.
+    #
+    # The token reaches that file on this task's stdin, which is never on
+    # a command line, in an environment prefix or in the -vvv output, and
+    # with ansible_pipelining never in a file on disk either. The file is
+    # in a 0700 directory so that it stays private even if the helper
+    # rewrites it on approving a credential, which it would do with the
+    # umask's permissions rather than 0600. A token with characters that
+    # are not URL-safe is percent-encoded, which the helper decodes.
+    #
+    # What remains: debian and root on the builder can read the token
+    # until "Remove the staged GitLab credential" below, and nothing from
+    # outside this repository runs before then. After that it survives
+    # only in freed memory, which a root process could in principle
+    # scrape, and the resparsify script fetched below can become root.
+    # That is far less than a copy on a disk every instar runner mounts.
+    - name: Stage the GitLab credential in memory for the clone
+      shell: |
+        set -euo pipefail
+        umask 077
+        mkdir {{ testdata_credential_dir }}
+        cat > {{ testdata_credential_dir }}/store
+      args:
+        executable: /bin/bash
+        stdin: "https://oauth2:{{ gitlab_testdata_token | urlencode }}@gitlab.home.stillhq.com"
       become_user: debian
       no_log: true
+
+    # The helper is given with git -c, before the subcommand, which
+    # applies it to this run only and writes nothing into the clone's
+    # .git/config. The empty value first clears any helper the system
+    # configuration might name, so the credential is neither looked for
+    # nor approved anywhere else. Debian's git-lfs package installs the
+    # LFS filter system-wide, so the clone's checkout already fetches LFS
+    # content, and git passes the -c settings on to it.
+    #
+    # Neither this nor the pull carries the token, so their output and
+    # failures reach the log: an expired token shows as an authentication
+    # failure against the clean URL, rather than as a censored task.
+    - name: Clone instar-testdata from GitLab
+      command: >-
+        git -c credential.helper= -c "credential.helper={{ testdata_credential_helper }}"
+        clone --depth 1
+        https://gitlab.home.stillhq.com/private/instar-testdata.git
+        /srv/ci/cached/instar-testdata
+      become_user: debian
 
     - name: Enable git-lfs in the instar-testdata clone
       command: git lfs install --local
@@ -223,55 +283,98 @@
 
     # The LFS objects stay in .git/lfs/objects as well as the working
     # tree, which is what makes a runner's own `git lfs pull` a no-op
-    # except for objects added since this build.
-    #
-    # The pull authenticates with the credential in the remote URL, so
-    # its output and failures are kept out of the log too. That costs
-    # diagnosis: a failed clone or pull shows only as censored, and
-    # finding out why (an expired token, the proxy, LFS quota) means a
-    # hand run. That is the right side of the trade for a nightly build
-    # whose log is not where a token should ever be.
+    # except for objects added since this build. git-lfs asks git for
+    # credentials through `git credential`, which inherits the -c
+    # settings. The one thing it writes to .git/config is an
+    # lfs.<url>.access key, and the URL there is the clean one.
     - name: Fetch the git-lfs content for instar-testdata
-      command: git lfs pull
-      args:
-        chdir: /srv/ci/cached/instar-testdata
-      become_user: debian
-      no_log: true
-
-    # Scrub the credential. This disk is attached to runners that run
-    # pull request code, so a token left on it is a token handed to
-    # whoever can open a pull request. The clone put it in the origin
-    # URL, and git-lfs records an [lfs "<url>"] section, with the token
-    # in the section name, for the endpoint it authenticated against.
-    - name: Remove the credential from the instar-testdata remote
-      command: git remote set-url origin https://gitlab.home.stillhq.com/private/instar-testdata.git
+      command: >-
+        git -c credential.helper= -c "credential.helper={{ testdata_credential_helper }}"
+        lfs pull
       args:
         chdir: /srv/ci/cached/instar-testdata
       become_user: debian
 
-    # A key from --get-regexp is section.subsection.name, and the
-    # subsection here is a URL which itself contains dots, so the section
-    # to remove is everything before the LAST dot, never a split on the
-    # first. The sections are matched on containing oauth2:, and the
-    # grep check below is what proves none was missed. git exits 1 when
-    # nothing matches, which is fine; any other failure, here or in a
-    # --remove-section, fails the task. no_log because the section names
-    # this reads hold the token, and a failing git config prints them.
-    - name: Remove the credential from the instar-testdata lfs config
+    # Before anything fetched from outside this repository runs.
+    - name: Remove the staged GitLab credential
+      file:
+        path: "{{ testdata_credential_dir }}"
+        state: absent
+
+    # Two searches: oauth2 for anywhere the URL form was written, and
+    # the token itself for anywhere it was stored bare. The patterns
+    # arrive on stdin, so the token is on no command line, and the
+    # output is only file names, which the assert below prints. grep
+    # exits 1 for no match; 2 is an error, which would otherwise look
+    # like a clean result. This runs before the resparsify script is
+    # fetched: no task after that carries the token.
+    - name: Search the git metadata for the credential
       shell: |
         set -euo pipefail
-        keys=$(git config --local --name-only --get-regexp '^lfs\.') || [ "$?" -eq 1 ]
-        while IFS= read -r key; do
-          section="${key%.*}"
-          case "$section" in
-            *oauth2:*) git config --local --remove-section "$section" ;;
-          esac
-        done <<< "$keys"
+        rc=0
+        grep -rlF --exclude-dir=objects -f - .git || rc=$?
+        [ "$rc" -le 1 ]
       args:
         chdir: /srv/ci/cached/instar-testdata
         executable: /bin/bash
-      become_user: debian
+        stdin: "oauth2\n{{ gitlab_testdata_token }}"
+      register: credential_search
+      changed_when: false
       no_log: true
+
+    - name: Confirm no credential is left in the instar-testdata git metadata
+      assert:
+        that:
+          - credential_search.stdout == ''
+        fail_msg: >-
+          The GitLab token is still present in
+          {{ credential_search.stdout_lines | join(', ') }}. Publishing this
+          disk would hand it to every runner that mounts it, including ones
+          running pull request code.
+        success_msg: No credential found in the git metadata.
+
+    # The search above sees only files. This one reads every block of the
+    # disk, free space included, which is where a credential that was
+    # written and then removed would still be. The sync puts everything
+    # written so far on the device, and --flushbufs drops any block
+    # device cache older than it, so grep reads what is on the disk. -z
+    # because a long run of zeros holds no newline, and grep keeps a
+    # whole line in memory. The output is only the outcome, never the
+    # match.
+    #
+    # This is the only raw search for the bare token: it has to run
+    # before the resparsify script, like every task that carries the
+    # token. After the resparsify nothing on the builder holds the token,
+    # so nothing can put it back; the search after the unmount looks for
+    # the URL form, which needs no secret.
+    - name: Search the raw instar-testdata disk for the token
+      shell: |
+        set -euo pipefail
+        sync
+        blockdev --flushbufs /dev/vdc
+        rc=0
+        grep -qazF -f - /dev/vdc || rc=$?
+        case "$rc" in
+          0) echo found ;;
+          1) echo clean ;;
+          *) exit "$rc" ;;
+        esac
+      args:
+        executable: /bin/bash
+        stdin: "{{ gitlab_testdata_token }}"
+      register: raw_token_search
+      changed_when: false
+      no_log: true
+
+    - name: Confirm the token is nowhere on the raw instar-testdata disk
+      assert:
+        that:
+          - raw_token_search.stdout == 'clean'
+        fail_msg: >-
+          The GitLab token is somewhere on /dev/vdc, in a file or in free
+          space. Publishing this disk would hand it to every runner that
+          mounts it, including ones running pull request code.
+        success_msg: The token is not on the raw instar-testdata disk.
 
     # Resparsifying is instar's own tools/ci/resparsify-testdata.sh, the
     # same script its functional tests run, fetched rather than copied
@@ -294,11 +397,16 @@
     # every instar job. The script lands on the builder's boot disk,
     # which is discarded, not on the disk being published.
     #
-    # Both tasks come after the credential is removed above. This is
-    # code from another repository's branch, and resparsifying does not
-    # need the token, so nothing fetched from outside this repository
-    # runs while the token is still readable in .git/config. The check
-    # that no credential is left still runs after it, below.
+    # Both tasks come after the staged credential is removed and after
+    # both searches that need the token. This is code from another
+    # repository's branch, run as debian, who can sudo, so it could read
+    # anything left on the builder and watch every task after it. No task
+    # from here on carries the token in any form, not in arguments, not
+    # on stdin and not in the environment; the backstop after the unmount
+    # searches for the URL form, which needs no secret. The URL is a
+    # branch rather than a commit and checksum because pinning would
+    # bring back the drift the fetch exists to avoid; docs/ansible.md
+    # records that trade and what it still exposes.
     - name: Fetch instar's resparsify script
       get_url:
         url: https://raw.githubusercontent.com/shakenfist/instar/develop/tools/ci/resparsify-testdata.sh
@@ -391,38 +499,6 @@
       loop_control:
         label: "{{ item.item }}"
 
-    # Two searches: oauth2 for every place the URL form was left, and the
-    # token itself for anywhere it was stored bare. The token comes in
-    # through the environment so it is never on a command line, and the
-    # output is only file names, which the assert below prints. grep
-    # exits 1 for no match; 2 is an error, which would otherwise look
-    # like a clean result.
-    - name: Search the git metadata for the credential
-      shell: |
-        set -euo pipefail
-        rc=0
-        grep -rlF --exclude-dir=objects -e oauth2 -e "$TESTDATA_TOKEN" .git || rc=$?
-        [ "$rc" -le 1 ]
-      args:
-        chdir: /srv/ci/cached/instar-testdata
-        executable: /bin/bash
-      environment:
-        TESTDATA_TOKEN: "{{ gitlab_testdata_token }}"
-      register: credential_search
-      changed_when: false
-      no_log: true
-
-    - name: Confirm no credential is left on the instar-testdata disk
-      assert:
-        that:
-          - credential_search.stdout == ''
-        fail_msg: >-
-          The GitLab token is still present in
-          {{ credential_search.stdout_lines | join(', ') }}. Publishing this
-          disk would hand it to every runner that mounts it, including ones
-          running pull request code.
-        success_msg: No credential found in the git metadata.
-
     - name: Count the git-lfs objects
       shell: ls -A .git/lfs/objects | wc -l
       args:
@@ -483,6 +559,48 @@
       mount:
         path: /srv/ci/cached/instar-testdata
         state: unmounted
+
+    # The backstop, run on the disk exactly as it will be snapshotted:
+    # every block, free space included, after the unmount has written
+    # everything out. --flushbufs drops any block device cache older than
+    # the unmount, and -z is for the same reason as in the raw search for
+    # the token above.
+    #
+    # It looks for the credential URL form, oauth2:<anything>@ this
+    # GitLab, rather than for the token or for oauth2 alone. The token
+    # cannot be used here, because the resparsify script has run and no
+    # task after it may carry the token. oauth2 alone is too common to
+    # mean anything on this disk: the test images include whole operating
+    # system images, and OAuth libraries name directories and files
+    # oauth2. The URL form is what a credential embedded in a remote,
+    # an lfs section name or a credential store line looks like, and
+    # nothing else on this disk would contain it. The output is only the
+    # outcome, never the match.
+    - name: Search the raw instar-testdata disk for a credential URL
+      shell: |
+        set -euo pipefail
+        blockdev --flushbufs /dev/vdc
+        rc=0
+        grep -qazE 'oauth2:[^@[:space:]]*@gitlab\.home\.stillhq\.com' /dev/vdc || rc=$?
+        case "$rc" in
+          0) echo found ;;
+          1) echo clean ;;
+          *) exit "$rc" ;;
+        esac
+      args:
+        executable: /bin/bash
+      register: raw_url_search
+      changed_when: false
+
+    - name: Confirm no credential URL is on the raw instar-testdata disk
+      assert:
+        that:
+          - raw_url_search.stdout == 'clean'
+        fail_msg: >-
+          /dev/vdc holds a GitLab credential URL, in a file or in free
+          space. Publishing this disk would hand the token in it to every
+          runner that mounts it, including ones running pull request code.
+        success_msg: No credential URL on the raw instar-testdata disk.
 
 - hosts: localhost
   gather_facts: no
