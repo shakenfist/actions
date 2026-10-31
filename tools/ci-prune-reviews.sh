@@ -26,7 +26,9 @@ GITSIGN_SHA256='69213a8a0813a151e5a47d0060862952ff833a845d57309dff76f7ba6600abae
 # The token, out of the environment, so that nothing this script runs
 # inherits it: not curl, not gitsign, and not the review tracking
 # script from the development clone. Only push_review_state hands it
-# on, to the one git push.
+# on, to the one git push. unset changes only what children inherit:
+# this script's own /proc/<pid>/environ is fixed at exec and still
+# holds PUSH_TOKEN for the whole run.
 take_push_token() {
     push_token="${PUSH_TOKEN}"
     unset PUSH_TOKEN
@@ -311,9 +313,11 @@ Automated commit by the prune-reviews workflow.'
 # http.extraheader for github.com, through GIT_CONFIG_COUNT and friends
 # on this command alone: never in argv, where any process on the runner
 # could read it, and never in .git/config, where it would outlive the
-# push. The environment of git push and its git-remote-https child is
-# still readable, through /proc/<pid>/environ, by any process running
-# as the runner's own user while the push runs; what bounds that is the
+# push. The push's environment, and this script's own and its parent
+# step shell's (see take_push_token), is still readable through
+# /proc/<pid>/environ by any process running as the runner's own user,
+# for the whole run and not only while the push runs. Only a runner
+# user of the job's own would close that; what bounds it here is the
 # runner killing a job's orphaned processes when the job ends, and the
 # fresh clone, whose empty hooks directory gives an earlier job's code
 # no way to start one inside this job. printf is a builtin, so the
