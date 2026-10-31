@@ -23,6 +23,14 @@
 #   groups    groups the node joins besides allsf, comma separated
 #   await     optional, true to wait for the instance to boot
 #
+# Every node is awaited at least to placement, because an unawaited create
+# returns before the scheduler's verdict and capacity_wait could not see a
+# preflight capacity abort (shakenfist/actions#207). await_placement is
+# passed only when the installed collection has it (shakenfist/shakenfist#4746),
+# so a shakenfist checkout without it still builds; a node awaited only to
+# placement gets a 300 second await_timeout. See "Waiting for capacity" in
+# docs/ansible.md.
+#
 # The calling play provides identifier, instance_suffix, base_image,
 # base_image_user, sshkey, ssh_private_key, meshnetwork,
 # capacity_wait_budget and sf_capacity_waited.
@@ -34,6 +42,38 @@
 # runs its set_fact between items. kerbside-create-instance.yml does the
 # same, and "Waiting for capacity" in docs/ansible.md describes the
 # budget.
+
+# Asked by the first include only, and on the controller, whose collection
+# supplies the module code. Ansible rejects an option the module does not
+# know even when it is false, so it must be omitted rather than turned off.
+- name: Ask the installed collection whether sf_instance has await_placement
+  command: ansible-doc -t module -j shakenfist.shakenfist.sf_instance
+  connection: local
+  register: sf_instance_doc
+  changed_when: false
+  failed_when: false
+  when: sf_instance_has_await_placement is not defined
+
+- name: Record whether sf_instance has await_placement
+  set_fact:
+    sf_instance_has_await_placement: >-
+      {{ sf_instance_doc.rc | default(1) == 0
+         and sf_instance_doc.stdout | default('') | trim is match('[{]')
+         and 'await_placement' in ((sf_instance_doc.stdout | from_json)
+                                   ['shakenfist.shakenfist.sf_instance']['doc']['options'] | default({}, true)) }}
+  when: sf_instance_has_await_placement is not defined
+
+- name: Report whether a preflight capacity abort will be replayed
+  debug:
+    msg: >-
+      {{ "The installed shakenfist.shakenfist collection's sf_instance has
+      await_placement, so every node is awaited at least to placement."
+      if sf_instance_has_await_placement | bool else
+      "WARNING: the installed shakenfist.shakenfist collection's sf_instance
+      has no await_placement option, so a preflight capacity abort on a node
+      that is not awaited to boot will not be replayed (shakenfist/actions#207)." }}
+  when: sf_instance_doc is not skipped
+
 - name: Create {{ node.hostname }}
   shakenfist.shakenfist.sf_instance:
     name: "t-{{ instance_suffix }}-{{ node.suffix }}"
@@ -50,7 +90,8 @@
     namespace: "{{ identifier }}"
     state: present
     await: "{{ node.await | default(false) }}"
-    await_timeout: 600
+    await_placement: "{{ true if sf_instance_has_await_placement | bool else omit }}"
+    await_timeout: "{{ 600 if node.await | default(false) else 300 }}"
     capacity_wait: "{{ [capacity_wait_budget | int - sf_capacity_waited | int, 0] | max }}"
   register: topology_node
 
@@ -59,6 +100,13 @@
 - name: Count the time {{ node.hostname }} waited for capacity
   set_fact:
     sf_capacity_waited: "{{ sf_capacity_waited | int + topology_node.capacity_waited.seconds | default(0) | int }}"
+
+# The module's log is printed only when it fails, so this is the one place
+# a build log shows that a node was awaited to placement.
+- name: Log how {{ node.hostname }} was awaited
+  debug:
+    msg: "{{ topology_node.log | default([]) | select('search', 'placed|placement') | list }}"
+  when: sf_instance_has_await_placement | bool
 
 - name: Add {{ node.hostname }} to ansible
   add_host:

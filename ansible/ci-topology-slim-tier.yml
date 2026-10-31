@@ -16,8 +16,8 @@
     capacity_wait_budget: 600
 
     # The nodes this topology creates, in order. The primary is created
-    # and booted first; the other two are not awaited, and the readiness
-    # play below waits for all of them.
+    # and booted first; the other two are awaited only to placement, not to
+    # boot, and the readiness play below waits for their boots.
     topology_nodes:
       # The primary VM is also a hypervisor and a member of the sf-database
       # tier (database_node). Bumped from slim-primary's 4096 MiB to 12288 MiB
