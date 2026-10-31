@@ -166,15 +166,21 @@ rather than the client's strategy deadline. With a client that
 predates the argument, the elapsed-time deduction covers it, as it
 does for `await`.
 
-**D5. Land shakenfist first, then actions, and watch the canary.**
-`install-collection.sh` builds the collection from the checked-out
-shakenfist repository: the triggering ref for shakenfist's own
-pull requests, `develop` for everyone else. If actions merges first,
-every slim build fails with `Unsupported parameters: await_placement`
--- which is exactly what canary 39091877078 did on 2026-10-18 when
-actions#177 landed eight minutes before shakenfist#4569. The actions
-pull request is recorded as blocked on the shakenfist merge, and
-phase 2 watches the first `canary.yml` run after its own merge.
+**D5. Detect the option rather than rely on landing order.**
+`install-collection.sh` builds the collection from the job's shakenfist
+checkout. That is `develop` for most consumers, but for a shakenfist
+`/retest` or `workflow_dispatch` it is the branch head (`pr-retest.yml`
+dispatches with `--ref` set to the pull request's ref). So ordering
+alone cannot protect open shakenfist branches: Ansible rejects an
+option the module does not know even when it is false, and every slim
+build on a branch cut before #4746 would fail with `Unsupported
+parameters: await_placement`, as canary 39091877078 did on 2026-10-18
+when actions#177 landed eight minutes before shakenfist#4569. The
+include therefore asks `ansible-doc` whether the installed `sf_instance`
+has the option and omits it, with a warning, when it does not. That
+also makes a later revert of #4746 harmless. The actions pull request
+is still held until #4746 merges, so the option is active from the
+start.
 
 ## Open questions
 
@@ -186,8 +192,9 @@ phase 2 watches the first `canary.yml` run after its own merge.
   it. Revisit if a second caller appears.
 - **Q2.** Should the actions include set `await_placement: true` on
   every node, or only where `await` is false? Default answer: every
-  node. One literal line is what `tests/test_capacity_wait.py` can
-  check, and `D2` makes the redundant case free.
+  node. One line on the include's one create is what
+  `tests/test_capacity_wait.py` can check, and `D2` makes the redundant
+  case free.
 
 ## Execution
 
@@ -199,9 +206,8 @@ phase 2 watches the first `canary.yml` run after its own merge.
 
 ### Phase 1: `sf_instance` awaits placement
 
-Work in a new shakenfist/shakenfist worktree,
-`/srv/kasm_profiles/mikal/vscode/src/shakenfist/shakenfist-wt-slim-preflight-replay`,
-branch `sf-instance-await-placement` from `origin/develop`. One pull
+Work in a new shakenfist/shakenfist worktree, branch
+`sf-instance-await-placement` from `origin/develop`. One pull
 request, three commits. Run that repository's `PUSH-AUDIT.md` before
 pushing; this plan's phase 3 cites that audit rather than repeating
 it.
@@ -214,18 +220,17 @@ it.
 
 ### Phase 2: slim topologies await placement
 
-Work in this worktree,
-`/srv/kasm_profiles/mikal/vscode/src/shakenfist/actions-wt-slim-preflight-replay`,
-branch `slim-preflight-replay`. One pull request whose body closes
+Work in this repository's worktree for branch
+`slim-preflight-replay`. One pull request whose body closes
 #207. Before it is opened, record with the `plan-blockers` skill that
 this plan waits on the phase 1 pull request merging to `develop`; do
 not merge it before that (`D5`).
 
 | Step | Effort | Model | Isolation | Brief for sub-agent |
 |------|--------|-------|-----------|---------------------|
-| 2a | medium | sonnet | none | **The include and its documentation.** In `ansible/tasks/create-topology-node.yml` add `await_placement: true` directly under `await:` (`:52`), as a literal. Update the header comment's `await` line (`:24`) to say that every node is awaited to placement and `await: true` additionally waits for boot, and add a short paragraph to the header explaining why: an unawaited create returns before the scheduler's verdict, so a preflight capacity abort was invisible and the build failed five minutes later at the SSH banner wait (#207). Fix the two playbook comments that say the hypervisors "are not awaited": `ci-topology-slim-primary.yml:78-79` and `ci-topology-slim-tier.yml:19-20`. In `docs/ansible.md`, change the bullet at `:172` from "on an awaited create, a preflight abort for capacity" to cover a create awaited to boot or to placement, and replace the paragraph at `:218-219` ("The `slim-*` worker nodes are created without `await`...") with one that says they are awaited to placement, why, and that boot is still not awaited so the creates overlap. Keep the budget table unchanged. Verify with `python3 -m unittest discover -s tests -t .` and `tools/ansible-syntax-check.sh ansible/ci-topology-slim-primary.yml ansible/ci-topology-slim-tier.yml` (the latter needs the collection installed locally; say so if it is not). Commit subject: `slim topologies: await placement of every node.` |
-| 2b | medium | sonnet | none | **The structural test.** In `tests/test_capacity_wait.py` add `test_every_topology_node_create_awaits_placement`: for every create `creates(NODE_INCLUDE)` returns, assert `task[MODULE].get('await_placement') is True` (a literal, not a template), with a failure message explaining that an unawaited create cannot replay a preflight capacity abort (#207). Extend the module docstring's list of "easy mistakes" with this one. Run `python3 -m unittest tests.test_capacity_wait` and `pre-commit run --all-files`. Commit subject: `tests: every topology node create awaits placement.` |
-| 2c | medium | opus | none | **Land and watch. By the management session.** Run `PUSH-AUDIT.md` over `origin/main...HEAD`, push, and open the pull request once phase 1 has merged. After the actions merge, watch the first `canary.yml` run on `main`. If it fails at `Build infrastructure` with `Unsupported parameters`, revert the merge at once and diagnose afterwards. Record the canary run id and result in this plan's Back brief, and record phase 1 and 2's merge commits in the Execution table's `Merged` column in the phase 3 commit. |
+| 2a | medium | sonnet | none | **The include and its documentation.** In `ansible/tasks/create-topology-node.yml`, pass `await_placement` on the create only when the installed collection has it (`D5`): a task run once per play asks `ansible-doc -t module -j shakenfist.shakenfist.sf_instance` on the controller, a `set_fact` records `sf_instance_has_await_placement` (false if `ansible-doc` fails or its output is not the expected shape), a `debug` reports the result once (a warning when false), and the create passes `await_placement: "{{ true if sf_instance_has_await_placement \| bool else omit }}"`. A node awaited only to placement gets a 300 second `await_timeout`, as placement normally takes seconds; an awaited one keeps 600. A `debug` after the count logs each node's placement lines from the module's `log`, which is otherwise printed only on failure. The header comment says why every node is awaited to placement (#207) and that the option is detected. Fix the two playbook comments that say the hypervisors "are not awaited": `ci-topology-slim-primary.yml:78-79` and `ci-topology-slim-tier.yml:19-20`. In `docs/ansible.md`, change the bullet at `:172` to cover a create awaited to boot or to placement, and replace the paragraph at `:218-219` with one that says the slim workers are awaited to placement, why, that boot is still not awaited, that unawaited nodes get a 300 second `await_timeout`, and that the option is passed only when the collection has it. Keep the budget table unchanged. Verify with `python3 -m unittest discover -s tests -t .` and `tools/ansible-syntax-check.sh ansible/ci-topology-slim-primary.yml ansible/ci-topology-slim-tier.yml`, and run the detection tasks in a throwaway playbook against a collection with and one without the option. Commit subject: `slim topologies: await placement of every node.` |
+| 2b | medium | sonnet | none | **The structural test.** In `tests/test_capacity_wait.py` add `test_every_topology_node_create_awaits_placement`: the include holds one `ansible-doc` task naming `shakenfist.shakenfist.sf_instance`, a `set_fact` that computes `sf_instance_has_await_placement` from its output and looks for `'await_placement'`, and every create `creates(NODE_INCLUDE)` returns comes after it and passes a template that references the fact and `omit` and renders to `True` or to the omit placeholder. Its docstring and failure messages say why: an unawaited create cannot replay a preflight capacity abort (#207), and a literal would break every slim build on a collection without the option. Prove it fails when the option line is deleted, made a literal `true`, or the detection task is deleted. Run `python3 -m unittest tests.test_capacity_wait` and `pre-commit run --all-files`. Commit subject: `tests: every topology node create awaits placement.` |
+| 2c | medium | opus | none | **Land and watch. By the management session.** Run `PUSH-AUDIT.md` over `origin/main...HEAD`, push, and open the pull request once phase 1 has merged. The canary does not exercise this change: `canary.yml` calls `smoke-cluster.yml` with no `topology` input, which defaults to `localhost`, and only the slim topologies include `create-topology-node.yml`. The first real run is the first shakenfist merge-queue or scheduled slim job after the actions merge (shakenfist's `functional-tests.yml`, `functional-lanes.yml` and `scheduled-tests.yml` run `slim-primary` and `slim-tier`). In that job's `Build infrastructure` log, confirm that the detection reported the option found and that each hypervisor's "Log how ... was awaited" line shows "was placed". If the job fails at `Build infrastructure` with `Unsupported parameters`, revert the merge at once and diagnose afterwards. Record the run id and result in this plan's Back brief, and record phase 1 and 2's merge commits in the Execution table's `Merged` column in the phase 3 commit. |
 
 ### Phase 3: push audit
 
@@ -253,8 +258,9 @@ Project-specific checks, per repository:
   shellcheck, flake8, skillsaw and the unit tests), and
   `tools/ansible-syntax-check.sh` where the collection is installed.
   `AGENTS.md` says what cannot be tested before merge: nothing here
-  can exercise a slim build on a pull request, so the canary is the
-  first real run (`2c`).
+  can exercise a slim build on a pull request, and the canary builds
+  only `localhost`, so the first real run is the first shakenfist slim
+  job after the merge (`2c`).
 
 ## Administration and logistics
 
@@ -272,9 +278,13 @@ Project-specific checks, per repository:
 - An `sf_instance` task that sets neither `await` nor
   `await_placement`, or that sets `await: true`, behaves exactly as
   it does today: same API calls, same messages.
-- `tests/test_capacity_wait.py` fails if `await_placement: true` is
-  removed from `create-topology-node.yml`.
-- The first `canary.yml` run after the actions merge passes.
+- `tests/test_capacity_wait.py` fails if `await_placement` is removed
+  from `create-topology-node.yml`, made a literal, or no longer
+  detected.
+- The first shakenfist slim job after the actions merge reports the
+  option detected, and each hypervisor create logs "was placed".
+- A slim build whose shakenfist checkout lacks `await_placement` still
+  builds, logging the warning.
 - `docs/ansible.md` here and `docs/user_guide/ansible.md` in
   shakenfist describe the behaviour; `AGENTS.md`, `ARCHITECTURE.md`
   and `README.md` are unchanged, because no convention and no
@@ -283,8 +293,9 @@ Project-specific checks, per repository:
 ### Definition of done
 
 1. Phase 1 merged to shakenfist `develop`.
-2. Phase 2 merged to actions `main`, closing #207, with its first
-   canary run green.
+2. Phase 2 merged to actions `main`, closing #207, with the first
+   shakenfist slim job after it reporting the option detected and
+   each hypervisor create logging "was placed".
 3. The `Merged` column filled for phases 1 and 2.
 4. Phase 3's audit recorded, with findings resolved or declined.
 5. Seven days after the actions merge, `tools/measure-placement-refusals.py`
@@ -336,5 +347,7 @@ is sizing, not a missing retry).
 Before executing any step of this plan, back brief the operator on
 your understanding of the plan and how the work you intend to do
 aligns with it. Record here, as the phases land: the shakenfist and
-actions pull request numbers, the canary run that followed the
+actions pull request numbers, the first shakenfist slim job after the
 actions merge and its result, and the seven-day reading.
+
+- Phase 1 is open as shakenfist/shakenfist#4746.
