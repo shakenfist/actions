@@ -221,85 +221,95 @@
         owner: debian
         group: debian
 
-    # The GitLab token never touches the instar-testdata disk. This disk
-    # is attached to runners that run pull request code as root, and
-    # removing a credential from a file on it does not remove it from the
-    # disk: ext4 frees the old blocks without zeroing them, so a token
-    # that was ever written to .git/config is still in the published
-    # image, readable by anyone who can read the raw device. The remote
-    # URL is therefore clean from the start, and git and git-lfs get the
-    # credential from git's own store helper, reading a file on tmpfs.
-    #
-    # The token reaches that file on this task's stdin, which is never on
-    # a command line, in an environment prefix or in the -vvv output, and
-    # with ansible_pipelining never in a file on disk either. The file is
-    # in a 0700 directory so that it stays private even if the helper
-    # rewrites it on approving a credential, which it would do with the
-    # umask's permissions rather than 0600. A token with characters that
-    # are not URL-safe is percent-encoded, which the helper decodes.
-    #
-    # What remains: debian and root on the builder can read the token
-    # until "Remove the staged GitLab credential" below, and nothing from
-    # outside this repository runs before then. After that it survives
-    # only in freed memory, which a root process could in principle
-    # scrape, and the resparsify script fetched below can become root.
-    # That is far less than a copy on a disk every instar runner mounts.
-    - name: Stage the GitLab credential in memory for the clone
-      shell: |
-        set -euo pipefail
-        umask 077
-        mkdir {{ testdata_credential_dir }}
-        cat > {{ testdata_credential_dir }}/store
-      args:
-        executable: /bin/bash
-        stdin: "https://oauth2:{{ gitlab_testdata_token | urlencode }}@gitlab.home.stillhq.com"
-      become_user: debian
-      no_log: true
+    # The staged credential is removed whether or not the clone and the
+    # pull succeed, and before anything fetched from outside this
+    # repository runs. Without the always, a failed clone would leave the
+    # token in /dev/shm on a builder that runs until something deletes
+    # it. There is deliberately no rescue: a failure still fails the
+    # build, after the cleanup.
+    - name: Fetch instar-testdata with the staged GitLab credential
+      block:
+        # The GitLab token never touches the instar-testdata disk. This disk
+        # is attached to runners that run pull request code as root, and
+        # removing a credential from a file on it does not remove it from the
+        # disk: ext4 frees the old blocks without zeroing them, so a token
+        # that was ever written to .git/config is still in the published
+        # image, readable by anyone who can read the raw device. The remote
+        # URL is therefore clean from the start, and git and git-lfs get the
+        # credential from git's own store helper, reading a file on tmpfs.
+        #
+        # The token reaches that file on this task's stdin, which is never on
+        # a command line, in an environment prefix or in the -vvv output, and
+        # with ansible_pipelining never in a file on disk either. The file is
+        # in a 0700 directory so that it stays private even if the helper
+        # rewrites it on approving a credential, which it would do with the
+        # umask's permissions rather than 0600. A token with characters that
+        # are not URL-safe is percent-encoded, which the helper decodes.
+        # urlencode leaves '/' alone, which in the userinfo would end the
+        # host part, so that is encoded by hand.
+        #
+        # What remains: debian and root on the builder can read the token
+        # until "Remove the staged GitLab credential" below, and nothing from
+        # outside this repository runs before then. After that it survives
+        # only in freed memory, which a root process could in principle
+        # scrape, and the resparsify script fetched below can become root.
+        # That is far less than a copy on a disk every instar runner mounts.
+        - name: Stage the GitLab credential in memory for the clone
+          shell: |
+            set -euo pipefail
+            umask 077
+            mkdir {{ testdata_credential_dir }}
+            cat > {{ testdata_credential_dir }}/store
+          args:
+            executable: /bin/bash
+            stdin: "https://oauth2:{{ gitlab_testdata_token | urlencode | replace('/', '%2F') }}@gitlab.home.stillhq.com"
+          become_user: debian
+          no_log: true
 
-    # The helper is given with git -c, before the subcommand, which
-    # applies it to this run only and writes nothing into the clone's
-    # .git/config. The empty value first clears any helper the system
-    # configuration might name, so the credential is neither looked for
-    # nor approved anywhere else. Debian's git-lfs package installs the
-    # LFS filter system-wide, so the clone's checkout already fetches LFS
-    # content, and git passes the -c settings on to it.
-    #
-    # Neither this nor the pull carries the token, so their output and
-    # failures reach the log: an expired token shows as an authentication
-    # failure against the clean URL, rather than as a censored task.
-    - name: Clone instar-testdata from GitLab
-      command: >-
-        git -c credential.helper= -c "credential.helper={{ testdata_credential_helper }}"
-        clone --depth 1
-        https://gitlab.home.stillhq.com/private/instar-testdata.git
-        /srv/ci/cached/instar-testdata
-      become_user: debian
+        # The helper is given with git -c, before the subcommand, which
+        # applies it to this run only and writes nothing into the clone's
+        # .git/config. The empty value first clears any helper the system
+        # configuration might name, so the credential is neither looked for
+        # nor approved anywhere else. Debian's git-lfs package installs the
+        # LFS filter system-wide, so the clone's checkout already fetches LFS
+        # content, and git passes the -c settings on to it.
+        #
+        # Neither this nor the pull carries the token, so their output and
+        # failures reach the log: an expired token shows as an authentication
+        # failure against the clean URL, rather than as a censored task.
+        - name: Clone instar-testdata from GitLab
+          command: >-
+            git -c credential.helper= -c "credential.helper={{ testdata_credential_helper }}"
+            clone --depth 1
+            https://gitlab.home.stillhq.com/private/instar-testdata.git
+            /srv/ci/cached/instar-testdata
+          become_user: debian
 
-    - name: Enable git-lfs in the instar-testdata clone
-      command: git lfs install --local
-      args:
-        chdir: /srv/ci/cached/instar-testdata
-      become_user: debian
+        - name: Enable git-lfs in the instar-testdata clone
+          command: git lfs install --local
+          args:
+            chdir: /srv/ci/cached/instar-testdata
+          become_user: debian
 
-    # The LFS objects stay in .git/lfs/objects as well as the working
-    # tree, which is what makes a runner's own `git lfs pull` a no-op
-    # except for objects added since this build. git-lfs asks git for
-    # credentials through `git credential`, which inherits the -c
-    # settings. The one thing it writes to .git/config is an
-    # lfs.<url>.access key, and the URL there is the clean one.
-    - name: Fetch the git-lfs content for instar-testdata
-      command: >-
-        git -c credential.helper= -c "credential.helper={{ testdata_credential_helper }}"
-        lfs pull
-      args:
-        chdir: /srv/ci/cached/instar-testdata
-      become_user: debian
+        # The LFS objects stay in .git/lfs/objects as well as the working
+        # tree, which is what makes a runner's own `git lfs pull` a no-op
+        # except for objects added since this build. git-lfs asks git for
+        # credentials through `git credential`, which inherits the -c
+        # settings. The one thing it writes to .git/config is an
+        # lfs.<url>.access key, and the URL there is the clean one.
+        - name: Fetch the git-lfs content for instar-testdata
+          command: >-
+            git -c credential.helper= -c "credential.helper={{ testdata_credential_helper }}"
+            lfs pull
+          args:
+            chdir: /srv/ci/cached/instar-testdata
+          become_user: debian
 
-    # Before anything fetched from outside this repository runs.
-    - name: Remove the staged GitLab credential
-      file:
-        path: "{{ testdata_credential_dir }}"
-        state: absent
+      always:
+        - name: Remove the staged GitLab credential
+          file:
+            path: "{{ testdata_credential_dir }}"
+            state: absent
 
     # Two searches: oauth2 for anywhere the URL form was written, and
     # the token itself for anywhere it was stored bare. The patterns
@@ -339,7 +349,9 @@
     # written so far on the device, and --flushbufs drops any block
     # device cache older than it, so grep reads what is on the disk. -z
     # because a long run of zeros holds no newline, and grep keeps a
-    # whole line in memory. The output is only the outcome, never the
+    # whole line in memory. The patterns are the token as it is and as
+    # it was percent-encoded for the staged URL, which for a URL-safe
+    # token are the same line. The output is only the outcome, never the
     # match.
     #
     # This is the only raw search for the bare token: it has to run
@@ -361,7 +373,7 @@
         esac
       args:
         executable: /bin/bash
-        stdin: "{{ gitlab_testdata_token }}"
+        stdin: "{{ gitlab_testdata_token }}\n{{ gitlab_testdata_token | urlencode | replace('/', '%2F') }}"
       register: raw_token_search
       changed_when: false
       no_log: true

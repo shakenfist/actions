@@ -26,7 +26,6 @@ from tests.helpers import REPO_ROOT
 PLAYBOOK = os.path.join(REPO_ROOT, 'ansible', 'ci-instar-testdata.yml')
 DEPENDENCIES = os.path.join(REPO_ROOT, 'ansible', 'ci-dependencies.yml')
 TOKEN = 'gitlab_testdata_token'
-CREDENTIAL_FORM = 'oauth2'
 # {{hostvars['x']}} or {{ hostvars }}, but not {{hostvars['x']['field']}}.
 WHOLE_HOSTVARS = re.compile(r"\{\{\s*hostvars\s*(\[[^\]]*\]\s*)?\}\}")
 TOKEN_ASSERT = 'Require a GitLab token for the instar-testdata clone'
@@ -34,6 +33,8 @@ CREATE_TASK = 'Create an instance'
 UNMOUNT_TASK = 'Unmount the instar-testdata disk'
 STAGE_TASK = 'Stage the GitLab credential in memory for the clone'
 CLONE_TASK = 'Clone instar-testdata from GitLab'
+LFS_INSTALL_TASK = 'Enable git-lfs in the instar-testdata clone'
+FETCH_BLOCK = 'Fetch instar-testdata with the staged GitLab credential'
 REMOVE_TASK = 'Remove the staged GitLab credential'
 METADATA_SEARCH_TASK = 'Search the git metadata for the credential'
 METADATA_ASSERT_TASK = 'Confirm no credential is left in the instar-testdata git metadata'
@@ -69,9 +70,37 @@ def load_plays(path):
         return yaml.safe_load(f)
 
 
+def flatten(tasks):
+    """Return every task in a task list, in order, with each block replaced by the tasks inside it."""
+    found = []
+    for task in tasks:
+        if 'block' in task:
+            for section in ('block', 'rescue', 'always'):
+                found.extend(flatten(task.get(section, [])))
+        else:
+            found.append(task)
+    return found
+
+
 def all_tasks(plays):
     """Return a flat list of every task, in playbook order."""
-    return [task for play in plays for task in play.get('tasks', [])]
+    return [task for play in plays for task in flatten(play.get('tasks', []))]
+
+
+def blocks(plays):
+    """Return every block, at any depth, in playbook order."""
+    found = []
+
+    def walk(tasks):
+        for task in tasks:
+            if 'block' in task:
+                found.append(task)
+                for section in ('block', 'rescue', 'always'):
+                    walk(task.get(section, []))
+
+    for play in plays:
+        walk(play.get('tasks', []))
+    return found
 
 
 def find_task(plays, name):
@@ -85,7 +114,7 @@ def find_task(plays, name):
 def build_play(plays):
     """Return the play that builds the disk on the builder."""
     for play in plays:
-        if any(task.get('name') == CLONE_TASK for task in play.get('tasks', [])):
+        if any(task.get('name') == CLONE_TASK for task in flatten(play.get('tasks', []))):
             return play
     raise AssertionError('no play clones instar-testdata')
 
@@ -97,7 +126,7 @@ def first_download(plays):
     outside this repository, so this is where the tasks that may carry the
     token must already have finished, whatever the download is called.
     """
-    play_tasks = build_play(plays)['tasks']
+    play_tasks = flatten(build_play(plays)['tasks'])
     offset = all_tasks(plays).index(play_tasks[0])
     for index, task in enumerate(play_tasks):
         if any(key.split('.')[-1] in DOWNLOAD_MODULES for key in task):
@@ -275,7 +304,7 @@ class InstarTestdataTests(unittest.TestCase):
         # command line, so it is no less visible than an argument.
         for play in self.plays:
             self.assertNotIn(TOKEN, yaml.safe_dump(play.get('environment', {})))
-        for task in all_tasks(self.plays):
+        for task in all_tasks(self.plays) + blocks(self.plays):
             self.assertNotIn(
                 TOKEN, yaml.safe_dump(task.get('environment', {})),
                 '%r passes the token in its environment' % task.get('name'))
@@ -328,6 +357,28 @@ class InstarTestdataTests(unittest.TestCase):
         task = all_tasks(self.plays)[find_task(self.plays, REMOVE_TASK)]
         self.assertEqual({'path': '{{ testdata_credential_dir }}', 'state': 'absent'}, task['file'])
 
+    def test_the_staged_credential_is_removed_when_the_fetch_fails(self):
+        # Every task from the staging to the LFS pull is in one block, and
+        # the removal is its always, so a failed clone or pull does not
+        # leave the token on a builder that runs until it is deleted. A
+        # rescue would turn that failure into a success, and anything set
+        # on the block itself applies to every task in it.
+        found = [block for block in blocks(self.plays) if block.get('name') == FETCH_BLOCK]
+        self.assertEqual(1, len(found), 'expected exactly one block named %r' % FETCH_BLOCK)
+        block = found[0]
+        self.assertEqual({'name', 'block', 'always'}, set(block))
+        self.assertEqual([STAGE_TASK, CLONE_TASK, LFS_INSTALL_TASK, LFS_PULL_TASK],
+                         [task.get('name') for task in block['block']])
+        self.assertEqual([REMOVE_TASK], [task.get('name') for task in block['always']])
+
+    def test_the_staged_url_encodes_every_reserved_character(self):
+        # urlencode leaves '/' as it is, and a '/' in the userinfo would end
+        # the host part of the URL the helper reads.
+        task = all_tasks(self.plays)[find_task(self.plays, STAGE_TASK)]
+        self.assertEqual(
+            "https://oauth2:{{ gitlab_testdata_token | urlencode | replace('/', '%2F') }}@gitlab.home.stillhq.com",
+            task['args']['stdin'])
+
     def test_modules_are_pipelined_where_the_token_is_handled(self):
         # Unpipelined, every module's arguments, the token among them, are
         # written to a file on the builder's boot disk and deleted, which
@@ -340,7 +391,9 @@ class InstarTestdataTests(unittest.TestCase):
         self.assertIn('sync', script.splitlines())
         self.assertIn('blockdev --flushbufs /dev/vdc', script)
         self.assertIn('grep -qazF -f - /dev/vdc', script)
-        self.assertEqual('{{ gitlab_testdata_token }}', task['args']['stdin'])
+        self.assertEqual(
+            "{{ gitlab_testdata_token }}\n{{ gitlab_testdata_token | urlencode | replace('/', '%2F') }}",
+            task['args']['stdin'])
         self.assertIs(True, task.get('no_log'))
         self.assertEqual(find_task(self.plays, RAW_TOKEN_SEARCH_TASK) + 1,
                          find_task(self.plays, RAW_TOKEN_ASSERT_TASK))
@@ -357,7 +410,7 @@ class InstarTestdataTests(unittest.TestCase):
         self.assertEqual(unmount + 1, backstop)
         self.assertEqual(backstop + 1, find_task(self.plays, BACKSTOP_ASSERT_TASK))
         self.assertIs(build_play(self.plays), next(
-            play for play in self.plays if any(t.get('name') == BACKSTOP_TASK for t in play.get('tasks', []))))
+            play for play in self.plays if any(t.get('name') == BACKSTOP_TASK for t in flatten(play.get('tasks', [])))))
         task = all_tasks(self.plays)[backstop]
         script = task['shell']
         self.assertNotIn(TOKEN, yaml.safe_dump(task, width=1000))

@@ -723,12 +723,15 @@ rather than on any disk. The token reaches that file on a task's stdin:
 it is on no command line, in no environment prefix and in no `-vvv`
 output, and because the play enables ansible pipelining, the module
 carrying it is never written to the builder's disk either. The file
-is removed before anything fetched from outside this repository runs.
+is removed before anything fetched from outside this repository runs,
+and also when the clone or the LFS pull fails, so a failed build does
+not leave the token on a builder that is still running.
 
 The build then checks, and fails rather than publishing, if `oauth2`
 or the token appears in a file under `.git/` outside the object
 stores, or if the token appears anywhere on the raw `vdc` device,
-free space included. Both of those carry the token, so both run
+free space included, either as it is or as it was percent-encoded for
+the credential URL. Both of those carry the token, so both run
 before the resparsify script is fetched; no task after the fetch
 carries it in any form. After the unmount, a last search reads the raw
 device as it will be snapshotted for the credential URL form,
