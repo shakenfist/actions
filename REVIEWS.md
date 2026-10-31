@@ -142,7 +142,7 @@ for how this works, including how to verify the attestations.
 | tools/ci-apply-deploy-profile.py | mikal | 2026-10-21 | 5513db5fd0db | - |
 | tools/ci-deploy-cluster.sh | mikal | 2026-10-21 | 9f87f74631f0 | - |
 | tools/ci-make-inventory.py | mikal | 2026-09-10 | fc1f017e2c59 | - |
-| tools/ci-prune-reviews.sh | mikal | 2026-10-16 | b4ce5b64c79a | - |
+| tools/ci-prune-reviews.sh | mikal | 2026-10-30 | d58e2363ab02 | development@a2837f2dc7cf |
 | tools/ci-redeploy-check.py | mikal | 2026-10-10 | d0d1ddea3829 | - |
 | tools/ci-ship-test-env.sh | mikal | 2026-10-10 | 79fb00501a96 | - |
 | tools/ci_code_formatting.sh | mikal | 2026-09-07 | ecda63158795 | - |

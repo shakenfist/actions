@@ -497,10 +497,6 @@
       "sha": "fc1f017e2c592b193969d0813d81501130eb61ed",
       "date": "2026-09-10"
     },
-    "tools/ci-prune-reviews.sh": {
-      "sha": "b4ce5b64c79afb01e07b98f43457fa5ff842e896",
-      "date": "2026-10-16"
-    },
     "tools/ci-redeploy-check.py": {
       "sha": "d0d1ddea382935bbdf95e25a0d0e9d63bd333d5f",
       "date": "2026-10-10"
