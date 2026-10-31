@@ -593,10 +593,6 @@
       "author": "mikal"
     },
     {
-      "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
       "path": "AGENTS.md",
       "author": "mikal"
     },
