@@ -632,15 +632,17 @@ missing archive costs a job one codeload request, which is what every
 job pays today, while a failed nightly rebuild would cost every image
 its freshness. The archives sit in a subdirectory because the size floor
 below does not recurse and `actions/checkout`'s archive is about 465
-KiB, under its 1 MB floor. The sfcbr runners have
-`ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` set to the directory by
-private-ci's userdata, so they copy an archive from here instead of
+KiB, under its 1 MB floor. The conductor's single-use (ephemeral) sfcbr
+runners have `ACTIONS_RUNNER_ACTION_ARCHIVE_CACHE` set to the directory
+by private-ci's userdata, so they copy an archive from here instead of
 downloading it, and download as before on a miss. File ownership is not
 what protects the archives: what stops one runner's job tampering with
 another's cache is that each runner gets its own copy of the disk and is
 discarded after one job, and a cache on a long-lived disk that jobs can
 write to would need a different design. See the
-[master plan](https://github.com/shakenfist/private-ci/blob/master/docs/plans/PLAN-action-archive-cache.md).
+[action archive cache documentation](https://github.com/shakenfist/private-ci/blob/master/docs/action-archive-cache.md).
+The static runners set the same variable to their own
+`/var/cache/action-archives`, filled by a separate fetcher.
 
 Three things about that disk are load bearing and easy to undo by
 accident.
