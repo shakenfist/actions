@@ -433,10 +433,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-dependencies.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-topology-localhost.yml",
       "author": "mikal"
     },
