@@ -609,14 +609,45 @@
       register: raw_url_search
       changed_when: false
 
+    # Only when the backstop has found something: say which files hold
+    # it, so that the failure can be acted on from the build log rather
+    # than from a copy of the disk. A file name carries no secret, and
+    # grep -l prints nothing else. The disk is mounted read-only with
+    # noload, which writes nothing, not even a journal replay, though
+    # nothing after this is published anyway because the assert below
+    # fails. No file listed means the match is in free space: something
+    # wrote the credential to the disk and then removed it.
+    #
+    # The first time this backstop fired, the match was eight fuzz seeds
+    # in the instar-testdata repository itself, copies of a .git/config
+    # with a push token in its remote URL (shakenfist/shakenfist#4714).
+    - name: Name the instar-testdata files holding a credential URL
+      shell: |
+        set -euo pipefail
+        mkdir -p /mnt/instar-testdata-readonly
+        mount -o ro,noload /dev/vdc /mnt/instar-testdata-readonly
+        trap 'umount /mnt/instar-testdata-readonly' EXIT
+        cd /mnt/instar-testdata-readonly
+        rc=0
+        grep -rlaE 'oauth2:[^@[:space:]]*@gitlab\.home\.stillhq\.com' . || rc=$?
+        [ "$rc" -le 1 ]
+      args:
+        executable: /bin/bash
+      register: credential_url_files
+      changed_when: false
+      when: raw_url_search.stdout == 'found'
+
     - name: Confirm no credential URL is on the raw instar-testdata disk
       assert:
         that:
           - raw_url_search.stdout == 'clean'
         fail_msg: >-
-          /dev/vdc holds a GitLab credential URL, in a file or in free
-          space. Publishing this disk would hand the token in it to every
-          runner that mounts it, including ones running pull request code.
+          /dev/vdc holds a GitLab credential URL,
+          {% if credential_url_files.stdout_lines | default([]) %}in
+          {{ credential_url_files.stdout_lines | join(', ') }} (relative to
+          the root of the disk){% else %}in free space and in no file{% endif %}.
+          Publishing this disk would hand the token in it to every runner
+          that mounts it, including ones running pull request code.
         success_msg: No credential URL on the raw instar-testdata disk.
 
 - hosts: localhost
