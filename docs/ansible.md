@@ -756,10 +756,18 @@ device as it will be snapshotted for the credential URL form,
 `oauth2:<anything>@gitlab.home.stillhq.com`, which needs no secret.
 It looks for that rather than for `oauth2` alone because the test
 images include whole operating system images, where an OAuth library
-can put the string in directory and file names. Every task that carries
-the token has `no_log: true`, which keeps its arguments out of the
-build log and also out of the builder's journal, on its boot disk; the
-clone and the pull do not carry it, so their failures reach the log.
+can put the string in directory and file names. If it finds one, the
+build mounts the disk read-only and names the files that hold it, or
+says that none do, which means the credential is in free space; only
+the file names reach the log. The first time it fired, the match was
+eight fuzz seeds in the instar-testdata repository itself, copies of a
+`.git/config` with a push token in its remote URL
+([shakenfist/shakenfist#4714](https://github.com/shakenfist/shakenfist/issues/4714)).
+
+Every task that carries the token has `no_log: true`, which keeps its
+arguments out of the build log and also out of the builder's journal,
+on its boot disk; the clone and the pull do not carry it, so their
+failures reach the log.
 
 What remains exposed: on the builder, debian and root can read the
 token while it is staged, and it survives in freed memory after it is
@@ -889,7 +897,7 @@ which is what the snapshot copies.
 | `ci-dependencies.yml` | Cache entries CI jobs can read | Each download matches its `Content-Length` | builder, as downloaded |
 | `ci-dependencies.yml` | Cache entries CI jobs can read | No top level entry under a megabyte, and at least 2GB still free | builder, pre-unmount |
 | `ci-instar-testdata.yml` | No GitLab credential on a disk PR code can read | `oauth2` or the token in `.git/` outside the object stores, and the token anywhere on the raw device | builder, before the resparsify script is fetched |
-| `ci-instar-testdata.yml` | No GitLab credential on a disk PR code can read | The credential URL form anywhere on the raw device | builder, post-unmount |
+| `ci-instar-testdata.yml` | No GitLab credential on a disk PR code can read | The credential URL form anywhere on the raw device, then the files holding it if any | builder, post-unmount |
 | `ci-instar-testdata.yml` | Test images, not LFS pointers | The first bytes of two canary files are not an LFS pointer, and `.git/lfs/objects` is not empty | builder, pre-unmount |
 | `ci-instar-testdata.yml` | An index runners need not rewrite | `git update-index --refresh`, then `git diff-files --quiet` | builder, pre-unmount |
 | `ci-instar-testdata.yml` | A clone git will work in, with room left | The tree is owned by `debian`, and at least 2GB still free | builder, pre-unmount |

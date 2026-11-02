@@ -42,6 +42,7 @@ RAW_TOKEN_SEARCH_TASK = 'Search the raw instar-testdata disk for the token'
 RAW_TOKEN_ASSERT_TASK = 'Confirm the token is nowhere on the raw instar-testdata disk'
 BACKSTOP_TASK = 'Search the raw instar-testdata disk for a credential URL'
 BACKSTOP_ASSERT_TASK = 'Confirm no credential URL is on the raw instar-testdata disk'
+BACKSTOP_FILES_TASK = 'Name the instar-testdata files holding a credential URL'
 # The ansible modules whose free-form argument becomes a command line.
 COMMAND_MODULES = ('shell', 'command', 'raw')
 # The modules that fetch something from outside this repository.
@@ -415,7 +416,8 @@ class InstarTestdataTests(unittest.TestCase):
         unmount = find_task(self.plays, UNMOUNT_TASK)
         backstop = find_task(self.plays, BACKSTOP_TASK)
         self.assertEqual(unmount + 1, backstop)
-        self.assertEqual(backstop + 1, find_task(self.plays, BACKSTOP_ASSERT_TASK))
+        self.assertEqual(backstop + 1, find_task(self.plays, BACKSTOP_FILES_TASK))
+        self.assertEqual(backstop + 2, find_task(self.plays, BACKSTOP_ASSERT_TASK))
         self.assertIs(build_play(self.plays), next(
             play for play in self.plays if any(t.get('name') == BACKSTOP_TASK for t in flatten(play.get('tasks', [])))))
         task = all_tasks(self.plays)[backstop]
@@ -425,8 +427,24 @@ class InstarTestdataTests(unittest.TestCase):
         self.assertIn(r"grep -qazE 'oauth2:[^@[:space:]]*@gitlab\.home\.stillhq\.com' /dev/vdc", script)
         echoes = re.findall(r'\becho\b(.*)', script)
         self.assertEqual([' found ;;', ' clean ;;'], echoes)
-        assertion = all_tasks(self.plays)[backstop + 1]['assert']
+        assertion = all_tasks(self.plays)[backstop + 2]['assert']
         self.assertEqual(["raw_url_search.stdout == 'clean'"], assertion['that'])
+
+    def test_a_backstop_match_is_traced_to_files_without_writing(self):
+        # When the backstop finds a credential URL, the build log should
+        # say which files hold it, and only their names. The disk is
+        # mounted read-only with noload, and the search is skipped on a
+        # clean disk, so a build that passes is untouched by it.
+        task = all_tasks(self.plays)[find_task(self.plays, BACKSTOP_FILES_TASK)]
+        script = task['shell']
+        self.assertNotIn(TOKEN, yaml.safe_dump(task, width=1000))
+        self.assertEqual("raw_url_search.stdout == 'found'", task['when'])
+        self.assertIn('mount -o ro,noload /dev/vdc ', script)
+        self.assertIn("trap 'umount ", script)
+        self.assertIn(r"grep -rlaE 'oauth2:[^@[:space:]]*@gitlab\.home\.stillhq\.com' .", script)
+        self.assertNotIn('echo', script)
+        assertion = all_tasks(self.plays)[find_task(self.plays, BACKSTOP_ASSERT_TASK)]['assert']
+        self.assertIn('credential_url_files.stdout_lines', assertion['fail_msg'])
 
     def test_hostvars_are_never_dumped_whole(self):
         # hostvars include every extra var, the token among them, so
