@@ -1,14 +1,25 @@
 {
   "version": 1,
   "files": {
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "0c0cfe362b24e6bc67ccf1ddd09dacc722a0524f",
+      "date": "2026-11-01",
+      "imported": {
+        "repo": "shakenfist/development",
+        "reviewer": "mikal",
+        "path": ".github/workflows/prune-reviews.yml",
+        "commit": "d8055a5e16965c0780483c737cca94caeabe81d8",
+        "verified": true
+      }
+    },
     "tools/ci-prune-reviews.sh": {
-      "sha": "d58e2363ab02e9dc5c9f12c8c9dbe0ece6f2cce3",
-      "date": "2026-10-30",
+      "sha": "3c00a9489c0b571bfdd0d1f1170344cfc33b44ff",
+      "date": "2026-11-01",
       "imported": {
         "repo": "shakenfist/development",
         "reviewer": "mikal",
         "path": "templates/review-tracking/ci-prune-reviews.sh",
-        "commit": "a2837f2dc7cf5fd792fca58e98c40e70a4d126bc",
+        "commit": "d8055a5e16965c0780483c737cca94caeabe81d8",
         "verified": true
       }
     },

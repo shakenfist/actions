@@ -389,10 +389,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/prune-reviews.yml",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_headroom_verdict.sh",
       "author": "mikal"
     },

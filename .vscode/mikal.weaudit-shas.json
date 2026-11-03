@@ -41,10 +41,6 @@
       "sha": "c6111c60f47072caf912a70db70bb27a01b2859f",
       "date": "2026-10-28"
     },
-    ".github/workflows/prune-reviews.yml": {
-      "sha": "91ff1783e6589e198ce5d14aab473112761b7ce2",
-      "date": "2026-10-16"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"

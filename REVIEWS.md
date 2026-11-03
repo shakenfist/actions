@@ -27,7 +27,7 @@ for how this works, including how to verify the attestations.
 | .github/workflows/pr-re-review.yml | mikal | 2026-10-20 | 501583b681bc | - |
 | .github/workflows/pr-retest.yml | mikal | 2026-10-20 | 189610eb241b | - |
 | .github/workflows/proxmox-substrate.yml | mikal | 2026-10-28 | c6111c60f470 | - |
-| .github/workflows/prune-reviews.yml | mikal | 2026-10-16 | 91ff1783e658 | - |
+| .github/workflows/prune-reviews.yml | mikal | 2026-11-01 | 0c0cfe362b24 | development@d8055a5e1696 |
 | .gitleaks.toml | mikal | 2026-09-25 | 3356d24cc917 | - |
 | AGENTS.md | mikal | 2026-10-22 | b9e03c925bc9 | - |
 | ARCHITECTURE.md | mikal | 2026-10-28 | 662c774a24ee | - |
@@ -133,7 +133,7 @@ for how this works, including how to verify the attestations.
 | tools/ci-apply-deploy-profile.py | mikal | 2026-10-21 | 5513db5fd0db | - |
 | tools/ci-deploy-cluster.sh | mikal | 2026-10-21 | 9f87f74631f0 | - |
 | tools/ci-make-inventory.py | mikal | 2026-09-10 | fc1f017e2c59 | - |
-| tools/ci-prune-reviews.sh | mikal | 2026-10-30 | d58e2363ab02 | development@a2837f2dc7cf |
+| tools/ci-prune-reviews.sh | mikal | 2026-11-01 | 3c00a9489c0b | development@d8055a5e1696 |
 | tools/ci-redeploy-check.py | mikal | 2026-10-10 | d0d1ddea3829 | - |
 | tools/ci-ship-test-env.sh | mikal | 2026-10-10 | 79fb00501a96 | - |
 | tools/ci_code_formatting.sh | mikal | 2026-09-07 | ecda63158795 | - |
