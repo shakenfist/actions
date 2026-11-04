@@ -2,11 +2,14 @@
 
 """The Proxmox shell helpers' input guards, run with hostile arguments.
 
-tools/proxmox-mint-vv.sh, proxmox-publish-node.sh, proxmox-self-check.sh
-and proxmox-deploy.sh each check their inputs before anything touches the
-network, because every one of those values lands somewhere a stray
-character changes the meaning: a URL path, an HTTP header, curl's
---resolve, a networkspec, or a GITHUB_OUTPUT line. The substrate lane's
+tools/proxmox-mint-vv.sh, proxmox-audit-probe.sh, proxmox-publish-node.sh,
+proxmox-self-check.sh and proxmox-deploy.sh each check their inputs before
+anything touches the network, because every one of those values lands
+somewhere a stray character changes the meaning: a URL path, an HTTP
+header, curl's --resolve, a networkspec, or a GITHUB_OUTPUT line. The
+first two share those guards through tools/proxmox-api-lib.sh, and both
+suites run them: a library one caller has stopped calling is a guard that
+is still tested and no longer runs. The substrate lane's
 own runs only ever pass good values, so they prove the happy path and
 would never notice a guard that had silently stopped rejecting. These
 tests run the scripts for real, with a fake curl, git and sudo first on
@@ -39,6 +42,7 @@ from tests.helpers import REPO_ROOT
 
 TOOLS = os.path.join(REPO_ROOT, 'tools')
 MINT = os.path.join(TOOLS, 'proxmox-mint-vv.sh')
+AUDIT = os.path.join(TOOLS, 'proxmox-audit-probe.sh')
 PUBLISH = os.path.join(TOOLS, 'proxmox-publish-node.sh')
 SELF_CHECK = os.path.join(TOOLS, 'proxmox-self-check.sh')
 DEPLOY = os.path.join(TOOLS, 'proxmox-deploy.sh')
@@ -54,19 +58,36 @@ FAKE_CURL = r'''#!/bin/bash
 echo curl >> "${FAKE_LOG}"
 out=''
 headers=''
+url=''
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --output) out="$2"; shift 2 ;;
         --dump-header) headers="$2"; shift 2 ;;
+        https://*) url="$1"; shift ;;
         *) shift ;;
     esac
 done
-# The ticket's password field is filled in here rather than kept in the
-# fixture, so no test file holds a value under that name (CodeQL's
-# clear-text storage query cannot tell a fixture from a secret).
-jq '.data.password = .data.host' "${FAKE_CURL_RESPONSE}" > "${out}"
-printf 'HTTP/1.1 200 OK\r\n' > "${headers}"
-printf '200'
+# The URL goes to a log of its own, so a test can tell which endpoint was
+# called, and in which order, where FAKE_LOG only says "curl".
+echo "${url}" >> "${FAKE_URL_LOG}"
+case "${url}" in
+    */status/current)
+        # The audit read. Its code and reason phrase are fixtures too, so a
+        # test can hand this script PVE's 403.
+        cat "${FAKE_CURL_GUEST_RESPONSE}" > "${out}"
+        printf 'HTTP/1.1 %s %s\r\n' "${FAKE_CURL_GUEST_CODE}" "${FAKE_CURL_GUEST_REASON}" > "${headers}"
+        printf '%s' "${FAKE_CURL_GUEST_CODE}"
+        ;;
+    *)
+        # The mint. The ticket's password field is filled in here rather
+        # than kept in the fixture, so no test file holds a value under
+        # that name (CodeQL's clear-text storage query cannot tell a
+        # fixture from a secret).
+        jq '.data.password = .data.host' "${FAKE_CURL_RESPONSE}" > "${out}"
+        printf 'HTTP/1.1 200 OK\r\n' > "${headers}"
+        printf '200'
+        ;;
+esac
 '''
 
 FAKE_RECORDER = r'''#!/bin/bash
@@ -74,6 +95,11 @@ echo "$(basename "$0")" >> "${FAKE_LOG}"
 echo "fake $(basename "$0") reached" >&2
 exit 97
 '''
+
+
+def guest(vmid=100, status='running'):
+    """What GET .../status/current answers for a running guest."""
+    return {'data': {'status': status, 'vmid': vmid, 'name': 'spice-target', 'qmpstatus': status}}
 
 
 def ticket(proxy='http://pve1.example.test:3128'):
@@ -98,6 +124,8 @@ class ShellHarness(unittest.TestCase):
             self.write_exec(name, FAKE_RECORDER)
         self.fake_log = os.path.join(self.tmpdir, 'fake.log')
         open(self.fake_log, 'w').close()
+        self.fake_url_log = os.path.join(self.tmpdir, 'urls.log')
+        open(self.fake_url_log, 'w').close()
 
         self.workdir = os.path.join(self.tmpdir, 'work')
         os.mkdir(self.workdir)
@@ -109,6 +137,8 @@ class ShellHarness(unittest.TestCase):
             f.write('not a real CA; nothing here reads it\n')
         self.response = os.path.join(self.tmpdir, 'response.json')
         self.set_ticket(ticket())
+        self.guest_response = os.path.join(self.tmpdir, 'guest.json')
+        self.set_guest(guest())
         self.github_output = os.path.join(self.tmpdir, 'github_output')
         self.github_env = os.path.join(self.tmpdir, 'github_env')
         open(self.github_output, 'w').close()
@@ -124,15 +154,27 @@ class ShellHarness(unittest.TestCase):
         with open(self.response, 'w') as f:
             json.dump(body, f)
 
+    def set_guest(self, body):
+        with open(self.guest_response, 'w') as f:
+            json.dump(body, f)
+
     def run_script(self, script, args, extra_env=None):
         env = dict(os.environ)
         env.pop('no_proxy', None)
         env.pop('NO_PROXY', None)
+        # The happy-path answers, which a case overrides through extra_env
+        # to hand a script what a real node would say on a bad day.
+        env.update({
+            'FAKE_CURL_GUEST_CODE': '200',
+            'FAKE_CURL_GUEST_REASON': 'OK',
+        })
         env.update(extra_env or {})
         env.update({
             'PATH': self.bindir + os.pathsep + env.get('PATH', ''),
             'FAKE_LOG': self.fake_log,
+            'FAKE_URL_LOG': self.fake_url_log,
             'FAKE_CURL_RESPONSE': self.response,
+            'FAKE_CURL_GUEST_RESPONSE': self.guest_response,
             'GITHUB_OUTPUT': self.github_output,
             'GITHUB_ENV': self.github_env,
         })
@@ -141,6 +183,10 @@ class ShellHarness(unittest.TestCase):
 
     def fakes_reached(self):
         with open(self.fake_log) as f:
+            return f.read().split()
+
+    def urls_reached(self):
+        with open(self.fake_url_log) as f:
             return f.read().split()
 
     def assertRejected(self, result, stderr_pattern, payload, fakes_allowed=(),
@@ -242,6 +288,122 @@ class MintVvTest(ShellHarness):
         self.assertMintRejected('--vmid is not a number', '100/../101', **{'--vmid': '100/../101'})
 
 
+class AuditProbeTest(ShellHarness):
+    """The audit read: the call that proves the token's VM.Audit half.
+
+    It takes the same values as the mint and runs the same guards, so
+    these cases are the proof that this script runs them at all -- the
+    guards live in a library now, and a caller that stopped calling
+    pve_validate_api_target would pass the mint's suite untouched.
+    """
+
+    def good_args(self, **overrides):
+        values = {
+            '--api-url': 'https://pve1.example.test:8006',
+            '--node': 'pve1',
+            '--vmid': '100',
+            '--token-id': 'kerbside@pve!ci',
+            '--token-file': self.token_file,
+            '--ca-file': self.ca_file,
+        }
+        values.update(overrides)
+        args = []
+        for key, value in values.items():
+            args += [key, value]
+        return args
+
+    def assertAuditRejected(self, stderr_pattern, payload, **overrides):
+        result = self.run_script(AUDIT, self.good_args(**overrides))
+        self.assertRejected(result, stderr_pattern, payload)
+        self.assertEqual(result.stdout, '')
+
+    def test_help_prints_the_whole_usage_example(self):
+        result = self.run_script(AUDIT, ['--help'])
+        self.assertEqual(2, result.returncode)
+        lines = result.stderr.splitlines()
+        self.assertTrue(lines[0].startswith('  proxmox-audit-probe.sh --api-url '),
+                        result.stderr)
+        self.assertIn('--ca-file /path/to/pve-root-ca.pem', lines[-1])
+        self.assertEqual(3, len(lines), result.stderr)
+
+    def test_good_arguments_read_the_guest(self):
+        result = self.run_script(AUDIT, self.good_args())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.fakes_reached(), ['curl'])
+        # The endpoint matters: it is the one PVE gates on VM.Audit.
+        self.assertEqual(self.urls_reached(),
+                         ['https://pve1.example.test:8006/api2/json/nodes/pve1/qemu/100/status/current'])
+        self.assertIn('status running', result.stdout)
+
+    def test_a_node_that_leaves_the_path_segment_is_rejected(self):
+        self.assertAuditRejected('--node is not a node name', 'qemu/100',
+                                 **{'--node': 'pve1/qemu/100'})
+
+    def test_a_vmid_that_is_not_a_number_is_rejected(self):
+        self.assertAuditRejected('--vmid is not a number', '100/../101', **{'--vmid': '100/../101'})
+
+    def test_a_token_id_with_a_newline_is_rejected(self):
+        payload = 'X-Injected: yes'
+        self.assertAuditRejected('--token-id is not of the form', payload,
+                                 **{'--token-id': 'kerbside@pve!ci\n' + payload})
+
+    def test_a_plain_http_api_url_is_rejected(self):
+        self.assertAuditRejected('--api-url must be', 'http://',
+                                 **{'--api-url': 'http://pve1.example.test:8006'})
+
+    def test_an_api_url_with_a_path_is_rejected(self):
+        self.assertAuditRejected('--api-url must be', '/evil',
+                                 **{'--api-url': 'https://pve1.example.test:8006/evil'})
+
+    def test_resolve_is_not_an_argument_here(self):
+        # The mint takes one because proxmox-publish-node.sh mints before
+        # the node's name resolves on the runner. This runs after that, so
+        # an unknown argument is the right answer rather than a guard.
+        self.assertAuditRejected('unknown argument: --resolve', '10.0.2.2',
+                                 **{'--resolve': '10.0.2.2'})
+
+    def test_a_missing_ca_file_is_rejected(self):
+        self.assertAuditRejected('cannot read --ca-file', None,
+                                 **{'--ca-file': os.path.join(self.tmpdir, 'absent.pem')})
+
+    def test_a_403_says_which_privilege_is_missing(self):
+        result = self.run_script(AUDIT, self.good_args(), extra_env={
+            'FAKE_CURL_GUEST_CODE': '403',
+            'FAKE_CURL_GUEST_REASON': 'Permission check failed (/vms/100, VM.Audit)',
+        })
+        self.assertNotEqual(result.returncode, 0)
+        # PVE's own words, and what they mean for this repository's role.
+        self.assertIn('Permission check failed (/vms/100, VM.Audit)', result.stderr)
+        self.assertIn('missing VM.Audit on /vms', result.stderr)
+
+    def test_another_refusal_does_not_blame_vm_audit(self):
+        result = self.run_script(AUDIT, self.good_args(), extra_env={
+            'FAKE_CURL_GUEST_CODE': '500',
+            'FAKE_CURL_GUEST_REASON': 'internal error',
+        })
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('HTTP 500 internal error', result.stderr)
+        self.assertNotIn('VM.Audit', result.stderr)
+
+    def test_an_answer_about_another_guest_is_rejected(self):
+        self.set_guest(guest(vmid=101))
+        result = self.run_script(AUDIT, self.good_args())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('answered about 101', result.stderr)
+
+    def test_an_answer_with_no_status_is_rejected(self):
+        self.set_guest({'data': {'vmid': 100}})
+        result = self.run_script(AUDIT, self.good_args())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no "status" field', result.stderr)
+
+    def test_an_answer_that_is_not_a_guest_object_is_rejected(self):
+        self.set_guest({'data': 'nope'})
+        result = self.run_script(AUDIT, self.good_args())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('no guest object', result.stderr)
+
+
 class SelfCheckTest(ShellHarness):
     def test_a_bad_node_is_rejected_before_the_network(self):
         result = self.run_script(SELF_CHECK, [
@@ -252,6 +414,31 @@ class SelfCheckTest(ShellHarness):
             '--token-id', 'kerbside@pve!ci',
         ])
         self.assertRejected(result, '--node is not a node name', 'qemu/100')
+
+    def test_the_audit_read_runs_before_the_mint_and_can_fail_the_step(self):
+        # The read is first because that is the order a broker uses the
+        # two privileges, and because a token that cannot read a guest has
+        # nothing to mint for. A 403 here must stop the step: when it did
+        # not exist, dropping VM.Audit from the role left this lane green.
+        result = self.run_script(SELF_CHECK, [
+            '--workdir', self.workdir,
+            '--api-url', 'https://pve1.example.test:8006',
+            '--node', 'pve1',
+            '--vmid', '100',
+            '--token-id', 'kerbside@pve!ci',
+        ], extra_env={
+            'FAKE_CURL_GUEST_CODE': '403',
+            'FAKE_CURL_GUEST_REASON': 'Permission check failed (/vms/100, VM.Audit)',
+        })
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn('missing VM.Audit on /vms', result.stderr)
+        # The mint never ran, so no ticket was minted and nothing was
+        # written where a .vv would go.
+        self.assertEqual(self.urls_reached(),
+                         ['https://pve1.example.test:8006/api2/json/nodes/pve1/qemu/100/status/current'])
+        self.assertFalse(os.path.exists(os.path.join(self.workdir, 'self-check.vv')))
+        # The step reports the substrate's failure to the runner.
+        self.assertIn('::error title=Proxmox substrate::', result.stdout)
 
 
 class PublishNodeTest(ShellHarness):

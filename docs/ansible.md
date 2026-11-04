@@ -553,19 +553,31 @@ on `/`, which reads the whole cluster rather than its VMs
 ([#216](https://github.com/shakenfist/actions/issues/216)).
 
 **What this lane proves about the pair, and what it does not.** The
-substrate lane mints a console ticket with the published token twice,
-in `proxmox-self-check.sh` and in its own step, so it proves
-`VM.Console`, both grants and the `pveum` commands against a real node:
-a missing token ACL or a wrong path fails it with PVE's `403 Permission
-check failed`. It proves nothing about `VM.Audit`, because nothing in
-this repository authenticates a call that needs it -- the mint is the
-only token call here. That half is proven in kerbside's own Proxmox
-lane, which checks a token holding only `VM.Audit` against `spiceproxy`
-and one holding only `VM.Console` against a VM's `config`, and gets 403
-from each. Dropping `VM.Audit` here would leave this lane green and
-break kerbside's scrape, which is why
-`tests/test_proxmox_console_account.py` pins the pair rather than
-leaving it to CI.
+substrate lane exercises both halves against a real node, in the order
+a broker uses them. `proxmox-self-check.sh` first reads the smoke guest
+with `proxmox-audit-probe.sh` -- `GET
+/nodes/<node>/qemu/<vmid>/status/current`, which PVE gates on
+`VM.Audit` -- and then mints a console ticket, which needs
+`VM.Console`; the lane's own step mints a second time. So a missing
+grant, a missing token ACL or a wrong path fails the lane with PVE's
+`403 Permission check failed`, whichever half of the pair it is, and
+the audit read says in as many words that the token is missing
+`VM.Audit` on `/vms`.
+
+That read exists because the mint used to be the only
+token-authenticated call here, which made this lane blind to
+`VM.Audit`: dropping it from the role would have left the lane green
+and broken the consumer's scrape instead, in another repository, as a
+403 on a call this one never made
+([#239](https://github.com/shakenfist/actions/issues/239)). Kerbside's
+own Proxmox lane still proves the sharper claim, that each half is
+necessary and neither suffices: it checks a token holding only
+`VM.Audit` against `spiceproxy` and one holding only `VM.Console`
+against a VM's `config`, and gets 403 from each. What this lane cannot
+see is a *widened* role, since every call in it passes with more
+privilege than it needs -- which is why
+`tests/test_proxmox_console_account.py` pins the pair by name rather
+than leaving it to CI.
 
 **The role is not called `KerbsideConsole`.** It is
 `ShakenFistConsole`, and the difference is load-bearing rather than

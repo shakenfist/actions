@@ -1,17 +1,25 @@
 #!/bin/bash
 
 # The last step of deploy-proxmox-on-shakenfist: before the action hands the
-# node back, do what a consumer will do first -- mint a .vv through the API
-# URL it was given, then open the tunnel that .vv names -- and report any
-# failure as the substrate's, not the client's.
+# node back, do what a consumer will do -- read the guest through the API
+# URL it was given, mint a .vv for it, then open the tunnel that .vv names
+# -- and report any failure as the substrate's, not the client's.
 #
 #   proxmox-self-check.sh --workdir DIR --api-url URL --node NAME \
 #       --vmid VMID --token-id ID
 #
-# Unlike the mint in proxmox-publish-node.sh, this one reaches the API by
-# name through the runner's own resolver, so it also proves the /etc/hosts
-# entry that step wrote. The probe stops at the proxy's 200: TLS and SPICE
-# belong to the client under test. See tools/proxmox-connect-probe.py.
+# Unlike the mint in proxmox-publish-node.sh, these calls reach the API by
+# name through the runner's own resolver, so they also prove the /etc/hosts
+# entry that step wrote. The tunnel probe stops at the proxy's 200: TLS and
+# SPICE belong to the client under test. See tools/proxmox-connect-probe.py.
+#
+# BOTH HALVES OF THE TOKEN'S PRIVILEGES, in the order a broker uses them.
+# The read needs VM.Audit and the mint needs VM.Console, and those are
+# exactly the two the role created in ansible/tasks/proxmox/api.yml holds,
+# so between them this step fails if either half of that pair is dropped --
+# which is what it is for. The mint alone used to be the only
+# token-authenticated call in this repository, and it is blind to VM.Audit
+# ([#239](https://github.com/shakenfist/actions/issues/239)).
 #
 # The .vv holds a live SPICE password, so it is removed on the way out; it
 # is useless within a minute anyway.
@@ -64,6 +72,15 @@ for required in workdir api_url node vmid token_id; do
     [ -n "${!required}" ] || fail "--${required//_/-} is required"
 done
 
+"${here}/tools/proxmox-audit-probe.sh" \
+    --api-url "${api_url}" \
+    --node "${node}" \
+    --vmid "${vmid}" \
+    --token-id "${token_id}" \
+    --token-file "${workdir}/token" \
+    --ca-file "${workdir}/pve-root-ca.pem" \
+    || fail "could not read guest ${vmid} from ${api_url} through the published token (the reason is above)"
+
 vv="${workdir}/self-check.vv"
 trap 'rm -f "${vv}"' EXIT
 
@@ -81,4 +98,4 @@ python3 "${here}/tools/proxmox-connect-probe.py" "${vv}" \
     || fail 'the node is deployed, but a freshly minted ticket did not open a tunnel from the runner (the probe says why above)'
 
 elapsed="$(awk -v start="${minted}" -v now="${EPOCHREALTIME}" 'BEGIN {printf "%.1f", now - start}')"
-echo "Self-check passed: minted through ${api_url} and tunnelled ${elapsed}s after the mint"
+echo "Self-check passed: read and minted through ${api_url}, and tunnelled ${elapsed}s after the mint"

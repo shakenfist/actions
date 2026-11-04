@@ -788,7 +788,13 @@ userinfo or a path in an API URL, a node address outside the playbook's
 netblock -- with a fake `curl`, `git` and `sudo` first on `PATH`. Each
 rejection must name its own guard, reach no fake and publish nothing.
 The substrate lane only ever passes good values, so it would never
-notice a guard that had stopped rejecting.
+notice a guard that had stopped rejecting. The mint and the audit read
+share their guards through `tools/proxmox-api-lib.sh`, and both suites
+run the whole set against their own script, because a caller that
+stopped calling the library would leave the other suite passing. The
+fake `curl` answers the two endpoints separately, so a case can hand
+the audit read PVE's `403 Permission check failed` and check that the
+self-check stops there, before the mint.
 
 `tests/test_proxmox_console_account.py` pins the console account
 `tasks/proxmox/api.yml` creates: the role holds exactly `VM.Audit` and
