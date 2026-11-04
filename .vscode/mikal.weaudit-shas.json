@@ -141,10 +141,6 @@
       "sha": "bb14bcf1c5ca0ddbb0e041c9a63fa2ab868bbac3",
       "date": "2026-10-20"
     },
-    "ansible/proxmox-single-node.yml": {
-      "sha": "9895548931899ea27e7a75eea78797fcb546fa6c",
-      "date": "2026-09-25"
-    },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "8d6b42185c313782fa8e7a66b8151c5b76e9a0cb",
       "date": "2026-09-30"
@@ -152,10 +148,6 @@
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "093197e5ef09e23b2b23ab811aa52b6aa14e63d4",
       "date": "2026-09-23"
-    },
-    "ansible/tasks/proxmox/api.yml": {
-      "sha": "eac6217cefb86ebf075610d8d25ccddfa1d016fa",
-      "date": "2026-09-25"
     },
     "ansible/tasks/proxmox/disable-enterprise-repos.yml": {
       "sha": "0e40eed764df8284e452a7ab42de7107f6cc76a9",
@@ -197,10 +189,6 @@
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
     },
-    "ansible/vars/proxmox.yml": {
-      "sha": "d70e78fd8441bcee5a1f13ce177f90d43f215759",
-      "date": "2026-09-25"
-    },
     "build-smoke-cluster/action.yml": {
       "sha": "0b01329f18138e4f9dd332ceea9692e561f69cf5",
       "date": "2026-10-21"
@@ -212,18 +200,6 @@
     "deploy-kolla-ansible/action.yml": {
       "sha": "e43b8636bdbaf2180b81b8969fb8d9f9b6ddbfce",
       "date": "2026-10-21"
-    },
-    "deploy-proxmox-on-shakenfist/action.yml": {
-      "sha": "a0482369068dad005b507e65eec0fc7091df433c",
-      "date": "2026-09-25"
-    },
-    "docs/actions.md": {
-      "sha": "5fb34019847d2a1b62d29bf7700ca7f2a2553190",
-      "date": "2026-10-28"
-    },
-    "docs/ci.md": {
-      "sha": "1750d30c7dc0b52662ed6f9e818a0c7e0a037ed4",
-      "date": "2026-10-28"
     },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
