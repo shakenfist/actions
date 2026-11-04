@@ -1,8 +1,9 @@
 name: 'Deploy Proxmox VE on Shaken Fist'
 description: >-
   Stand up a single-node Proxmox VE 9 hypervisor as an instance in the
-  runner's own Shaken Fist namespace, with a booted SPICE guest and a
-  least-privilege API token, and set the runner up to reach it by name.
+  runner's own Shaken Fist namespace, with a booted SPICE guest and an API
+  token holding only VM.Audit and VM.Console on /vms, and set the runner up
+  to reach it by name.
   Everything happens inside the calling job, so a console client in a later
   step of that job can mint a ticket and connect within the ~30 seconds a
   Proxmox ticket lasts. The action's own files (playbook, task files and

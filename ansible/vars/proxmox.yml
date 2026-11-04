@@ -99,18 +99,23 @@ proxmox_thinpool_lv: "data"
 
 # API ACCOUNT for kerbside (or anything else driving the node's consoles).
 # Created with an API token rather than a password so the credential can be
-# revoked on its own. privsep=0 because a privilege-separated token is capped
-# by its own ACL as well as the user's, and an empty token ACL means "no
-# permissions at all" -- the usual first surprise with PVE tokens.
+# revoked on its own.
 proxmox_api_user: "kerbside@pve"
 proxmox_api_token: "console"
-# PVEVMUser carries VM.Console (what a SPICE console needs) plus VM.Audit and
-# power management; PVEAuditor on / lets the caller enumerate nodes and VMs to
-# find a console in the first place. Least privilege here is asserted, not
-# proven -- only this pair has been exercised.
-proxmox_api_roles:
-  - { path: "/vms", role: "PVEVMUser" }
-  - { path: "/", role: "PVEAuditor" }
+# A role of our own holding exactly the two privileges a console path needs,
+# granted on /vms and nowhere else, because no stock role is that small. The
+# pair is proven rather than guessed: see docs/ansible.md, "Proxmox node".
+#
+# NOT the KerbsideConsole of kerbside's docs/console-sources.md, which carries
+# the same two privileges. Kerbside's Proxmox lane deploys this action and then
+# creates the documented account on the same node, from the documentation's own
+# commands, and "pveum role add" refuses a role that exists -- so taking the
+# documented name here would fail that lane at its first command. The lane
+# already renames the documented *user* for the same reason. The privileges and
+# the path are what the documentation pins; the role is a local label.
+proxmox_api_role: "ShakenFistConsole"
+proxmox_api_privs: "VM.Audit VM.Console"
+proxmox_api_acl_path: "/vms"
 
 # SMOKE GUEST. A booted VM with a SPICE display, so the deployment ends with
 # something a console broker can actually be pointed at -- the same role the

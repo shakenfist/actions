@@ -10,6 +10,12 @@
 # the 0600 file named by proxmox_token_file. Anything that needs it reads that
 # file; nothing prints it.
 
+# Known before anything runs, because it is just the two names joined. Both
+# the token's own ACL below and the playbook's outputs read it from here.
+- name: Record the token id
+  ansible.builtin.set_fact:
+    proxmox_api_token_id: "{{ proxmox_api_user }}!{{ proxmox_api_token }}"
+
 - name: Check whether the console user already exists
   ansible.builtin.command: "pveum user list --output-format json"
   register: _pve_users
@@ -22,25 +28,79 @@
   changed_when: true
   when: proxmox_api_user not in (_pve_users.stdout | from_json | map(attribute='userid') | list)
 
+# THE PRIVILEGES. A role of our own rather than a stock one, because the two
+# privileges a console path needs are proven (see proxmox_api_privs) and no
+# stock role holds only those. The role is created on the node rather than
+# assumed, since a Debian-path install starts with only PVE's own roles.
+- name: Read the current roles
+  ansible.builtin.command: "pveum role list --output-format json"
+  register: _pve_roles
+  changed_when: false
+
+- name: Create the console role
+  ansible.builtin.command: >-
+    pveum role add {{ proxmox_api_role }} --privs "{{ proxmox_api_privs }}"
+  changed_when: true
+  when: proxmox_api_role not in (_pve_roles.stdout | from_json | map(attribute='roleid') | list)
+
+# A node this file has already run against carries the privilege set that
+# revision of it asked for, and "pveum role add" would refuse rather than
+# correct it, so a role that exists with a different set is modified. With the
+# revocation and the privsep repair below, that is what makes narrowing this
+# list narrow the credential on a node that is re-run rather than rebuilt.
+# Compared as sorted lists because neither pveum's output order nor ours is a
+# promise: pveum prints them comma separated, we write them space separated,
+# as its --privs wants.
+- name: Correct the console role's privileges
+  ansible.builtin.command: >-
+    pveum role modify {{ proxmox_api_role }} --privs "{{ proxmox_api_privs }}"
+  changed_when: true
+  when: >-
+    proxmox_api_role in (_pve_roles.stdout | from_json | map(attribute='roleid') | list)
+    and (((_pve_roles.stdout | from_json
+           | selectattr('roleid', 'equalto', proxmox_api_role)
+           | map(attribute='privs', default='') | list | first).split(',')
+          | reject('equalto', '') | sort)
+         != (proxmox_api_privs.split(' ') | sort))
+
 - name: Read the current ACL
   ansible.builtin.command: "pveum acl list --output-format json"
   register: _pve_acl
   changed_when: false
 
-- name: Grant the console user its roles
+# A node an earlier revision of this file configured still carries the grants
+# that revision made -- PVEVMUser on /vms and PVEAuditor on / -- and the
+# playbook is convergent, so such a node is re-run rather than rebuilt.
+# Narrowing the credential has to narrow it there too, so every grant to this
+# user or this token that is not the role above is revoked. Scoped to these two
+# subjects: another user's grants on this node are not ours to remove.
+- name: Revoke any other role this user or token holds
   ansible.builtin.command: >-
-    pveum acl modify {{ item.path }}
-    --users {{ proxmox_api_user }}
-    --roles {{ item.role }}
-  loop: "{{ proxmox_api_roles }}"
+    pveum acl delete {{ item.path }}
+    {{ '--tokens' if item.type == 'token' else '--users' }} {{ item.ugid }}
+    --roles {{ item.roleid }}
+  loop: >-
+    {{ _pve_acl.stdout | from_json
+       | selectattr('ugid', 'in', [proxmox_api_user, proxmox_api_token_id])
+       | rejectattr('roleid', 'equalto', proxmox_api_role) | list }}
   loop_control:
-    label: "{{ item.path }} -> {{ item.role }}"
+    label: "{{ item.ugid }} -> {{ item.roleid }} on {{ item.path }}"
+  changed_when: true
+
+# The user holds the role as well as the token, because a privilege-separated
+# token holds only what both it and its user hold. Granting it to the user does
+# not widen the token: the token's own ACL still caps it.
+- name: Grant the console user its role
+  ansible.builtin.command: >-
+    pveum acl modify {{ proxmox_api_acl_path }}
+    --users {{ proxmox_api_user }}
+    --roles {{ proxmox_api_role }}
   changed_when: true
   when: >-
     (_pve_acl.stdout | from_json
-     | selectattr('path', 'equalto', item.path)
+     | selectattr('path', 'equalto', proxmox_api_acl_path)
      | selectattr('ugid', 'equalto', proxmox_api_user)
-     | selectattr('roleid', 'equalto', item.role) | list | length) == 0
+     | selectattr('roleid', 'equalto', proxmox_api_role) | list | length) == 0
 
 - name: Check whether the API token already exists
   ansible.builtin.command: "pveum user token list {{ proxmox_api_user }} --output-format json"
@@ -67,22 +127,62 @@
     - not _pve_token_file.stat.exists
   register: _pve_token_removed
 
-# privsep=0 deliberately. A privilege-separated token carries its own ACL in
-# addition to the user's, and a token created with no ACL of its own therefore
-# has no permissions at all -- which looks exactly like a broken credential
-# when the broker first tries to use it.
+# privsep=1, so the token is capped by its own ACL as well as its user's and
+# cannot inherit whatever the user is given later. The cost is that a token
+# created with no ACL of its own has no permissions at all -- which looks
+# exactly like a broken credential when the broker first tries to use it -- so
+# the grant below is not optional, and a test asserts the pair.
 #
 # no_log: true because the JSON this prints carries the secret as "value".
 - name: Create the API token
   ansible.builtin.command: >-
     pveum user token add {{ proxmox_api_user }} {{ proxmox_api_token }}
-    --privsep 0 --output-format json
+    --privsep 1 --output-format json
   register: _pve_token_add
   changed_when: true
   no_log: true
   when: >-
     _pve_token_removed is changed
     or proxmox_api_token not in (_pve_tokens.stdout | from_json | map(attribute='tokenid') | list)
+
+# A token an earlier revision created is not privilege separated, so it holds
+# whatever its user holds rather than what its own ACL allows, and the
+# revocation above is all that caps it. Separate it instead, which is what
+# makes the role the only thing it can do. Modified rather than replaced,
+# because PVE never reveals a secret twice and the runner may be holding the
+# only copy. privsep is compared through int, since PVE has printed it both as
+# a number and as a string.
+- name: Separate the privileges of a token that predates privsep
+  ansible.builtin.command: >-
+    pveum user token modify {{ proxmox_api_user }} {{ proxmox_api_token }} --privsep 1
+  changed_when: true
+  when: >-
+    _pve_token_add is skipped
+    and ((_pve_tokens.stdout | from_json
+          | selectattr('tokenid', 'equalto', proxmox_api_token)
+          | map(attribute='privsep', default=1) | map('int')
+          | reject('equalto', 1) | list | length) > 0)
+
+# Read again because the token may have just been created, and because whether
+# PVE keeps a removed token's ACL entries is not something to rely on.
+- name: Read the ACL again, now that the token exists
+  ansible.builtin.command: "pveum acl list --output-format json"
+  register: _pve_acl_with_token
+  changed_when: false
+
+# No quoting around the token id: the command module shlex-splits its string
+# and runs pveum directly, so there is no shell to expand the "!".
+- name: Grant the API token its role
+  ansible.builtin.command: >-
+    pveum acl modify {{ proxmox_api_acl_path }}
+    --tokens {{ proxmox_api_token_id }}
+    --roles {{ proxmox_api_role }}
+  changed_when: true
+  when: >-
+    (_pve_acl_with_token.stdout | from_json
+     | selectattr('path', 'equalto', proxmox_api_acl_path)
+     | selectattr('ugid', 'equalto', proxmox_api_token_id)
+     | selectattr('roleid', 'equalto', proxmox_api_role) | list | length) == 0
 
 - name: Ensure the directory for the token secret exists on the runner
   ansible.builtin.file:
@@ -104,7 +204,3 @@
   become: false
   no_log: true
   when: _pve_token_add is not skipped
-
-- name: Record the token id
-  ansible.builtin.set_fact:
-    proxmox_api_token_id: "{{ proxmox_api_user }}!{{ proxmox_api_token }}"

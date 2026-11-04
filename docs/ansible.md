@@ -533,6 +533,58 @@ reboot, and fails naming #3300 if the black hole is there.
 `tasks/proxmox/resolver-check.yml` describes the durable fix, should it
 ever be needed.
 
+**The console account holds two privileges, and they are the proven
+two.** Whatever brokers the node's consoles gets a dedicated
+`kerbside@pve` user and a privilege-separated API token, never
+`root@pam`, so the credential can be revoked on its own. The token is
+granted a role created for the purpose, holding exactly `VM.Audit` and
+`VM.Console`, on `/vms` and nowhere else; both the token and its user
+hold it, because a privilege-separated token is capped by its own ACL
+*and* its user's, and a token with no ACL of its own has no permissions
+at all -- the first surprise PVE tokens hand out. Kerbside's Proxmox
+source proved that pair carries the whole console path, the scrape that
+finds a console and the mint that issues its ticket, and that each of
+the two is necessary; the equivalent commands for a real cluster are in
+kerbside's `docs/console-sources.md` under "Proxmox VE account". There
+is a role of our own because no stock role is that small: this used to
+grant `PVEVMUser` on `/vms`, which also carries `VM.PowerMgmt`,
+`VM.Config.*`, `VM.Snapshot` and `VM.Backup`, paired with `PVEAuditor`
+on `/`, which reads the whole cluster rather than its VMs
+([#216](https://github.com/shakenfist/actions/issues/216)). Beyond the
+credential being narrower, the point is that the lane now exercises the
+privilege set a real deployment uses, so a console client that starts
+depending on a privilege the documented account does not grant fails
+here rather than at a user's cluster.
+
+**The role is not called `KerbsideConsole`.** It is
+`ShakenFistConsole`, and the difference is load-bearing rather than
+cosmetic: kerbside's Proxmox lane deploys this action and then creates
+the documented account on the same node by running the commands out of
+its own documentation, where the role is `KerbsideConsole`. `pveum role
+add` refuses a role that already exists, and that lane fails on the
+first command it cannot run, so taking the documented name here would
+break it. The lane already renames the documented *user* for the same
+reason, since this action creates `kerbside@pve` before it runs. What
+the documentation pins is the privilege pair and the path; the role name
+is a local label.
+
+**A node that is re-run converges on the narrower account.** The
+playbook is convergent -- `sf_instance ... state: present` on an
+instance named for the runner, with no teardown -- so a node an earlier
+revision configured is re-run rather than rebuilt, and on CI it is also
+discarded with the runner's namespace. Three things therefore happen on
+a re-run rather than only on a fresh node: a role that exists with
+different privileges is modified rather than left alone, every grant to
+this user or this token that is not that role is revoked, and a token
+that is not privilege separated is separated in place, with `pveum user
+token modify`, rather than replaced -- PVE never reveals a secret twice,
+and the runner may be holding the only copy. Without all three,
+narrowing the privilege list here would narrow nothing on such a node.
+`tests/test_proxmox_console_account.py` pins the privilege set, the
+grants and the three decisions above, rendering their Jinja for real,
+since the lane can only tell that the credential works, not that it is
+no wider than it needs to be.
+
 **What was deliberately not ported.** This playbook is adapted from a
 role that was validated once against a real node in a private
 environment. What did not come across: a task that printed the node's

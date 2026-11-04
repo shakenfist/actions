@@ -790,6 +790,23 @@ rejection must name its own guard, reach no fake and publish nothing.
 The substrate lane only ever passes good values, so it would never
 notice a guard that had stopped rejecting.
 
+`tests/test_proxmox_console_account.py` pins the console account
+`tasks/proxmox/api.yml` creates: the role holds exactly `VM.Audit` and
+`VM.Console`, it is granted on `/vms` only, no stock PVE role is named,
+the role does not take a name kerbside's own lane creates on the same
+node, the token is privilege separated, and both the token and its user
+are granted the role. It also renders the three Jinja expressions that
+make a re-run converge -- the role correction, the revocation of an
+earlier revision's grants, and the privsep repair -- against fixtures
+standing in for what `pveum` reports, because an `and` that
+short-circuits the wrong way or a `"0"` read as truthy fails only on a
+real node. The lane cannot tell a narrow credential from a wide one,
+since every mint in it passes either way, so widening the role is
+exactly the kind of change that lands unnoticed: that is how
+`PVEVMUser` on `/vms` and `PVEAuditor` on `/` survived until
+[#216](https://github.com/shakenfist/actions/issues/216). See
+[ansible.md](ansible.md#proxmox-node).
+
 Those are all cross-file references or silent-failure guards nothing
 else validates -- actionlint checks a workflow's syntax, not whether
 the file it dispatches is there -- and each one fails only when
