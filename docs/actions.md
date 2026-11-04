@@ -505,7 +505,7 @@ runner that can resolve and reach the node by its FQDN. Everything
 happens inside the calling job, because a Proxmox console ticket lasts
 only about 30 seconds and a client under test has to mint and connect
 within that window. The action's own
-files -- the playbook, its task files and the two `tools/proxmox-*`
+files -- the playbook, its task files and the `tools/proxmox-*`
 helpers -- are resolved through `github.action_path`, so a caller
 always gets them from the same ref as the `action.yml` it resolved; see
 [ansible.md](ansible.md#proxmox-node) for what the playbook does and
@@ -563,13 +563,13 @@ more keeps its plain size, as `proxmox-substrate.yml` does with `m`. See
 | `node_address` | The node address the runner reaches it on |
 | `node_fqdn` | The node FQDN: the host of a ticket's proxy URL, and the CN of its certificate. Resolvable on the runner through `/etc/hosts` |
 | `api_url` | `https://<node_fqdn>:8006`, the PVE API |
-| `token_id` | The API token id, `user@realm!token`. Privilege separated, and granted only `VM.Audit` and `VM.Console` on `/vms`; see [ansible.md](ansible.md#proxmox-node) |
+| `token_id` | The API token id, `user@realm!token`. Privilege separated, and granted only `VM.Audit` and `VM.Console` on `/vms`. The action's own self-check uses both before it hands the node back -- one read of the guest, one mint -- so a consumer is given a credential that has been exercised, not merely created; see [ansible.md](ansible.md#proxmox-node) |
 | `token_file` | Path to a `0600` file holding the API token secret. **A live credential**: never print it, pass it on a command line, or upload it. It is masked in the job log |
 | `ca_file` | Path to the node's root CA (PEM), for verifying the API and SPICE TLS |
 | `vmid` | The VM id of the running SPICE smoke guest |
 | `kvm` | `"true"` if the node had `/dev/kvm`, `"false"` if the guest runs under TCG |
 | `pve_version` | The `pve-manager` version the node reports |
-| `mint_script` | Absolute path to `proxmox-mint-vv.sh`, which mints a `.vv` through the API token: `--api-url --node --vmid --token-id --token-file --ca-file --out` |
+| `mint_script` | Absolute path to `proxmox-mint-vv.sh`, which mints a `.vv` through the API token: `--api-url --node --vmid --token-id --token-file --ca-file --out`. Run it where it is: it sources `proxmox-api-lib.sh` from its own directory |
 
 **Side effects on the runner, for the rest of the job:** the node's
 FQDN is added to `/etc/hosts`, mapped to its address, and both are

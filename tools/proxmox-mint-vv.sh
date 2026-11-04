@@ -72,6 +72,12 @@ fail() {
     exit 1
 }
 
+# The input guards, the Authorization header and the common curl arguments
+# are shared with proxmox-audit-probe.sh. Sourced after fail(), because that
+# is how the library reports.
+# shellcheck source=tools/proxmox-api-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/proxmox-api-lib.sh"
+
 api_url=''
 node=''
 vmid=''
@@ -110,61 +116,30 @@ for required in api_url node vmid token_id token_file ca_file out; do
     [ -n "${!required}" ] || fail "--${required//_/-} is required"
 done
 
-# Everything below lands in a URL path, a header or curl's --resolve, so
-# refuse anything that could step outside the value it is meant to be.
-[[ "${node}" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]] || fail "--node is not a node name: ${node}"
-[[ "${vmid}" =~ ^[0-9]+$ ]] || fail "--vmid is not a number: ${vmid}"
-# user@realm!tokenname. PVE's own grammar is narrower; this only needs to
-# keep the header line a single line with one '=' after the id.
-[[ "${token_id}" =~ ^[^[:space:]=!]+@[^[:space:]=!]+![^[:space:]=!]+$ ]] \
-    || fail "--token-id is not of the form user@realm!token"
-[[ "${api_url}" =~ ^https://([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):([0-9]+)/?$ ]] \
-    || fail "--api-url must be https://<host>:<port>, got ${api_url}"
-api_host="${BASH_REMATCH[1]}"
-api_port="${BASH_REMATCH[2]}"
-api_url="${api_url%/}"
-if [ -n "${resolve}" ]; then
-    [[ "${resolve}" =~ ^[0-9A-Fa-f:.]+$ ]] || fail "--resolve is not an address: ${resolve}"
-fi
+# Everything that identifies the API target lands in a URL path, a header
+# or curl's --resolve, so refuse anything that could step outside the value
+# it is meant to be. The guards are in tools/proxmox-api-lib.sh, shared
+# with proxmox-audit-probe.sh, which calls the same API with the same
+# credential; it normalises api_url and sets api_host and api_port.
+pve_validate_api_target
 
-[ -r "${ca_file}" ] || fail "cannot read --ca-file ${ca_file}"
-[ -s "${token_file}" ] || fail "--token-file ${token_file} is missing or empty"
-[ -r "${token_file}" ] || fail "cannot read --token-file ${token_file}"
 out_dir="$(dirname "${out}")"
 [ -d "${out_dir}" ] || fail "the directory for --out does not exist: ${out_dir}"
 
 # Everything this script creates is private to the runner's user.
 umask 077
 scratch="$(mktemp -d)"
-trap 'rm -rf "${scratch}"' EXIT
+# See the probe's note: the signals matter because the scratch directory
+# holds the Authorization header file.
+trap 'rm -rf "${scratch}"' EXIT INT TERM HUP
 header="${scratch}/header"
 response="${scratch}/response"
 headers="${scratch}/headers"
 
-# printf is a builtin and tr reads the secret on stdin, so the secret is on
-# no command line. Whitespace is stripped because the file an editor or an
-# "echo >" wrote ends in a newline, and a newline would end the header.
-{
-    printf 'Authorization: PVEAPIToken=%s=' "${token_id}"
-    tr -d '[:space:]' < "${token_file}"
-    printf '\n'
-} > "${header}"
+pve_write_auth_header "${token_id}" "${token_file}" "${header}"
 
-curl_args=(
-    --silent --show-error
-    --max-time 20
-    --noproxy "${api_host}"
-    --cacert "${ca_file}"
-    --header "@${header}"
-    --request POST
-    --data ''
-    --output "${response}"
-    --dump-header "${headers}"
-    --write-out '%{http_code}'
-)
-if [ -n "${resolve}" ]; then
-    curl_args+=(--resolve "${api_host}:${api_port}:${resolve}")
-fi
+pve_common_curl_args "${header}" "${response}" "${headers}"
+curl_args=("${pve_curl_args[@]}" --request POST --data '')
 
 minted="${EPOCHREALTIME}"
 if ! status="$(curl "${curl_args[@]}" \
@@ -173,14 +148,8 @@ if ! status="$(curl "${curl_args[@]}" \
 fi
 
 if [ "${status}" != '200' ]; then
-    # PVE puts the reason in the status line's reason phrase -- "401
-    # authentication failure", "403 Permission check failed (/vms/100,
-    # VM.Console)" -- and sometimes a "message" in the body. Neither carries
-    # a credential (an error answer holds no ticket, and PVE does not echo
-    # the Authorization header), so both are worth showing.
-    reason="$(head -n 1 "${headers}" 2>/dev/null | tr -d '\r' | cut -d ' ' -f 3- | head -c 300 || true)"
-    message="$(jq -r '.message // empty' "${response}" 2>/dev/null | head -c 300 || true)"
-    fail "the Proxmox API refused the console request with HTTP ${status}${reason:+ ${reason}}${message:+ (${message})}"
+    fail "the Proxmox API refused the console request with $(pve_describe_refusal \
+        "${status}" "${headers}" "${response}")"
 fi
 
 # From here the response holds a live ticket, so nothing below may echo it:
