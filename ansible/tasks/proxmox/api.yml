@@ -49,8 +49,11 @@
 # revocation and the privsep repair below, that is what makes narrowing this
 # list narrow the credential on a node that is re-run rather than rebuilt.
 # Compared as sorted lists because neither pveum's output order nor ours is a
-# promise: pveum prints them comma separated, we write them space separated,
-# as its --privs wants.
+# promise: pveum prints them comma separated, we write them whitespace
+# separated, as its --privs wants. Our side is normalised the way --privs
+# itself reads a list -- on commas and on any run of whitespace -- so that a
+# value written differently compares equal rather than modifying the role on
+# every run forever, without ever converging.
 - name: Correct the console role's privileges
   ansible.builtin.command: >-
     pveum role modify {{ proxmox_api_role }} --privs "{{ proxmox_api_privs }}"
@@ -61,7 +64,7 @@
            | selectattr('roleid', 'equalto', proxmox_api_role)
            | map(attribute='privs', default='') | list | first).split(',')
           | reject('equalto', '') | sort)
-         != (proxmox_api_privs.split(' ') | sort))
+         != ((proxmox_api_privs | replace(',', ' ')).split() | sort))
 
 - name: Read the current ACL
   ansible.builtin.command: "pveum acl list --output-format json"
@@ -72,21 +75,33 @@
 # that revision made -- PVEVMUser on /vms and PVEAuditor on / -- and the
 # playbook is convergent, so such a node is re-run rather than rebuilt.
 # Narrowing the credential has to narrow it there too, so every grant to this
-# user or this token that is not the role above is revoked. Scoped to these two
-# subjects: another user's grants on this node are not ours to remove.
+# user or this token that is not the role above, at the path above, is revoked
+# -- the path as well as the role, so that narrowing proxmox_api_acl_path later
+# narrows such a node rather than leaving the wider grant in place. Scoped to
+# these two subjects: another user's grants on this node are not ours to
+# remove, which holds only while nothing else grants to this user (kerbside's
+# own lane uses a renamed one).
 - name: Revoke any other role this user or token holds
   ansible.builtin.command: >-
     pveum acl delete {{ item.path }}
     {{ '--tokens' if item.type == 'token' else '--users' }} {{ item.ugid }}
     --roles {{ item.roleid }}
   loop: >-
-    {{ _pve_acl.stdout | from_json
-       | selectattr('ugid', 'in', [proxmox_api_user, proxmox_api_token_id])
-       | rejectattr('roleid', 'equalto', proxmox_api_role) | list }}
+    {{ (_pve_acl.stdout | from_json
+        | selectattr('ugid', 'in', [proxmox_api_user, proxmox_api_token_id])
+        | rejectattr('roleid', 'equalto', proxmox_api_role) | list)
+       + (_pve_acl.stdout | from_json
+          | selectattr('ugid', 'in', [proxmox_api_user, proxmox_api_token_id])
+          | selectattr('roleid', 'equalto', proxmox_api_role)
+          | rejectattr('path', 'equalto', proxmox_api_acl_path) | list) }}
   loop_control:
     label: "{{ item.ugid }} -> {{ item.roleid }} on {{ item.path }}"
   changed_when: true
 
+# --propagate 1 is PVE's default, and is passed anyway: the grant is made on
+# /vms, and what needs it is /vms/<vmid> for a guest smoke.yml creates after
+# this file has run. Relying on the default would leave that implicit.
+#
 # The user holds the role as well as the token, because a privilege-separated
 # token holds only what both it and its user hold. Granting it to the user does
 # not widen the token: the token's own ACL still caps it.
@@ -94,7 +109,7 @@
   ansible.builtin.command: >-
     pveum acl modify {{ proxmox_api_acl_path }}
     --users {{ proxmox_api_user }}
-    --roles {{ proxmox_api_role }}
+    --roles {{ proxmox_api_role }} --propagate 1
   changed_when: true
   when: >-
     (_pve_acl.stdout | from_json
@@ -176,7 +191,7 @@
   ansible.builtin.command: >-
     pveum acl modify {{ proxmox_api_acl_path }}
     --tokens {{ proxmox_api_token_id }}
-    --roles {{ proxmox_api_role }}
+    --roles {{ proxmox_api_role }} --propagate 1
   changed_when: true
   when: >-
     (_pve_acl_with_token.stdout | from_json

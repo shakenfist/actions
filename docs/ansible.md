@@ -550,11 +550,22 @@ is a role of our own because no stock role is that small: this used to
 grant `PVEVMUser` on `/vms`, which also carries `VM.PowerMgmt`,
 `VM.Config.*`, `VM.Snapshot` and `VM.Backup`, paired with `PVEAuditor`
 on `/`, which reads the whole cluster rather than its VMs
-([#216](https://github.com/shakenfist/actions/issues/216)). Beyond the
-credential being narrower, the point is that the lane now exercises the
-privilege set a real deployment uses, so a console client that starts
-depending on a privilege the documented account does not grant fails
-here rather than at a user's cluster.
+([#216](https://github.com/shakenfist/actions/issues/216)).
+
+**What this lane proves about the pair, and what it does not.** The
+substrate lane mints a console ticket with the published token twice,
+in `proxmox-self-check.sh` and in its own step, so it proves
+`VM.Console`, both grants and the `pveum` commands against a real node:
+a missing token ACL or a wrong path fails it with PVE's `403 Permission
+check failed`. It proves nothing about `VM.Audit`, because nothing in
+this repository authenticates a call that needs it -- the mint is the
+only token call here. That half is proven in kerbside's own Proxmox
+lane, which checks a token holding only `VM.Audit` against `spiceproxy`
+and one holding only `VM.Console` against a VM's `config`, and gets 403
+from each. Dropping `VM.Audit` here would leave this lane green and
+break kerbside's scrape, which is why
+`tests/test_proxmox_console_account.py` pins the pair rather than
+leaving it to CI.
 
 **The role is not called `KerbsideConsole`.** It is
 `ShakenFistConsole`, and the difference is load-bearing rather than

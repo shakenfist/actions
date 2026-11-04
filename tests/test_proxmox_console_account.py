@@ -169,6 +169,9 @@ class ProxmoxConsoleAccountTestCase(unittest.TestCase):
                              'expected one "pveum acl modify %s %s", found %r'
                              % (flag, subject, grants))
             self.assertIn('--roles {{ proxmox_api_role }}', matching[0])
+            self.assertRegex(matching[0], r'--propagate\s+1',
+                             'the grant is made on %s and has to reach %s/<vmid>, where the smoke '
+                             'guest is created after this file runs' % (PROVEN_PATH, PROVEN_PATH))
 
     # ------------------------------------------------------------------
     # Ordering, and which read each decision is made from.
@@ -224,14 +227,21 @@ class ProxmoxConsoleAccountTestCase(unittest.TestCase):
         self.assertEqual(len(modified), 1, 'expected one "pveum role modify", found %r' % modified)
         self.assertIn('--privs "{{ proxmox_api_privs }}"', modified[0])
 
-        role, privs = 'ShakenFistConsole', 'VM.Audit VM.Console'
+        # The real values, not a copy of them: the expression is sensitive
+        # to how the variable is written, not only to which privileges it
+        # names, so a value with a double space or a comma in it has to
+        # fail here rather than modify the role on every run forever.
+        role, privs = self.vars['proxmox_api_role'], self.vars['proxmox_api_privs']
+        ours = ','.join(sorted(privs.split()))
+        wider = ','.join(sorted(privs.split() + ['VM.PowerMgmt']))
         cases = (
             # (what pveum reports, should the role be modified)
-            ('absent', [{'roleid': 'PVEVMUser', 'privs': 'VM.Audit,VM.Console,VM.PowerMgmt'}], 'False'),
-            ('same', [{'roleid': role, 'privs': 'VM.Audit,VM.Console'}], 'False'),
-            ('same, other order', [{'roleid': role, 'privs': 'VM.Console,VM.Audit'}], 'False'),
-            ('wider', [{'roleid': role, 'privs': 'VM.Audit,VM.Console,VM.PowerMgmt'}], 'True'),
-            ('narrower', [{'roleid': role, 'privs': 'VM.Console'}], 'True'),
+            ('absent', [{'roleid': 'PVEVMUser', 'privs': wider}], 'False'),
+            ('same', [{'roleid': role, 'privs': ours}], 'False'),
+            ('same, other order', [{'roleid': role, 'privs': ','.join(reversed(ours.split(',')))}],
+             'False'),
+            ('wider', [{'roleid': role, 'privs': wider}], 'True'),
+            ('narrower', [{'roleid': role, 'privs': ours.split(',')[0]}], 'True'),
             ('no privileges', [{'roleid': role, 'privs': ''}], 'True'),
             ('privs key absent', [{'roleid': role}], 'True'),
         )
@@ -242,6 +252,23 @@ class ProxmoxConsoleAccountTestCase(unittest.TestCase):
                                 _pve_roles=self._roles(*entries),
                                 proxmox_api_role=role, proxmox_api_privs=privs),
                     expected)
+
+    def test_the_privilege_list_compares_equal_however_it_is_written(self):
+        # pveum's --privs reads a list on commas or on whitespace, so a value
+        # written either way names the same role. If the comparison does not
+        # normalise the same way, the correction runs on every single run,
+        # reporting changed forever and never converging.
+        role = self.vars['proxmox_api_role']
+        privs = self.vars['proxmox_api_privs'].split()
+        reported = {'roleid': role, 'privs': ','.join(sorted(privs))}
+        for written in ('  '.join(privs), ' %s ' % ' '.join(privs), ','.join(privs),
+                        '\t'.join(privs), ', '.join(privs)):
+            with self.subTest(written=written):
+                self.assertEqual(
+                    self.render("Correct the console role's privileges",
+                                _pve_roles=self._roles(reported),
+                                proxmox_api_role=role, proxmox_api_privs=written),
+                    'False')
 
     def test_a_token_that_predates_privilege_separation_is_separated(self):
         separated = self.pveum('user token modify')
@@ -282,7 +309,9 @@ class ProxmoxConsoleAccountTestCase(unittest.TestCase):
         self.assertIn("'--tokens' if item.type == 'token' else '--users'", command,
                       'a token grant is deleted with --users, or the reverse, which pveum ignores')
 
-        user, token, role = 'kerbside@pve', 'kerbside@pve!console', 'ShakenFistConsole'
+        user = self.vars['proxmox_api_user']
+        token = '%s!%s' % (user, self.vars['proxmox_api_token'])
+        role, path = self.vars['proxmox_api_role'], self.vars['proxmox_api_acl_path']
         acl = [
             # What an earlier revision left behind, both of which go.
             {'path': '/vms', 'ugid': user, 'roleid': 'PVEVMUser', 'type': 'user'},
@@ -292,6 +321,9 @@ class ProxmoxConsoleAccountTestCase(unittest.TestCase):
             {'path': '/vms', 'ugid': token, 'roleid': role, 'type': 'token'},
             # A token grant of an older revision, which goes.
             {'path': '/', 'ugid': token, 'roleid': 'PVEAuditor', 'type': 'token'},
+            # Our role, but at a path that is no longer ours: it goes too, or
+            # narrowing proxmox_api_acl_path would narrow nothing here.
+            {'path': '/', 'ugid': user, 'roleid': role, 'type': 'user'},
             # Somebody else's, which is not ours to remove.
             {'path': '/vms', 'ugid': 'kerbside-lane@pve', 'roleid': 'KerbsideConsole',
              'type': 'user'},
@@ -301,10 +333,45 @@ class ProxmoxConsoleAccountTestCase(unittest.TestCase):
         self.assertTrue(revoke['loop'].strip().startswith('{{'))
         rendered = environment().from_string(revoke['loop'].strip()).render(
                 _pve_acl={'stdout': json.dumps(acl)},
-                proxmox_api_user=user, proxmox_api_token_id=token, proxmox_api_role=role)
-        revoked = [(entry['ugid'], entry['roleid']) for entry in yaml.safe_load(rendered)]
-        self.assertEqual(sorted(revoked), sorted([(user, 'PVEVMUser'), (user, 'PVEAuditor'),
-                                                  (token, 'PVEAuditor')]))
+                proxmox_api_user=user, proxmox_api_token_id=token, proxmox_api_role=role,
+                proxmox_api_acl_path=path)
+        revoked = [(entry['ugid'], entry['roleid'], entry['path'])
+                   for entry in yaml.safe_load(rendered)]
+        self.assertEqual(sorted(revoked),
+                         sorted([(user, 'PVEVMUser', '/vms'), (user, 'PVEAuditor', '/'),
+                                 (token, 'PVEAuditor', '/'), (user, role, '/')]))
+
+    def test_neither_grant_is_skipped_when_it_is_not_already_in_place(self):
+        # With privsep=1 a missing grant is a published credential that can
+        # do nothing, so the condition that skips a grant matters as much as
+        # the command itself.
+        user = self.vars['proxmox_api_user']
+        token = '%s!%s' % (user, self.vars['proxmox_api_token'])
+        role, path = self.vars['proxmox_api_role'], self.vars['proxmox_api_acl_path']
+        other = '/'
+        self.assertNotEqual(path, other)
+        for name, subject, register in (
+                ('Grant the console user its role', user, '_pve_acl'),
+                ('Grant the API token its role', token, '_pve_acl_with_token')):
+            entry = {'path': path, 'ugid': subject, 'roleid': role,
+                     'type': 'token' if '!' in subject else 'user'}
+            cases = (
+                ('nothing granted', [], 'True'),
+                ('already granted', [entry], 'False'),
+                ('granted to the other subject', [dict(entry, ugid=token if subject == user
+                                                       else user)], 'True'),
+                ('granted at another path', [dict(entry, path=other)], 'True'),
+                ('another role at our path', [dict(entry, roleid='PVEAuditor')], 'True'),
+            )
+            for label, acl, expected in cases:
+                with self.subTest(grant=name, acl=label):
+                    self.assertEqual(
+                        self.render(name, **{register: {'stdout': json.dumps(acl)},
+                                             'proxmox_api_user': user,
+                                             'proxmox_api_token_id': token,
+                                             'proxmox_api_role': role,
+                                             'proxmox_api_acl_path': path}),
+                        expected)
 
     def test_the_revocation_is_decided_before_our_own_grants_are_made(self):
         # Keyed on a read taken after the grants, the loop would find and
