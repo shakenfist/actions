@@ -2,7 +2,7 @@
 # Bring up a single-node Proxmox VE 9 hypervisor as an instance in the
 # runner's own ShakenFist namespace, installed the officially supported way --
 # layered onto a stock Debian 13 base image with apt -- and leave a booted
-# guest with a SPICE console on it, a least-privilege API token for it, and a
+# guest with a SPICE console on it, a API token holding only VM.Audit and VM.Console on /vms for it, and a
 # runner that can reach the node.
 #
 # WHY NOT THE ISO. Proxmox has had an answer-file driven unattended installer

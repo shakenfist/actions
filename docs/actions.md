@@ -499,11 +499,12 @@ is shared between kerbside and kerbside-patches CI to avoid duplication.
 ## deploy-proxmox-on-shakenfist
 
 Stands up a single-node Proxmox VE 9 hypervisor as an instance in the
-runner's own Shaken Fist namespace: a booted SPICE smoke guest, a
-least-privilege API token, and a runner that can resolve and reach the
-node by its FQDN. Everything happens inside the calling job, because a
-Proxmox console ticket lasts only about 30 seconds and a client under
-test has to mint and connect within that window. The action's own
+runner's own Shaken Fist namespace: a booted SPICE smoke guest, an API
+token holding only the two privileges a console path needs, and a
+runner that can resolve and reach the node by its FQDN. Everything
+happens inside the calling job, because a Proxmox console ticket lasts
+only about 30 seconds and a client under test has to mint and connect
+within that window. The action's own
 files -- the playbook, its task files and the two `tools/proxmox-*`
 helpers -- are resolved through `github.action_path`, so a caller
 always gets them from the same ref as the `action.yml` it resolved; see
@@ -562,7 +563,7 @@ more keeps its plain size, as `proxmox-substrate.yml` does with `m`. See
 | `node_address` | The node address the runner reaches it on |
 | `node_fqdn` | The node FQDN: the host of a ticket's proxy URL, and the CN of its certificate. Resolvable on the runner through `/etc/hosts` |
 | `api_url` | `https://<node_fqdn>:8006`, the PVE API |
-| `token_id` | The API token id, `user@realm!token` |
+| `token_id` | The API token id, `user@realm!token`. Privilege separated, and granted only `VM.Audit` and `VM.Console` on `/vms`; see [ansible.md](ansible.md#proxmox-node) |
 | `token_file` | Path to a `0600` file holding the API token secret. **A live credential**: never print it, pass it on a command line, or upload it. It is masked in the job log |
 | `ca_file` | Path to the node's root CA (PEM), for verifying the API and SPICE TLS |
 | `vmid` | The VM id of the running SPICE smoke guest |
