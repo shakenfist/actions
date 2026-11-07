@@ -28,6 +28,7 @@ for how this works, including how to verify the attestations.
 | .github/workflows/pr-retest.yml | mikal | 2026-10-20 | 189610eb241b | - |
 | .github/workflows/proxmox-substrate.yml | mikal | 2026-10-28 | c6111c60f470 | - |
 | .github/workflows/prune-reviews.yml | mikal | 2026-11-01 | 0c0cfe362b24 | development@d8055a5e1696 |
+| .github/workflows/renovate.yml | mikal | 2026-11-08 | 4a7a3cde0179 | development@36adeb6f3a99 |
 | .gitleaks.toml | mikal | 2026-09-25 | 3356d24cc917 | - |
 | AGENTS.md | mikal | 2026-10-22 | b9e03c925bc9 | - |
 | ARCHITECTURE.md | mikal | 2026-10-28 | 662c774a24ee | - |
@@ -137,7 +138,6 @@ for how this works, including how to verify the attestations.
 | tools/ci_headroom_launch.sh | mikal | 2026-10-16 | 07bd48d18d84 | - |
 | tools/ci_headroom_verdict.sh | mikal | 2026-10-16 | 7a47cf36cae0 | - |
 | tools/ci_log_checks.sh | mikal | 2026-09-10 | 87a9e0998e4f | - |
-| tools/ci_log_checks_loki.sh | mikal | 2026-09-10 | 34a7cdd80ac2 | - |
 | tools/ci_loki_dump.py | mikal | 2026-09-28 | da0c391434ca | - |
 | tools/ci_node_checks.sh | mikal | 2026-10-10 | 3bcad1457330 | - |
 | tools/ci_sync_docs.sh | mikal | 2026-10-21 | f0df29516763 | - |

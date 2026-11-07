@@ -469,10 +469,6 @@
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
       "date": "2026-09-10"
     },
-    "tools/ci_log_checks_loki.sh": {
-      "sha": "34a7cdd80ac2418dbe1c45ecb69f81702bce62c8",
-      "date": "2026-09-10"
-    },
     "tools/ci_loki_dump.py": {
       "sha": "da0c391434cab5219ece4bccd37ed44a117b6684",
       "date": "2026-09-28"

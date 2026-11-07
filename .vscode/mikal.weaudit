@@ -113,10 +113,6 @@
       "author": "mikal"
     },
     {
-      "path": "tools/ci_log_checks_loki.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ci_log_checks.sh",
       "author": "mikal"
     },
