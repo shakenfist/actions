@@ -281,7 +281,7 @@ if ! echo "${BRANCH}" | grep -q "v0.7"; then
         "Ignoring malformed cache entry"
         "WORKER TIMEOUT"
         "Repeated failures to add address to device"
-        "Lock held by missing process on this node"
+        "Clearing lock held by missing process"
         "Cannot record event, no configured server"
         # NOTE: the old "Cannot communicate with etcd, no configured
         # server" pattern is DROPPED here -- etcd is gone.
