@@ -180,21 +180,70 @@ in seconds:
 
 | Playbook | `capacity_wait_budget` |
 |---|---|
-| `ci-topology-localhost.yml` | 3600 |
+| `ci-topology-localhost.yml` | 2400 |
 | `kerbside-single-node.yml` | 1800 |
 | `ci-topology-slim-tier.yml` | 600 |
 | `ci-topology-slim-primary.yml` | 600 |
 | `kerbside-multi-node.yml` | 600 |
 | `kerbside-multi-node-2.yml` | 600 |
 
-`ci-topology-localhost.yml` has the longest budget because it asks for
-the hardest thing to place: one 12 vCPU, 16 GB primary holding an entire
-cluster, where the `slim-*` topologies spread the same work over several
-smaller nodes. It is also the only one whose lane gates nothing and runs
-weekly, so an hour of waiting costs nobody a merge. At 1800 it exhausted
-the budget over 27 refusals and gave up 25 seconds before the merge
-queue clusters ahead of it released their memory
-(shakenfist/shakenfist#4741).
+`ci-topology-localhost.yml` has the longest budget, and it is the one to
+be careful with, because `localhost` is `smoke-cluster.yml`'s default
+`topology`. Every caller which omits that input provisions through this
+playbook, so its consumers are not one lane but four:
+
+| Consumer | Runs on | Gates |
+|---|---|---|
+| shakenfist `smoke_collection` | every pull request touching code | no (excludes `merge_group`) |
+| client-python `functional_matrix` | pull requests **and `merge_group`** | yes, the merge queue |
+| this repository's `canary.yml` | every push to `main` | no, post-merge |
+| shakenfist `debian-13-localhost` | weekly | no |
+
+Only the last names the topology explicitly. So a bigger number here is
+not free, and "it only costs a weekly job" is not an argument available
+to it: one consumer holds a merge queue entry for the duration, and
+everything behind that entry waits with it.
+
+What makes a longer wait worth having anyway is that it costs nothing
+until the cluster has already refused -- on a cluster with room there is
+no wait at all -- and when there is no room the choice is between
+failing a change for something which is not its fault and taking longer
+to pass it. On 2026-11-08 the weekly lane spent its whole 1800 second
+budget over 27 refusals at the `sufficient_idle_memory` stage and gave
+up 25 seconds before the merge queue clusters ahead of it released their
+memory (shakenfist/shakenfist#4741). 2400 covers that contention window
+with room to spare while adding only ten minutes to the worst case a
+gating consumer can suffer.
+
+The ceiling is not patience but `smoke-cluster.yml`'s 90 minute
+`timeout-minutes` on "Build the smoke cluster", which the wait shares
+with everything else in that step: the cloud-init readiness gate
+described above, which on its slow path spends 300 seconds reaching the
+host and then up to its `timeout 600` in `cloud-init status --wait`; the
+deploy, about 8 minutes; a second deploy when the caller's profile sets
+`redeploy_check`; and about 6 minutes of collection install, inventory
+generation, schedulable wait and base image import, measured on a run
+which waited for no capacity at all. A budget of 2400 leaves about
+twenty minutes against that sum. 3600 left one, and a step timeout kills
+the job with no capacity diagnosis, which is a worse failure than the
+refusal it replaces.
+
+Two things this number does not express. The waiting job is itself a VM
+on the same under-cloud (`runs-on: [self-hosted, vm, debian-13,
+s-cloud]`) and the conductor holds its runner claim for the whole wait,
+so a refused build pins s-cloud capacity during exactly the contended
+window other pending jobs are queued in: the cost of a bigger number
+falls on the pool rather than on the job which chose it. And instance
+shape is not what sets this playbook apart -- `kerbside-single-node.yml`
+creates an identically sized instance (`vcpus: 12`, `memory: 16384`) and
+stays at 1800. What distinguishes this one is how many workflows reach
+it by default.
+
+Those four consumers do not want the same thing: a weekly lane nobody is
+waiting on can afford to wait an hour, and a merge queue entry would
+rather fail fast and be re-enqueued. One number in the playbook cannot
+serve both, which is why the budget belongs with the caller. See
+shakenfist/actions#245.
 
 No other playbook waits. `ci-topology-localhost-released.yml`,
 `ci-topology-localhost-upgrade.yml` and

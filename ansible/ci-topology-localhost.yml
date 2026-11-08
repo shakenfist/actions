@@ -14,18 +14,14 @@
     # spent. Override with --extra-vars capacity_wait_budget=N; 0 turns the
     # wait off. See "Waiting for capacity" in docs/ansible.md.
     #
-    # The longest budget of any topology, because this one asks for the
-    # hardest thing to place: a single 12 vCPU, 16 GB primary which holds
-    # the whole cluster, where the slim topologies spread the same work
-    # over several smaller nodes. The only lane which runs it is weekly
-    # and gates nothing, so nobody is waiting on it, and when it lands on
-    # a busy merge queue it is the create the scheduler refuses. At 1800
-    # it spent the whole budget over 27 refusals and gave up 25 seconds
-    # before the merge queue clusters it was queued behind released their
-    # memory (shakenfist/shakenfist#4741). "Build the smoke cluster"
-    # allows 90 minutes and the deploy after this create takes about 8,
-    # so an hour of waiting still fits.
-    capacity_wait_budget: 3600
+    # The longest budget of any topology, and the one to be careful with:
+    # localhost is smoke-cluster.yml's default topology, so this playbook
+    # has the most consumers, one of which gates a merge queue. The
+    # number is bounded by that workflow's 90 minute timeout-minutes on
+    # "Build the smoke cluster", not by patience. docs/ansible.md has the
+    # consumers, the arithmetic and the measurements; do not raise this
+    # without redoing them.
+    capacity_wait_budget: 2400
 
   tasks:
     # Derive a short per-run suffix for under-cloud instance names so that
