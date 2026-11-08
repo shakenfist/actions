@@ -180,12 +180,21 @@ in seconds:
 
 | Playbook | `capacity_wait_budget` |
 |---|---|
-| `ci-topology-localhost.yml` | 1800 |
+| `ci-topology-localhost.yml` | 3600 |
 | `kerbside-single-node.yml` | 1800 |
 | `ci-topology-slim-tier.yml` | 600 |
 | `ci-topology-slim-primary.yml` | 600 |
 | `kerbside-multi-node.yml` | 600 |
 | `kerbside-multi-node-2.yml` | 600 |
+
+`ci-topology-localhost.yml` has the longest budget because it asks for
+the hardest thing to place: one 12 vCPU, 16 GB primary holding an entire
+cluster, where the `slim-*` topologies spread the same work over several
+smaller nodes. It is also the only one whose lane gates nothing and runs
+weekly, so an hour of waiting costs nobody a merge. At 1800 it exhausted
+the budget over 27 refusals and gave up 25 seconds before the merge
+queue clusters ahead of it released their memory
+(shakenfist/shakenfist#4741).
 
 No other playbook waits. `ci-topology-localhost-released.yml`,
 `ci-topology-localhost-upgrade.yml` and
