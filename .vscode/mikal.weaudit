@@ -397,10 +397,6 @@
       "author": "mikal"
     },
     {
-      "path": "ansible/ci-topology-localhost.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/kerbside-create-instance.yml",
       "author": "mikal"
     },

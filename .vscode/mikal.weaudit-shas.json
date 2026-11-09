@@ -93,10 +93,6 @@
       "sha": "065f73f684b95a93566f1dd55114984c912392d9",
       "date": "2026-09-07"
     },
-    "ansible/ci-topology-localhost.yml": {
-      "sha": "7590e2723fa8b7480f49db7f0dc5941bd3145d85",
-      "date": "2026-10-20"
-    },
     "ansible/ci-topology-slim-primary-released.yml": {
       "sha": "ddc07af70c9184047efcf7e8dc31b1663b410ff9",
       "date": "2026-09-30"
