@@ -353,10 +353,6 @@
       "sha": "f747c6e4a4c2b9bf7fa7e4ef1bf26e865d62263a",
       "date": "2026-09-25"
     },
-    "tests/test_proxmox_shell_validation.py": {
-      "sha": "f6635a8138ed046ef6f7d72aa90d915dbe8086b4",
-      "date": "2026-09-25"
-    },
     "tests/test_render_review.py": {
       "sha": "08a529c95c20ebcce76834d9f49af4eb8eacb872",
       "date": "2026-10-22"
@@ -533,16 +529,8 @@
       "sha": "04508d3a27f26a81a35ba661a2cb4b07948674a2",
       "date": "2026-09-25"
     },
-    "tools/proxmox-mint-vv.sh": {
-      "sha": "e1bb3e3ab87435e10586fee74775af2f9bdf2b25",
-      "date": "2026-09-25"
-    },
     "tools/proxmox-publish-node.sh": {
       "sha": "c8328ca2a411ed5828f92b518a00c8cd18882272",
-      "date": "2026-09-25"
-    },
-    "tools/proxmox-self-check.sh": {
-      "sha": "72392455aaae9b2375e982bf0778b4ab5897fde3",
       "date": "2026-09-25"
     },
     "tools/report-proxmox-substrate-failure.sh": {

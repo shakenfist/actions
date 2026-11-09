@@ -213,15 +213,7 @@
       "author": "mikal"
     },
     {
-      "path": "tools/proxmox-mint-vv.sh",
-      "author": "mikal"
-    },
-    {
       "path": "tools/proxmox-publish-node.sh",
-      "author": "mikal"
-    },
-    {
-      "path": "tools/proxmox-self-check.sh",
       "author": "mikal"
     },
     {
@@ -230,10 +222,6 @@
     },
     {
       "path": "tests/test_render_unparsed_review.py",
-      "author": "mikal"
-    },
-    {
-      "path": "tests/test_proxmox_shell_validation.py",
       "author": "mikal"
     },
     {
