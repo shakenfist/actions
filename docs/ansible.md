@@ -204,6 +204,13 @@ not free, and "it only costs a weekly job" is not an argument available
 to it: one consumer holds a merge queue entry for the duration, and
 everything behind that entry waits with it.
 
+Three of those four rows name workflows in other repositories, and
+nothing here notices when one of them starts or stops passing
+`topology`, so the table is a snapshot taken on 2026-11-09. Re-derive
+it by grepping the fleet for callers of `smoke-cluster.yml` and
+checking which omit the input: a caller which omits it provisions
+through this playbook.
+
 What makes a longer wait worth having anyway is that it costs nothing
 until the cluster has already refused -- on a cluster with room there is
 no wait at all -- and when there is no room the choice is between
@@ -212,21 +219,40 @@ to pass it. On 2026-11-08 the weekly lane spent its whole 1800 second
 budget over 27 refusals at the `sufficient_idle_memory` stage and gave
 up 25 seconds before the merge queue clusters ahead of it released their
 memory (shakenfist/shakenfist#4741). 2400 covers that contention window
-with room to spare while adding only ten minutes to the worst case a
-gating consumer can suffer.
+while adding only ten minutes to the worst case a gating consumer can
+suffer. It is a margin chosen rather than measured: 1825 would have
+passed that run, and one incident cannot say whether 2400 is generous.
+So if a lane ever exhausts 2400, read that as the contention window
+having grown rather than as this number being wrong, and take it to
+shakenfist/actions#245 rather than bumping it again -- a bigger shared
+number costs the gating consumer most, and the ceiling below has little
+left to give. `tools/ci_headroom_collect.sh`'s wait trace is not the
+evidence for any of this: it records the waits the functional suite's
+own creates made inside the smoke cluster, not under-cloud topology
+refusals.
 
 The ceiling is not patience but `smoke-cluster.yml`'s 90 minute
 `timeout-minutes` on "Build the smoke cluster", which the wait shares
 with everything else in that step: the cloud-init readiness gate
-described above, which on its slow path spends 300 seconds reaching the
-host and then up to its `timeout 600` in `cloud-init status --wait`; the
-deploy, about 8 minutes; a second deploy when the caller's profile sets
-`redeploy_check`; and about 6 minutes of collection install, inventory
-generation, schedulable wait and base image import, measured on a run
-which waited for no capacity at all. A budget of 2400 leaves about
-twenty minutes against that sum. 3600 left one, and a step timeout kills
-the job with no capacity diagnosis, which is a worse failure than the
-refusal it replaces.
+described above, whose slow path is the about-twenty-minutes figure that
+section gives; the deploy, about 8 minutes; a second deploy when the
+caller's profile sets `redeploy_check`; and about 6 minutes of
+collection install, inventory generation, schedulable wait and base
+image import, measured on a run which waited for no capacity at all.
+Against the 90 minutes that leaves:
+
+| Budget | Wait + gate + deploy + rest | Spare | With `redeploy_check` |
+|---|---|---|---|
+| 1800 | 30 + 20 + 8 + 6 = 64 min | 26 min | 72 min, 18 spare |
+| 2400 | 40 + 20 + 8 + 6 = 74 min | 16 min | 82 min, 8 spare |
+| 3600 | 60 + 20 + 8 + 6 = 94 min | **over** | 102 min, over |
+
+So 3600 does not fit at all once the gate's own documented slow path is
+counted, and 2400 is the largest round number which still leaves room
+for a `redeploy_check` profile. A step timeout kills the job with no
+capacity diagnosis at all, which is a worse failure than the refusal it
+would replace, so that margin is the point of the number rather than a
+detail of it.
 
 Two things this number does not express. The waiting job is itself a VM
 on the same under-cloud (`runs-on: [self-hosted, vm, debian-13,
@@ -304,13 +330,15 @@ The capacity clock and the boot clock are separate. The wait ends
 when the cluster accepts the create, and the boot then gets its full
 `await_timeout`. A whole run can spend at most its budget waiting, on
 top of its usual time. So the build step of a `localhost` smoke
-cluster can take up to 30 minutes longer than before. That step,
-deploy included, normally takes 6 to 7 minutes: that was the median
-and maximum over successful shakenfist pull request runs in October
-2026. So the worst case is still well under the 90 minute
-`timeout-minutes` on the step in `smoke-cluster.yml`. The
-multi-instance `slim-*` builds take 9 to 12 minutes, plus at most 10
-minutes of waiting.
+cluster can take up to 40 minutes longer than before, and a
+`kerbside-single-node.yml` build up to 30. That step, deploy included,
+normally takes 6 to 7 minutes: that was the median and maximum over
+successful shakenfist pull request runs in October 2026. For
+`localhost` that is no longer comfortably under the 90 minute
+`timeout-minutes` on the step in `smoke-cluster.yml`, which is why
+that budget carries a ceiling table of its own above; read it before
+raising the number again. The multi-instance `slim-*` builds take 9 to
+12 minutes, plus at most 10 minutes of waiting.
 When the budget runs out, the task fails with the server's last
 refusal message, followed by how long it waited. So a log search for
 the server's text still finds the failure.
