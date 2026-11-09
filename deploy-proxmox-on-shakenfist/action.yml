@@ -79,6 +79,9 @@ outputs:
     description: >-
       Absolute path to proxmox-mint-vv.sh, which mints a .vv through the API
       token: --api-url --node --vmid --token-id --token-file --ca-file --out.
+      Run it where it is: it sources proxmox-api-lib.sh from its own
+      directory, so a copy of the script on its own will not run, and a copy
+      in a directory others can write to would source theirs.
     value: ${{ steps.publish.outputs.mint_script }}
 
 runs:

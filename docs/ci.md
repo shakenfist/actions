@@ -788,7 +788,26 @@ userinfo or a path in an API URL, a node address outside the playbook's
 netblock -- with a fake `curl`, `git` and `sudo` first on `PATH`. Each
 rejection must name its own guard, reach no fake and publish nothing.
 The substrate lane only ever passes good values, so it would never
-notice a guard that had stopped rejecting.
+notice a guard that had stopped rejecting. The mint and the audit read
+share their guards through `tools/proxmox-api-lib.sh`, and both suites
+run the whole set against their own script, because a caller that
+stopped calling the library would leave the other suite passing. The
+fake `curl` answers the two endpoints separately, so a case can hand
+the audit read PVE's `403 Permission check failed` and check that the
+self-check stops there, before the mint. It also records the arguments
+it was given and the `Authorization` header file it was handed, because
+the flags the library assembles -- the proxy bypass, the pinned CA, the
+timeout, the method -- change nothing a fake answers, so without that
+record the refactor could have dropped any of them unnoticed.
+
+Further cases cover the other direction, where the node is what
+answers: a reason phrase or a body `message` reaches the job log, and a
+runner reads a line beginning with `::` there as a command, so both are
+flattened to one printable line, and the guest's run state and the vmid
+it answered with are refused unless they are a word and a run of digits
+respectively. That matters less than the input guards, because
+an attacker able to choose those strings already holds the node and its
+token, but it is the same injection a line later.
 
 `tests/test_proxmox_console_account.py` pins the console account
 `tasks/proxmox/api.yml` creates: the role holds exactly `VM.Audit` and
@@ -801,7 +820,7 @@ earlier revision's grants, and the privsep repair -- against fixtures
 standing in for what `pveum` reports, because an `and` that
 short-circuits the wrong way or a `"0"` read as truthy fails only on a
 real node. The lane cannot tell a narrow credential from a wide one,
-since every mint in it passes either way, so widening the role is
+since every call in it passes either way, so widening the role is
 exactly the kind of change that lands unnoticed: that is how
 `PVEVMUser` on `/vms` and `PVEAuditor` on `/` survived until
 [#216](https://github.com/shakenfist/actions/issues/216). See
