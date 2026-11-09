@@ -612,6 +612,52 @@ class AuditProbeTest(SharedGuardTests, ShellHarness):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('answered about 101', result.stderr)
 
+    def test_a_vmid_answer_that_is_not_digits_is_refused_rather_than_echoed(self):
+        # The answered vmid is printed on a mismatch, so it is held to
+        # digits the way the run state is held to a word. An object or an
+        # array comes out of jq -r as multi-line JSON, and a present null
+        # or false must not be folded into "the node did not send one".
+        hostile = [
+            '101\n::error title=Everything is fine::all good',
+            {'x': '\n::error title=Everything is fine::all good'},
+            ['101', '::error title=Everything is fine::all good'],
+            None,
+            False,
+            '',
+        ]
+        for value in hostile:
+            with self.subTest(vmid=value):
+                self.set_guest(guest(vmid=value))
+                result = self.run_script(AUDIT, self.good_args())
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn('not a vmid', result.stderr)
+                self.assertNotIn('Everything is fine', result.stderr)
+                self.assertEqual(result.stdout, '')
+                self.assertNoForgedWorkflowCommand(result)
+
+    def test_an_answer_without_a_vmid_is_accepted(self):
+        # PVE's return schema makes vmid optional on this endpoint.
+        body = guest()
+        del body['data']['vmid']
+        self.set_guest(body)
+        result = self.run_script(AUDIT, self.good_args())
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_leading_zeros_name_the_same_guest(self):
+        for asked, answered in (('0100', 100), ('100', '0100'), ('0', '000')):
+            with self.subTest(asked=asked, answered=answered):
+                self.set_guest(guest(vmid=answered))
+                result = self.run_script(AUDIT, self.good_args(**{'--vmid': asked}))
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_vmid_too_long_for_a_shell_integer_is_still_compared(self):
+        # 2**64 + 100: an integer comparison would overflow or error, and an
+        # error inside an if is a false, which would wave the answer through.
+        self.set_guest(guest(vmid='18446744073709551716'))
+        result = self.run_script(AUDIT, self.good_args())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('answered about 18446744073709551716', result.stderr)
+
     def test_an_answer_with_no_status_is_rejected(self):
         self.set_guest({'data': {'vmid': 100}})
         result = self.run_script(AUDIT, self.good_args())
@@ -634,7 +680,7 @@ class ApiLibraryTest(ShellHarness):
     next caller is the one that forgets.
     """
 
-    def source_and_run(self, body, umask='022'):
+    def source_and_run(self, body, umask='022', extra_env=None):
         caller = os.path.join(self.tmpdir, 'caller.sh')
         with open(caller, 'w') as f:
             f.write('#!/bin/bash\n'
@@ -644,7 +690,7 @@ class ApiLibraryTest(ShellHarness):
                     '. %s\n'
                     '%s\n' % (umask, API_LIB, body))
         os.chmod(caller, os.stat(caller).st_mode | stat.S_IXUSR)
-        return self.run_script(caller, [])
+        return self.run_script(caller, [], extra_env=extra_env)
 
     def test_the_header_file_is_private_whatever_the_caller_umask_is(self):
         header = os.path.join(self.workdir, 'header')
@@ -670,6 +716,14 @@ class ApiLibraryTest(ShellHarness):
         self.assertEqual(1, len(result.stdout.splitlines()), result.stdout)
         self.assertIn('denied', result.stdout)
         self.assertNoForgedWorkflowCommand(result)
+
+    def test_sourcing_the_library_pins_the_c_locale(self):
+        # The guards' bracket ranges and [:print:] are locale-sensitive, so
+        # the library pins the locale for whoever sources it.
+        result = self.source_and_run('printf "%s" "${LC_ALL}"',
+                                     extra_env={'LC_ALL': 'en_US.UTF-8'})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual('C', result.stdout)
 
 
 class SelfCheckTest(ShellHarness):

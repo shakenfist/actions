@@ -800,11 +800,12 @@ the flags the library assembles -- the proxy bypass, the pinned CA, the
 timeout, the method -- change nothing a fake answers, so without that
 record the refactor could have dropped any of them unnoticed.
 
-Two further cases cover the other direction, where the node is what
+Further cases cover the other direction, where the node is what
 answers: a reason phrase or a body `message` reaches the job log, and a
 runner reads a line beginning with `::` there as a command, so both are
-flattened to one printable line and the guest's run state is refused
-unless it is a word. That matters less than the input guards, because
+flattened to one printable line, and the guest's run state and the vmid
+it answered with are refused unless they are a word and a run of digits
+respectively. That matters less than the input guards, because
 an attacker able to choose those strings already holds the node and its
 token, but it is the same injection a line later.
 

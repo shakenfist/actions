@@ -54,6 +54,13 @@ fail() {
     exit 1
 }
 
+# A run of digits without its leading zeros ("0" for all zeros), so that two
+# vmids can be compared as strings without overflowing a shell integer.
+strip_zeros() {
+    local v="${1#"${1%%[!0]*}"}"
+    printf '%s' "${v:-0}"
+}
+
 # The input guards, the Authorization header and the common curl arguments
 # are shared with proxmox-mint-vv.sh. Sourced after fail(), because that is
 # how the library reports.
@@ -156,9 +163,21 @@ guest_status="$(jq -r '.data.status' "${response}")"
 # PVE's own return schema makes "vmid" optional here, so this checks it
 # only when it is sent: an answer about a different guest would mean the
 # path was built wrong, which the guards above are meant to prevent.
-answered_vmid="$(jq -r '.data.vmid // empty' "${response}")"
-if [ -n "${answered_vmid}" ] && [ "${answered_vmid}" != "${vmid}" ]; then
-    fail "asked the Proxmox API about guest ${vmid} and it answered about ${answered_vmid}"
+#
+# Present-but-null or false counts as sent, not as absent: "// empty" would
+# fold those into "not sent" and skip the check. The answered value is
+# printed on a mismatch, so it is held to digits first, the way the run
+# state is held to a word above; anything else is refused without being
+# echoed. The comparison then ignores leading zeros on either side, since
+# --vmid 0100 and PVE's 100 name the same guest, and it is done on strings
+# so that no length of digits can overflow a shell integer.
+if jq -e '.data | has("vmid")' "${response}" > /dev/null; then
+    answered_vmid="$(jq -r '.data.vmid' "${response}")"
+    [[ "${answered_vmid}" =~ ^[0-9]+$ ]] \
+        || fail 'the guest status read answered with something that is not a vmid'
+    if [ "$(strip_zeros "${answered_vmid}")" != "$(strip_zeros "${vmid}")" ]; then
+        fail "asked the Proxmox API about guest ${vmid} and it answered about ${answered_vmid}"
+    fi
 fi
 
 # One line, no credential: the status is the guest's run state.

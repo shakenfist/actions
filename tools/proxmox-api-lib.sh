@@ -25,6 +25,13 @@
 # not run, and one copied to a directory others can write to would source
 # whatever they put there.
 
+# The guards' bracket ranges ([A-Za-z0-9.-], [0-9A-Fa-f:.]) and the
+# [:print:] class below are read in the shell's locale, where a range is
+# collation-ordered and can match more than ASCII. Pin it here, at source
+# time, so that every caller of the guards gets the C locale whether or not
+# it remembered to export it itself.
+export LC_ALL=C
+
 # Validate everything that identifies the API target, in the caller's
 # variables: node, vmid, token_id, api_url, ca_file, token_file and the
 # optional resolve. On return api_url has any trailing slash removed, and
@@ -135,6 +142,10 @@ pve_describe_refusal() {
 # output-side half of the injection the input guards above prevent -- it
 # can forge an ::error, mask output with ::add-mask::, or print a
 # convincing "Self-check passed".
+#
+# The result can still begin with "::" itself, so it is safe only after a
+# prefix on its line -- "proxmox-audit-probe.sh: ...", "HTTP 500 ..." --
+# never as the first thing a caller prints.
 pve_one_log_line() {
     printf '%s' "$1" | tr '\n\r\t' '   ' | tr -cd '[:print:]'
 }
