@@ -102,13 +102,32 @@ def builtin(task, module):
     return task.get(module) or task.get('ansible.builtin.' + module)
 
 
-def documented_budgets():
-    """The playbook -> budget table under "Waiting for capacity"."""
-    with open(DOCS) as f:
-        text = f.read()
+BUDGET_TABLE_HEADER = '| Playbook | `capacity_wait_budget` |'
+
+
+def budgets_from_docs(text):
+    """The playbook -> budget table under "Waiting for capacity".
+
+    Anchored on that table's own header row rather than on the whole
+    section, because the section holds other tables now: one naming the
+    workflows which reach the localhost topology by default, and one
+    costing each candidate budget against the build step's timeout. A row
+    added to either which happened to have this table's shape -- a
+    backticked file name and a bare number -- would otherwise be absorbed
+    into the budget map, and the failure would arrive as
+    test_each_budget_matches_the_documented_table complaining about a
+    playbook that has no budget.
+    """
     section = text.split('## Waiting for capacity', 1)[1].split('\n## ', 1)[0]
+    table = section.split(BUDGET_TABLE_HEADER, 1)[1].split('\n\n', 1)[0]
     return {m.group(1): int(m.group(2))
-            for m in re.finditer(r'^\| `([\w.-]+\.yml)` \| (\d+) \|$', section, re.MULTILINE)}
+            for m in re.finditer(r'^\| `([\w.-]+\.yml)` \| (\d+) \|$', table, re.MULTILINE)}
+
+
+def documented_budgets():
+    """budgets_from_docs() against the checked-in docs."""
+    with open(DOCS) as f:
+        return budgets_from_docs(f.read())
 
 
 class CapacityWaitTest(unittest.TestCase):
@@ -179,6 +198,26 @@ class CapacityWaitTest(unittest.TestCase):
                 template = environment.from_string(value.strip())
                 self.assertEqual('True', template.render(omit=omit, sf_instance_has_await_placement=True).strip())
                 self.assertEqual(omit, template.render(omit=omit, sf_instance_has_await_placement=False).strip())
+
+    def test_a_budget_shaped_row_in_another_table_is_not_a_budget(self):
+        # The parser is anchored on the budget table's header because the
+        # section holds three tables. Without the anchor this consumer row
+        # would be read as canary.yml having a budget, and the failure
+        # would point at the playbooks rather than at the docs.
+        text = (
+            '## Waiting for capacity\n'
+            '\n'
+            + BUDGET_TABLE_HEADER + '\n'
+            '|---|---|\n'
+            '| `ci-topology-localhost.yml` | 2400 |\n'
+            '\n'
+            '| Consumer | Budget |\n'
+            '|---|---|\n'
+            '| `canary.yml` | 2400 |\n'
+            '\n'
+            '## The next section\n')
+        self.assertEqual({'ci-topology-localhost.yml': 2400},
+                         budgets_from_docs(text))
 
     def test_each_budget_matches_the_documented_table(self):
         documented = documented_budgets()

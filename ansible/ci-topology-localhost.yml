@@ -13,7 +13,15 @@
     # gets what is left of it, and sf_capacity_waited counts what has been
     # spent. Override with --extra-vars capacity_wait_budget=N; 0 turns the
     # wait off. See "Waiting for capacity" in docs/ansible.md.
-    capacity_wait_budget: 1800
+    #
+    # The longest budget of any topology, and the one to be careful with:
+    # localhost is smoke-cluster.yml's default topology, so this playbook
+    # has the most consumers, one of which gates a merge queue. The
+    # number is bounded by that workflow's 90 minute timeout-minutes on
+    # "Build the smoke cluster", not by patience. docs/ansible.md has the
+    # consumers, the arithmetic and the measurements; do not raise this
+    # without redoing them.
+    capacity_wait_budget: 2400
 
   tasks:
     # Derive a short per-run suffix for under-cloud instance names so that
