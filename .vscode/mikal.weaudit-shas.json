@@ -41,10 +41,6 @@
       "sha": "c6111c60f47072caf912a70db70bb27a01b2859f",
       "date": "2026-11-19"
     },
-    ".github/workflows/renovate.yml": {
-      "sha": "100616f204cceb7495f6dbb1223e5bfc5e920a0c",
-      "date": "2026-11-19"
-    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -55,7 +51,7 @@
     },
     "ARCHITECTURE.md": {
       "sha": "662c774a24eee20d92c57989d4b7df9d88a3f9b1",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "PUSH-AUDIT.md": {
       "sha": "19ae3b818dbcc7b4b89e35e087e17cf85dece369",
@@ -63,7 +59,7 @@
     },
     "README.md": {
       "sha": "375f10e22f98962f449eb4692a2fcc97d6c06b12",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
@@ -271,7 +267,7 @@
     },
     "tests/test_ansible_galaxy_retry.py": {
       "sha": "fc4bc3c54e25eecaaa0bb8b0e413d1d31d8b6d8d",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tests/test_ansible_log_hygiene.py": {
       "sha": "1f58c19becb65b80e86df92c83cd8e8ec6934ddb",
@@ -287,7 +283,7 @@
     },
     "tests/test_cache_action_archives.py": {
       "sha": "2a33a8d5986f4ed7a1b0e161519da6ed9aef9b8c",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tests/test_check_dist.py": {
       "sha": "09abfef885f3a4c2294af817400692033dd6be19",
@@ -299,7 +295,7 @@
     },
     "tests/test_ci_apply_deploy_profile.py": {
       "sha": "efa636c960fcb91e6acfe1485cb666ca45ddc8fe",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tests/test_ci_dependencies_downloads.py": {
       "sha": "e482ca37078b4f84addccba1f935a21b4f8147a7",
@@ -383,7 +379,7 @@
     },
     "tests/test_start_test_target.py": {
       "sha": "1d1205998d12dd93a01bde61ed15e423f67c46c4",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tests/test_sync_component_docs.py": {
       "sha": "2fe5e44f2309aca3927cc7d033867e21a086b774",
@@ -395,11 +391,11 @@
     },
     "tests/test_workflow_references.py": {
       "sha": "7ce4bdefbd345b9843225096406420af46bdcb34",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tools/ansible-galaxy-retry.sh": {
       "sha": "ce4e5c77be30dc46e186567f1f833bb07cbb51ba",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tools/ansible-syntax-check.sh": {
       "sha": "b5b302533ef9fc0e07b14004f9beb30cf3daa2f2",
@@ -483,7 +479,7 @@
     },
     "tools/deploy-collection.sh": {
       "sha": "2a8095a821adeac6779d28ce27110678205b1438",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tools/event_statistics.py": {
       "sha": "4e22166ac4d4cbaf9bc4593b2a78fc68dc538a4e",
@@ -495,7 +491,7 @@
     },
     "tools/install-collection.sh": {
       "sha": "1d9ebf524d60d259501860e782bda3df94d356e8",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tools/network_allocation_torture.sh": {
       "sha": "0ca9739a3893579bb61787a014435b0dc38a7a1f",
@@ -545,13 +541,17 @@
       "sha": "de9ce7ccd838d85a523ab34a55ff9f7903e2e22f",
       "date": "2026-10-21"
     },
+    "tools/review-tracking.sh": {
+      "sha": "fcadd30b9cea7aec8c747c7f43ef1864bc01bbef",
+      "date": "2026-11-19"
+    },
     "tools/run_remote": {
       "sha": "606646352c6daa7bed06d00d7c87c5bb236bb6a3",
       "date": "2026-09-10"
     },
     "tools/start-test-target.py": {
       "sha": "184bfbc96fb816646b1de1905e4e266bcacf8a9f",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     "tools/sync_component_docs.py": {
       "sha": "1333849ce1ba2e587172b9317bbf3424c1507106",

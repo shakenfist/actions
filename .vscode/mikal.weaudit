@@ -597,15 +597,7 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
-      "path": ".github/workflows",
-      "author": "mikal"
-    },
-    {
-      "path": ".github",
+      "path": "tools/review-tracking.sh",
       "author": "mikal"
     }
   ],
