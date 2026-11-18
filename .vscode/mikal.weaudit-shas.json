@@ -7,7 +7,7 @@
     },
     ".github/workflows/canary.yml": {
       "sha": "51bfe293c3d41c989217b23a480359b7901cf945",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
     },
     ".github/workflows/ci.yml": {
       "sha": "d4e9fb4f999bcae22716eee9e26c6c3864afe3e6",
@@ -39,7 +39,11 @@
     },
     ".github/workflows/proxmox-substrate.yml": {
       "sha": "c6111c60f47072caf912a70db70bb27a01b2859f",
-      "date": "2026-10-28"
+      "date": "2026-11-19"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "100616f204cceb7495f6dbb1223e5bfc5e920a0c",
+      "date": "2026-11-19"
     },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
