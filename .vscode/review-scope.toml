@@ -55,4 +55,10 @@ include = [
 exclude = [
     '.flake8',              # tool configuration, no behaviour of its own
     '.gitignore',           # tool configuration, no behaviour of its own
+    # Plan files are point-in-time records of intended work rather
+    # than living artifacts: nothing executes them, they are reviewed
+    # as part of the pull request that lands each phase, and they are
+    # retired once the plan finishes. Whole-file review would spend
+    # effort on text that is meant to go stale.
+    'docs/plans/*',
 ]
