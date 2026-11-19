@@ -659,6 +659,14 @@
     {
       "path": "ansible",
       "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

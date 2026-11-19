@@ -241,6 +241,10 @@
       "sha": "e43b8636bdbaf2180b81b8969fb8d9f9b6ddbfce",
       "date": "2026-10-21"
     },
+    "deploy-proxmox-on-shakenfist/action.yml": {
+      "sha": "569feeb7b22b97639651bd3a9ade52cd0d6bb530",
+      "date": "2026-11-20"
+    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
