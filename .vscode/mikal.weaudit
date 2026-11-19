@@ -703,6 +703,30 @@
     {
       "path": "tools/proxmox-mint-vv.sh",
       "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_shell_validation.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_console_account.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_capacity_wait.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_instar_testdata.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

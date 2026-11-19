@@ -53,6 +53,10 @@
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
     },
+    ".pre-commit-config.yaml": {
+      "sha": "68273af4d51c49659413905aae39dea32c6f4626",
+      "date": "2026-11-20"
+    },
     "AGENTS.md": {
       "sha": "b9e03c925bc962ceb9d352bffd6f9c90feb5c490",
       "date": "2026-10-22"
@@ -285,6 +289,10 @@
       "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
       "date": "2026-10-21"
     },
+    "renovate.json": {
+      "sha": "30b009de23f45febcb4b9ca3e8eaf0569d5f5874",
+      "date": "2026-11-20"
+    },
     "require-ci-success/action.yml": {
       "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
       "date": "2026-10-21"
@@ -349,6 +357,10 @@
       "sha": "2a33a8d5986f4ed7a1b0e161519da6ed9aef9b8c",
       "date": "2026-11-19"
     },
+    "tests/test_capacity_wait.py": {
+      "sha": "030beab23863a28b816ba90ad5d744851475c9cb",
+      "date": "2026-11-20"
+    },
     "tests/test_check_dist.py": {
       "sha": "09abfef885f3a4c2294af817400692033dd6be19",
       "date": "2026-10-22"
@@ -372,6 +384,10 @@
     "tests/test_ci_headroom_verdict.py": {
       "sha": "f16ea142f6c71226a37d1430588f9070afca360d",
       "date": "2026-10-06"
+    },
+    "tests/test_ci_instar_testdata.py": {
+      "sha": "17bf905c7878175ff081b62438ef96899948de13",
+      "date": "2026-11-20"
     },
     "tests/test_ci_log_shipper_unit.py": {
       "sha": "090dad9e5ab85836bca76ce50f25402a8d2ebd22",
@@ -416,6 +432,14 @@
     "tests/test_proxmox_connect_probe.py": {
       "sha": "f747c6e4a4c2b9bf7fa7e4ef1bf26e865d62263a",
       "date": "2026-09-25"
+    },
+    "tests/test_proxmox_console_account.py": {
+      "sha": "1eefcb9266d132f2b486ffcfbb21b36079610bb4",
+      "date": "2026-11-20"
+    },
+    "tests/test_proxmox_shell_validation.py": {
+      "sha": "c6bdbc976b583bf3e5c1bf050520bdd7aedb7345",
+      "date": "2026-11-20"
     },
     "tests/test_render_review.py": {
       "sha": "08a529c95c20ebcce76834d9f49af4eb8eacb872",
