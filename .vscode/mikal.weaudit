@@ -599,6 +599,134 @@
     {
       "path": "tools/review-tracking.sh",
       "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/smoke-cluster.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/renovate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-instar-testdata.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-localhost.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/proxmox-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/create-topology-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/api.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars/proxmox.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist/action.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "deploy-proxmox-on-shakenfist",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/consuming.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/actions.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ansible.md",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-api-lib.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-self-check.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_log_checks_loki.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-audit-probe.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-mint-vv.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_shell_validation.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_proxmox_console_account.py",
+      "author": "mikal"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_capacity_wait.py",
+      "author": "mikal"
+    },
+    {
+      "path": "tests/test_ci_instar_testdata.py",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
