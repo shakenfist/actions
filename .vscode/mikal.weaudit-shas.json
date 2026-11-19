@@ -525,6 +525,10 @@
       "sha": "87a9e0998e4fe62dfb79e041639c37afc7f70e66",
       "date": "2026-09-10"
     },
+    "tools/ci_log_checks_loki.sh": {
+      "sha": "7030896ac07c3bc7ff0d905ee4f4ef46fd1e97bf",
+      "date": "2026-11-20"
+    },
     "tools/ci_loki_dump.py": {
       "sha": "da0c391434cab5219ece4bccd37ed44a117b6684",
       "date": "2026-09-28"
@@ -585,6 +589,14 @@
       "sha": "41c15d0e59467ee804cca740ae9943f800ab30c9",
       "date": "2026-10-21"
     },
+    "tools/proxmox-api-lib.sh": {
+      "sha": "433ada294aae4d393af17eca91a2bc3adc03e369",
+      "date": "2026-11-20"
+    },
+    "tools/proxmox-audit-probe.sh": {
+      "sha": "4d8ee12dfd9888deb5e317c7283b074ecfe2603d",
+      "date": "2026-11-20"
+    },
     "tools/proxmox-connect-probe.py": {
       "sha": "bbdfa86125b915c20c38e0215c22999a233661e6",
       "date": "2026-09-25"
@@ -593,9 +605,17 @@
       "sha": "04508d3a27f26a81a35ba661a2cb4b07948674a2",
       "date": "2026-09-25"
     },
+    "tools/proxmox-mint-vv.sh": {
+      "sha": "3124cb56ba618fe12eaf367bcdb38e5276501821",
+      "date": "2026-11-20"
+    },
     "tools/proxmox-publish-node.sh": {
       "sha": "c8328ca2a411ed5828f92b518a00c8cd18882272",
       "date": "2026-09-25"
+    },
+    "tools/proxmox-self-check.sh": {
+      "sha": "d0d073ac1f3603a5af84700a83975a81d6c648b0",
+      "date": "2026-11-20"
     },
     "tools/report-proxmox-substrate-failure.sh": {
       "sha": "5a5f99cfce84892e3f96b5412e57016acadb269d",

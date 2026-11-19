@@ -683,6 +683,26 @@
     {
       "path": "docs/ansible.md",
       "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-api-lib.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-self-check.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/ci_log_checks_loki.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-audit-probe.sh",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/proxmox-mint-vv.sh",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
