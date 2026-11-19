@@ -605,10 +605,6 @@
       "author": "mikal"
     },
     {
-      "path": ".github/workflows/renovate.yml",
-      "author": "mikal"
-    },
-    {
       "path": "ansible/ci-topology-slim-tier.yml",
       "author": "mikal"
     },
