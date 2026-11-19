@@ -49,10 +49,6 @@
       "author": "mikal"
     },
     {
-      "path": "deploy-kerbside-on-shakenfist",
-      "author": "mikal"
-    },
-    {
       "path": "setup-test-environment/action.yml",
       "author": "mikal"
     },
@@ -598,6 +594,10 @@
     },
     {
       "path": ".github/workflows/canary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "tools/review-tracking.sh",
       "author": "mikal"
     }
   ],
