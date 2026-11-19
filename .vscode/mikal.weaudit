@@ -607,6 +607,58 @@
     {
       "path": ".github/workflows/renovate.yml",
       "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-tier.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-dependencies.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-instar-testdata.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-localhost.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/ci-topology-slim-primary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/proxmox-single-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/create-topology-node.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox/api.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks/proxmox",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/tasks",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars/proxmox.yml",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible/vars",
+      "author": "mikal"
+    },
+    {
+      "path": "ansible",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

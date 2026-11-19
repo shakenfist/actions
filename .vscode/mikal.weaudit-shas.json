@@ -69,6 +69,10 @@
       "sha": "375f10e22f98962f449eb4692a2fcc97d6c06b12",
       "date": "2026-11-19"
     },
+    "ansible/ci-dependencies.yml": {
+      "sha": "4413ac95d6de8f1cc47452279bf48909d758920d",
+      "date": "2026-11-20"
+    },
     "ansible/ci-gather-logs-loki.yml": {
       "sha": "c92a50883620511719b88a3f14e7db8a98811731",
       "date": "2026-09-28"
@@ -89,6 +93,10 @@
       "sha": "b3d2ea8e50b59b607d7a7a5c91f046845fd11e31",
       "date": "2026-09-07"
     },
+    "ansible/ci-instar-testdata.yml": {
+      "sha": "74e7029b5c56c2670c73ee2362817fb706ec3a37",
+      "date": "2026-11-20"
+    },
     "ansible/ci-node-checks.yml": {
       "sha": "4d42b36d9114e44df128f29fe3fa2c28367db8fe",
       "date": "2026-09-09"
@@ -101,9 +109,21 @@
       "sha": "065f73f684b95a93566f1dd55114984c912392d9",
       "date": "2026-09-07"
     },
+    "ansible/ci-topology-localhost.yml": {
+      "sha": "5d7d073b66411cf372ab8171862c4675111eae96",
+      "date": "2026-11-20"
+    },
     "ansible/ci-topology-slim-primary-released.yml": {
       "sha": "ddc07af70c9184047efcf7e8dc31b1663b410ff9",
       "date": "2026-09-30"
+    },
+    "ansible/ci-topology-slim-primary.yml": {
+      "sha": "ff719916f9ec00a6ea510d1045ab1cc179122a2f",
+      "date": "2026-11-20"
+    },
+    "ansible/ci-topology-slim-tier.yml": {
+      "sha": "5b7e756e49296cee1789aa79b4de3c4dec73b102",
+      "date": "2026-11-20"
     },
     "ansible/files/cache-action-archives.py": {
       "sha": "97106245dd3531d45934002d9e988e2637b1c0f7",
@@ -145,6 +165,14 @@
       "sha": "bb14bcf1c5ca0ddbb0e041c9a63fa2ab868bbac3",
       "date": "2026-10-20"
     },
+    "ansible/proxmox-single-node.yml": {
+      "sha": "228f25293c7a681034f6a2e160c77dd939883e2f",
+      "date": "2026-11-20"
+    },
+    "ansible/tasks/create-topology-node.yml": {
+      "sha": "7f98e9d3c622c7e3c81cc61aa846a62fa4353f80",
+      "date": "2026-11-20"
+    },
     "ansible/tasks/install-ci-log-shipper.yml": {
       "sha": "8d6b42185c313782fa8e7a66b8151c5b76e9a0cb",
       "date": "2026-09-30"
@@ -152,6 +180,10 @@
     "ansible/tasks/install-kolla-prerequisites.yml": {
       "sha": "093197e5ef09e23b2b23ab811aa52b6aa14e63d4",
       "date": "2026-09-23"
+    },
+    "ansible/tasks/proxmox/api.yml": {
+      "sha": "343549200ff201f3503b2fbaf815020a90927db7",
+      "date": "2026-11-20"
     },
     "ansible/tasks/proxmox/disable-enterprise-repos.yml": {
       "sha": "0e40eed764df8284e452a7ab42de7107f6cc76a9",
@@ -192,6 +224,10 @@
     "ansible/vars/desktop-release.yml": {
       "sha": "b01964efb666f5da34ee433b4529096c1c464df8",
       "date": "2026-09-19"
+    },
+    "ansible/vars/proxmox.yml": {
+      "sha": "e31c7e775207f75b8fc192644a7c4aeea3759d37",
+      "date": "2026-11-20"
     },
     "build-smoke-cluster/action.yml": {
       "sha": "0b01329f18138e4f9dd332ceea9692e561f69cf5",
