@@ -41,6 +41,14 @@
       "sha": "c6111c60f47072caf912a70db70bb27a01b2859f",
       "date": "2026-11-19"
     },
+    ".github/workflows/renovate.yml": {
+      "sha": "cd350d540f3312c15558ed1ffda14d26565f3c30",
+      "date": "2026-11-20"
+    },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "b245f9290d0281d348c82cba14387ffb0490d525",
+      "date": "2026-11-20"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
