@@ -41,6 +41,14 @@
       "sha": "c6111c60f47072caf912a70db70bb27a01b2859f",
       "date": "2026-11-19"
     },
+    ".github/workflows/prune-reviews.yml": {
+      "sha": "e26503ce741b47a1e1fa6edceae8ab710619ac54",
+      "date": "2026-11-22"
+    },
+    ".github/workflows/renovate.yml": {
+      "sha": "29e89db63ce8e0b9e479f6d2f73841b998727ae1",
+      "date": "2026-11-22"
+    },
     ".github/workflows/smoke-cluster.yml": {
       "sha": "b245f9290d0281d348c82cba14387ffb0490d525",
       "date": "2026-11-20"
