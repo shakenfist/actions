@@ -432,6 +432,18 @@ jobs:
 
           script="${script} cd ~/shakenfist/shakenfist/deploy/;"
           script="${script} set -e;"
+
+          # Give stestr the suite's recorded test durations before it splits
+          # the tests across workers. Its repository here is always empty, and
+          # without durations stestr deals tests round robin by count, which
+          # has handed one worker every multi-minute test and timed the step
+          # out with the other workers idle (shakenfist/shakenfist#5010). The
+          # tool and its data live in shakenfist, so a checkout which predates
+          # them skips this, and a seeding failure is only a warning: the
+          # suite still runs, just unbalanced. See "Balancing the functional
+          # suites across their workers" in shakenfist's
+          # docs/developer_guide/ci.md.
+          script="${script} if [ -f ../../tools/ci_stestr_times.py ]; then python3 ../../tools/ci_stestr_times.py seed || echo 'WARNING: stestr was not seeded with test durations; its workers are balanced by count, not time.'; fi;"
           script="${script} stestr run --config ${{ inputs.stestr_config }} --concurrency=${{ inputs.test_concurrency }};"
 
           ssh -i /srv/github/id_ci -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
