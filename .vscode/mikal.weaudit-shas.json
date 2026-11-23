@@ -49,6 +49,10 @@
       "sha": "29e89db63ce8e0b9e479f6d2f73841b998727ae1",
       "date": "2026-11-22"
     },
+    ".github/workflows/smoke-cluster.yml": {
+      "sha": "215d47b7d6a9720ee704d3524149fe2d7aae2351",
+      "date": "2026-11-24"
+    },
     ".gitleaks.toml": {
       "sha": "3356d24cc9173f00903be688807febacdff3838d",
       "date": "2026-09-25"
@@ -464,6 +468,10 @@
     "tests/test_smoke_cluster_inputs.py": {
       "sha": "2814b5f56b5767b4e9c3bd104315fe679e1a52c4",
       "date": "2026-10-05"
+    },
+    "tests/test_smoke_cluster_stestr_seed.py": {
+      "sha": "49f50f26694b10ca4caa147899615bb03c87f6a2",
+      "date": "2026-11-24"
     },
     "tests/test_start_test_target.py": {
       "sha": "1d1205998d12dd93a01bde61ed15e423f67c46c4",
