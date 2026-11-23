@@ -59,6 +59,13 @@
         "shellcheck-py/shellcheck-py"
       ],
       "versioning": "regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$"
+    },
+    {
+      "description": "The review-tracking copies -- .github/workflows/prune-reviews.yml, tools/ci-prune-reviews.sh and tools/review-tracking.sh -- must stay byte-identical to shakenfist/development's templates/review-tracking/, because a review mark attests to a blob SHA and one changed byte makes the copy a file nobody has reviewed. Only the workflow holds anything Renovate manages, and bumping it here put the copy ahead of the template and failed the review-tracking-templates audit (#263). Its pins move in the template, which development's own Renovate updates, and reach this copy by re-syncing from the template. That includes security fixes: enabled: false suppresses vulnerability alerts too.",
+      "matchFileNames": [
+        ".github/workflows/prune-reviews.yml"
+      ],
+      "enabled": false
     }
   ],
   "minimumReleaseAge": "3 days",
