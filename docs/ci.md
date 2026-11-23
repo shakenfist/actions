@@ -383,19 +383,24 @@ as `shakenfist-bot`.
 
 That commit is unsigned and does not need to be: pruning only ever
 *removes* marks, and the attestations themselves live in the signed
-commits that recorded them. The push uses the built-in `GITHUB_TOKEN`
-rather than a personal access token (the workflow would prefer a
-`DEPENDENCIES_TOKEN` secret if one reached this repository; it defines
-none), which works here because this repository's ruleset blocks
-force-pushes and deletion only. (Ryll's copy of the same workflow needs
-`DEPENDENCIES_TOKEN`, because its `develop` ruleset requires a pull
-request and the Actions app cannot be a bypass actor.) A push made with
-`GITHUB_TOKEN` does not trigger workflows, so the bot's commits fire
-neither `canary.yml` nor this workflow again.
+commits that recorded them. The push is made by the
+`shakenfist-review-marks` GitHub App, with a token the job mints from
+the App's key, which is a secret of the `review-marks` environment.
+That environment's deployment branch policy admits the default branch
+alone, so no other ref's run is given the key, and the token is scoped
+to this repository and revoked when the job ends. A repository whose
+environment holds no key mints nothing and pushes with `GITHUB_TOKEN`
+instead, which is what the job's `contents: write` is for. Unlike a
+`GITHUB_TOKEN` push, an App push triggers workflows: it retriggers this
+one once, into a run that finds nothing to do, and `canary.yml` stays
+quiet only because its `paths-ignore` covers `REVIEWS.md` and the
+`.vscode/` review files.
 
-The job never reads the static runner's reused workspace, where an
-earlier job could have left git hooks or configuration. It has no
-checkout: it clones `main` at depth 1 into `RUNNER_TEMP`, runs
+The job runs on an ephemeral vm runner (`[self-hosted, vm, debian-13,
+s]`), a fresh machine per job, so nothing an earlier job ran is still
+present while it holds the key. It still has no checkout, as defence in
+depth and because moving it back to a static runner is a one-line
+change: it clones `main` at depth 1 into `RUNNER_TEMP`, runs
 `tools/ci-prune-reviews.sh` from that clone, and the script lands from
 a second fresh clone. The push token reaches only the final `git push`.
 
@@ -407,8 +412,7 @@ on `main`, from `main`'s own copy of itself.
 repository without review.** The job clones that repository at
 whatever its default branch holds when the run starts, with no ref or
 SHA pin, and `tools/review-tracking.sh` then execs
-`scripts/review-tracking.py` out of that clone, on the long-lived
-static runner. That code never sees the push token, but what it writes
+`scripts/review-tracking.py` out of that clone. That code never sees the push token, but what it writes
 into `.vscode/` and `REVIEWS.md` is committed to `main` without
 review. That is a deliberate trust edge
 between two repositories in the same organisation, recorded here
@@ -558,6 +562,17 @@ references, both the ones downstream and the ones this repository makes
 of itself. A branch ref carries no version, so there is nothing for a
 dependency updater to bump. Those stay a manual concern, and are why
 `canary.yml` exists.
+
+Renovate is also switched off, deliberately, for
+`.github/workflows/prune-reviews.yml` (the last rule in
+`renovate.json`), vulnerability alerts included. A review mark attests
+to a blob SHA, so that file has to stay byte-identical to
+`templates/review-tracking/` in `shakenfist/development`; a bump made
+here puts the copy ahead of the template. Its pins move in the
+template, which development's own Renovate maintains, and reach this
+copy by re-syncing from it. The `review-tracking-templates` consistency
+audit is what prompts the re-sync: it reports this copy as drifted
+once the template moves.
 
 ### What is still not covered
 

@@ -121,19 +121,33 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120
 # smoke-cluster.yml is the file most often touched. Both lengths
 # come from git, not the worktree, so a two-dot AUDIT_RANGE over
 # landed commits measures those commits. --diff-filter=d leaves out
-# deleted paths; a new file has no "before" and shows 0
+# deleted paths. A new file has no "before" and shows 0, and so does
+# a renamed one: --no-renames lists it as an addition, so check
+# `git diff --stat -M` before reading a (was 0) as new code. If either
+# end of the range does not resolve -- an unfetched ref, or a
+# merge-base that fails -- nothing is listed and the error says so,
+# rather than every "before" silently reading the index. -z keeps
+# unusual path names unquoted
 RANGE="${AUDIT_RANGE:-origin/main...HEAD}"
 case "${RANGE}" in
     *...*) BASE=$(git merge-base "${RANGE%%...*}" "${RANGE##*...}") ;;
     *) BASE="${RANGE%%..*}" ;;
 esac
 END="${RANGE##*..}"
-git diff --name-only --diff-filter=d "${RANGE}" -- '*.py' '*.sh' '*.yml' | \
-    while IFS= read -r f; do
-        after=$(git show "${END}:${f}" | wc -l)
-        before=$(git show "${BASE}:${f}" 2>/dev/null | wc -l)
-        [ "${after}" -gt 800 ] && echo "${after} (was ${before}) ${f}"
-    done | sort -rn
+if ! git rev-parse -q --verify "${BASE}^{commit}" > /dev/null ||
+        ! git rev-parse -q --verify "${END}^{commit}" > /dev/null; then
+    echo "size listing: cannot resolve ${RANGE}; nothing listed" >&2
+else
+    git diff --name-only -z --no-renames --diff-filter=d "${RANGE}" \
+            -- '*.py' '*.sh' '*.yml' |
+        while IFS= read -r -d '' f; do
+            after=$(git show "${END}:${f}" | wc -l)
+            before=$(git show "${BASE}:${f}" 2> /dev/null | wc -l)
+            if [ "${after}" -gt 800 ]; then
+                echo "${after} (was ${before}) ${f}"
+            fi
+        done | sort -rn
+fi
 
 # shellcheck at its default severity over the touched shell.
 # pre-commit gates at error only because of a pre-existing backlog;
