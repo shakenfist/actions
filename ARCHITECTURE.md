@@ -91,9 +91,11 @@ after #20 and #21 had both merged with their review fixes unlooked-at.
 the only workflow here that holds a `contents: write` token, commits to
 `main` without review, and runs code cloned from another repository --
 `shakenfist/development`, at whatever its default branch holds when the
-run starts. That trust edge is deliberate and is described in
-[docs/ci.md](docs/ci.md), but it is invisible from this side, which is
-why it is named here rather than only there.
+run starts. It also pushes as the `shakenfist-review-marks` GitHub
+App, the default branch ruleset's bypass actor, from a key held in the
+`review-marks` environment. That trust edge is deliberate and is
+described in [docs/ci.md](docs/ci.md), but it is invisible from this
+side, which is why it is named here rather than only there.
 
 ## How a smoke run flows
 

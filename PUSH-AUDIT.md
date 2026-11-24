@@ -127,7 +127,10 @@ git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120
 # end of the range does not resolve -- an unfetched ref, or a
 # merge-base that fails -- nothing is listed and the error says so,
 # rather than every "before" silently reading the index. -z keeps
-# unusual path names unquoted
+# unusual path names unquoted. A file is listed when either end is
+# over 800, so one that shrank below the line is listed too: a
+# shrink is where the reviewer checks that rationale comments were
+# not what went
 RANGE="${AUDIT_RANGE:-origin/main...HEAD}"
 case "${RANGE}" in
     *...*) BASE=$(git merge-base "${RANGE%%...*}" "${RANGE##*...}") ;;
@@ -143,7 +146,7 @@ else
         while IFS= read -r -d '' f; do
             after=$(git show "${END}:${f}" | wc -l)
             before=$(git show "${BASE}:${f}" 2> /dev/null | wc -l)
-            if [ "${after}" -gt 800 ]; then
+            if [ "${after}" -gt 800 ] || [ "${before}" -gt 800 ]; then
                 echo "${after} (was ${before}) ${f}"
             fi
         done | sort -rn
@@ -371,12 +374,11 @@ copy lives in shakenfist/development at
   earns its length.
 <!-- shared-block-end -->
 
-!!! note "In this project"
-    This repository has not adopted the source size ratchet, so it
-    has no baseline file and nothing checks the rule on commit: the
-    auditor applies it by hand from the wave-1 size listing. Where a
-    file over 1,500 lines grows, or one crosses 1,500, the stated
-    reason the block asks for goes in the pull request description.
+In this project: this repository has not adopted the source size
+ratchet, so it has no baseline file and nothing checks the rule on
+commit. The auditor applies it by hand from the wave-1 size listing.
+Where a file over 1,500 lines grows, or one crosses 1,500, the stated
+reason the block asks for goes in the pull request description.
 
 <!-- shared-block: plan-references-in-code v1 -->
 Plan references in code (shared block; do not edit -- the
