@@ -113,15 +113,44 @@ git fetch origin
 git diff "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' | grep -nE '^\+[^+].{120,}'
 
 # Touched source files long enough for `source-file-size` in 2a to
-# be worth raising -- 800 lines to ask the question, 1500 to want an
-# answer. The block is advisory and judging it is wave 2's job; this
-# only produces the number. YAML is listed because here the workflow
-# is the executable artifact, and smoke-cluster.yml is the file most
-# often touched. --diff-filter=d keeps a deleted path out of wc's
-# argv, and the awk drops wc's own total line
-git diff --name-only -z --diff-filter=d \
-    "${AUDIT_RANGE:-origin/main...HEAD}" -- '*.py' '*.sh' '*.yml' | \
-    xargs -0r wc -l | sort -rn | awk '$1 > 800 && $2 != "total"'
+# be worth raising, with their length before the change beside it:
+# growth of a file over 800 lines is a question, and growth past or
+# beyond 1500 needs the stated reason the block asks for. Judging it
+# is wave 2's job; this only produces the numbers. YAML is listed
+# because here the workflow is the executable artifact, and
+# smoke-cluster.yml is the file most often touched. Both lengths
+# come from git, not the worktree, so a two-dot AUDIT_RANGE over
+# landed commits measures those commits. --diff-filter=d leaves out
+# deleted paths. A new file has no "before" and shows 0, and so does
+# a renamed one: --no-renames lists it as an addition, so check
+# `git diff --stat -M` before reading a (was 0) as new code. If either
+# end of the range does not resolve -- an unfetched ref, or a
+# merge-base that fails -- nothing is listed and the error says so,
+# rather than every "before" silently reading the index. -z keeps
+# unusual path names unquoted. A file is listed when either end is
+# over 800, so one that shrank below the line is listed too: a
+# shrink is where the reviewer checks that rationale comments were
+# not what went
+RANGE="${AUDIT_RANGE:-origin/main...HEAD}"
+case "${RANGE}" in
+    *...*) BASE=$(git merge-base "${RANGE%%...*}" "${RANGE##*...}") ;;
+    *) BASE="${RANGE%%..*}" ;;
+esac
+END="${RANGE##*..}"
+if ! git rev-parse -q --verify "${BASE}^{commit}" > /dev/null ||
+        ! git rev-parse -q --verify "${END}^{commit}" > /dev/null; then
+    echo "size listing: cannot resolve ${RANGE}; nothing listed" >&2
+else
+    git diff --name-only -z --no-renames --diff-filter=d "${RANGE}" \
+            -- '*.py' '*.sh' '*.yml' |
+        while IFS= read -r -d '' f; do
+            after=$(git show "${END}:${f}" | wc -l)
+            before=$(git show "${BASE}:${f}" 2> /dev/null | wc -l)
+            if [ "${after}" -gt 800 ] || [ "${before}" -gt 800 ]; then
+                echo "${after} (was ${before}) ${f}"
+            fi
+        done | sort -rn
+fi
 
 # shellcheck at its default severity over the touched shell.
 # pre-commit gates at error only because of a pre-existing backlog;
@@ -292,7 +321,7 @@ copy lives in shakenfist/development at
   reduced to a pointer.
 <!-- shared-block-end -->
 
-<!-- shared-block: source-file-size v1 -->
+<!-- shared-block: source-file-size v2 -->
 Source file size (shared block; do not edit -- the canonical
 copy lives in shakenfist/development at
 `templates/shared-blocks/source-file-size.md`):
@@ -306,13 +335,29 @@ copy lives in shakenfist/development at
   split, and one over roughly 1,500 as wanting a stated reason to
   stay whole. These hold whether or not a repository tracks review
   per file: tracking is what makes the cost repeat and become
-  measurable, not what makes a long file expensive to read. Both
-  are advisory. Neither is a gate, there is no hard cap, and a
-  reviewer who raises one is opening a question, not recording a
-  defect.
+  measurable, not what makes a long file expensive to read.
+- There is no cap, and no file is ever forced to split: a file
+  already over 1,500 lines may stay exactly that long. What it may
+  not do is grow, and no file may cross 1,500, without a reviewed
+  edit to the repository's baseline of oversize files -- the
+  ratchet in shakenfist/development's
+  `templates/source-size-ratchet/` checks that on every commit.
+  Raising an entry is allowed: it is the stated reason, asked for
+  where a reviewer cannot scroll past it. Where a repository has
+  not adopted the ratchet, the push auditor applies the same rule
+  by hand.
+- The push auditor reads the files the diff touches, not only the
+  diff. A branch that grows a file already over 800 lines is a
+  finding to raise even when its own addition is small, because
+  per-diff review is how slow growth gets past: every step looks
+  reasonable on its own. Under 1,500 the finding opens a question
+  rather than recording a defect. A raised baseline entry is
+  reviewed as the decision it is, and its reason belongs in the
+  pull request description.
 - Generated files, vendored trees and protocol or data tables are
   exempt: they are not read the way source is, and a tool that
-  counts them is measuring the wrong thing.
+  counts them -- the ratchet included -- is measuring the wrong
+  thing, so they belong in its exclusion list, not its baseline.
 - Split along a seam that already exists -- one module's public
   entry point, one check, one subcommand, one endpoint -- so that
   a later change touches one of the pieces rather than all of
@@ -321,10 +366,19 @@ copy lives in shakenfist/development at
 - Length is never reduced by deleting the comments and docstrings
   that explain why the code is the way it is. Those are what make
   a long file reviewable, and trading them for a line count makes
-  the review worse while making the number better. Cut duplicated
-  scaffolding first; see `comment-proportion` for what earns its
-  length.
+  the review worse while making the number better. A diff that
+  shrinks a baselined file by deleting rationale comments or
+  docstrings is a finding, not a win: the ratchet counts lines and
+  cannot tell the difference, so the reviewer has to. Cut
+  duplicated scaffolding first; see `comment-proportion` for what
+  earns its length.
 <!-- shared-block-end -->
+
+In this project: this repository has not adopted the source size
+ratchet, so it has no baseline file and nothing checks the rule on
+commit. The auditor applies it by hand from the wave-1 size listing.
+Where a file over 1,500 lines grows, or one crosses 1,500, the stated
+reason the block asks for goes in the pull request description.
 
 <!-- shared-block: plan-references-in-code v1 -->
 Plan references in code (shared block; do not edit -- the
