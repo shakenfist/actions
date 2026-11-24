@@ -727,6 +727,22 @@
     {
       "path": "tests/test_smoke_cluster_stestr_seed.py",
       "author": "mikal"
+    },
+    {
+      "path": "PUSH-AUDIT.md",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],
