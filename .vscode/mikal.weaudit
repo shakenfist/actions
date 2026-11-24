@@ -537,10 +537,6 @@
       "author": "mikal"
     },
     {
-      "path": "PUSH-AUDIT.md",
-      "author": "mikal"
-    },
-    {
       "path": "tools/ansible-syntax-check.sh",
       "author": "mikal"
     },
@@ -566,10 +562,6 @@
     },
     {
       "path": "README.md",
-      "author": "mikal"
-    },
-    {
-      "path": "ARCHITECTURE.md",
       "author": "mikal"
     },
     {
@@ -669,10 +661,6 @@
       "author": "mikal"
     },
     {
-      "path": "docs/ci.md",
-      "author": "mikal"
-    },
-    {
       "path": "docs/ansible.md",
       "author": "mikal"
     },
@@ -706,10 +694,6 @@
     },
     {
       "path": ".pre-commit-config.yaml",
-      "author": "mikal"
-    },
-    {
-      "path": "renovate.json",
       "author": "mikal"
     },
     {

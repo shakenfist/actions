@@ -65,14 +65,6 @@
       "sha": "b9e03c925bc962ceb9d352bffd6f9c90feb5c490",
       "date": "2026-10-22"
     },
-    "ARCHITECTURE.md": {
-      "sha": "662c774a24eee20d92c57989d4b7df9d88a3f9b1",
-      "date": "2026-11-19"
-    },
-    "PUSH-AUDIT.md": {
-      "sha": "19ae3b818dbcc7b4b89e35e087e17cf85dece369",
-      "date": "2026-10-22"
-    },
     "README.md": {
       "sha": "375f10e22f98962f449eb4692a2fcc97d6c06b12",
       "date": "2026-11-19"
@@ -261,10 +253,6 @@
       "sha": "5193c3063289dccba3d7a2aa2f5acf29650f5114",
       "date": "2026-11-20"
     },
-    "docs/ci.md": {
-      "sha": "d69e28d978b891f23a36fd9a4d2960dc88cf4118",
-      "date": "2026-11-20"
-    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
@@ -292,10 +280,6 @@
     "pr-review-ref/action.yml": {
       "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
       "date": "2026-10-21"
-    },
-    "renovate.json": {
-      "sha": "30b009de23f45febcb4b9ca3e8eaf0569d5f5874",
-      "date": "2026-11-20"
     },
     "require-ci-success/action.yml": {
       "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
