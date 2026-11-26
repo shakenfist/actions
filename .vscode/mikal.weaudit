@@ -711,6 +711,34 @@
     {
       "path": "PUSH-AUDIT.md",
       "author": "mikal"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "author": "mikal"
+    },
+    {
+      "path": "docs/ci.md",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/canary.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows/proxmox-substrate.yml",
+      "author": "mikal"
+    },
+    {
+      "path": ".github/workflows",
+      "author": "mikal"
+    },
+    {
+      "path": ".github",
+      "author": "mikal"
+    },
+    {
+      "path": "renovate.json",
+      "author": "mikal"
     }
   ],
   "partiallyAuditedFiles": [],

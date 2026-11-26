@@ -5,6 +5,10 @@
       "sha": "6987cac290912889c8048971979cb7c22dff103f",
       "date": "2026-10-14"
     },
+    ".github/workflows/canary.yml": {
+      "sha": "0dd3eae07650599c1d95dd5add8615ac52a7e35e",
+      "date": "2026-11-27"
+    },
     ".github/workflows/ci.yml": {
       "sha": "d4e9fb4f999bcae22716eee9e26c6c3864afe3e6",
       "date": "2026-10-20"
@@ -33,6 +37,10 @@
       "sha": "189610eb241bbecbf11c6459f874c97ff80c0359",
       "date": "2026-10-20"
     },
+    ".github/workflows/proxmox-substrate.yml": {
+      "sha": "79e8cfa72864c2ff2754ba1de18379fa43d3e952",
+      "date": "2026-11-27"
+    },
     ".github/workflows/prune-reviews.yml": {
       "sha": "e26503ce741b47a1e1fa6edceae8ab710619ac54",
       "date": "2026-11-22"
@@ -52,6 +60,10 @@
     "AGENTS.md": {
       "sha": "b9e03c925bc962ceb9d352bffd6f9c90feb5c490",
       "date": "2026-10-22"
+    },
+    "ARCHITECTURE.md": {
+      "sha": "7d120bb04463127a266681baf477c63ecac609fb",
+      "date": "2026-11-27"
     },
     "PUSH-AUDIT.md": {
       "sha": "ae1b92ebc70e1805939dcad27958680ac7361348",
@@ -245,6 +257,10 @@
       "sha": "5193c3063289dccba3d7a2aa2f5acf29650f5114",
       "date": "2026-11-20"
     },
+    "docs/ci.md": {
+      "sha": "27b3e21bdc85f715919d2737220a6790c7f5a485",
+      "date": "2026-11-27"
+    },
     "docs/component-docs.md": {
       "sha": "a0e1bc7d0b9b50747a62e2defad6287065ad8efe",
       "date": "2026-10-10"
@@ -272,6 +288,10 @@
     "pr-review-ref/action.yml": {
       "sha": "eeb08c4578bad758d4b154e1580af1d7eb39aac5",
       "date": "2026-10-21"
+    },
+    "renovate.json": {
+      "sha": "44ea4c1dfee376fcc86ded3ec9c85b0cbc39e716",
+      "date": "2026-11-27"
     },
     "require-ci-success/action.yml": {
       "sha": "913406c1f86b95daf2f2e0e7f0e0d5c75ee44ed1",
