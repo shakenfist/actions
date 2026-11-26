@@ -1,65 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "customManagers:githubActionsVersions"
+    "local>shakenfist/development:renovate-fleet"
   ],
-  "gitAuthor": "shakenfist-bot <bot@shakenfist.com>",
-  "dependencyDashboard": true,
-  "assignees": [
-    "mikalstill"
-  ],
-  "schedule": [
-    "after 9pm"
-  ],
-  "pre-commit": {
-    "description": "Renovate's pre-commit manager is opt-in. Without this the hook revisions in .pre-commit-config.yaml are unmanaged and drift silently, which matters here because those hooks -- actionlint, shellcheck, flake8, skillsaw -- are the only automated gate this repository has over the workflows and actions the whole fleet consumes.",
-    "enabled": true
-  },
   "packageRules": [
-    {
-      "description": "Nothing is automerged. A merge to main here is a deploy to every consumer at once, with no release to stage it behind, so every update type gets a human. automerge already defaults to false; this block states it rather than relying on the default.",
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest"
-      ],
-      "automerge": false
-    },
-    {
-      "description": "A Renovate major can raise engines.node past the node-version that .github/workflows/renovate.yml sets up, leaving every hourly run on a Node that Renovate does not support. This note reaches the reviewer of the bump.",
-      "matchDepNames": [
-        "renovate"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "prBodyNotes": [
-        ":warning: Before merging, check this version's `engines.node` (`npm view renovate@<version> engines`) against `node-version` in `.github/workflows/renovate.yml`. If it no longer accepts that Node major, raise `node-version` in the same pull request, and in shakenfist/development's `templates/renovate/renovate.yml`, which every repository copies verbatim."
-      ]
-    },
-    {
-      "description": "Renovate's github-actions manager proposes Node majors for setup-node, and .github/workflows/renovate.yml must stay on a Node that the pinned Renovate's engines.node accepts, or every hourly run fails with \"Unsupported node environment detected\". That Node is raised by hand, in the pull request for the Renovate major that needs it (see the rule above), never on its own. Node in other workflows is unaffected.",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchFileNames": [
-        ".github/workflows/renovate.yml"
-      ],
-      "matchDepNames": [
-        "node"
-      ],
-      "matchUpdateTypes": [
-        "major"
-      ],
-      "enabled": false
-    },
-    {
-      "description": "shellcheck-py tags a fourth packaging component -- v0.11.0.1 is shellcheck 0.11.0, packaging revision 1 -- which is not semver, so without this the github-tags lookup behind the pre-commit hook fails with \"Can't find version matching\" on the dependency dashboard and no update is ever proposed. The fourth group is named build rather than revision: Renovate's regex versioning only compares revision when a build group matched too, so naming it revision would make v0.11.0.2 compare equal to v0.11.0.1 and hide packaging-only releases. The anchor to exactly four numeric components ignores re-tags such as v0.11.0.1-1. Harmless in a repository that does not use the hook. See templates/renovate/README.md in shakenfist/development.",
-      "matchPackageNames": [
-        "shellcheck-py/shellcheck-py"
-      ],
-      "versioning": "regex:^v?(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$"
-    },
     {
       "description": "The review-tracking copies -- .github/workflows/prune-reviews.yml, tools/ci-prune-reviews.sh and tools/review-tracking.sh -- must stay byte-identical to shakenfist/development's templates/review-tracking/, because a review mark attests to a blob SHA and one changed byte makes the copy a file nobody has reviewed. Only the workflow holds anything Renovate manages today, and bumping it here put the copy ahead of the template and failed the review-tracking-templates audit (#263); the two scripts are listed so the rule still covers them if the template ever gives them a pin. Its pins move in the template, which development's own Renovate updates, and reach this copy by re-syncing from the template. That includes security fixes: enabled: false suppresses vulnerability alerts too.",
       "matchFileNames": [
@@ -69,7 +13,5 @@
       ],
       "enabled": false
     }
-  ],
-  "minimumReleaseAge": "3 days",
-  "rollbackPrs": true
+  ]
 }

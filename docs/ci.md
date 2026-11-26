@@ -353,14 +353,14 @@ files those reach, such as `install-collection.sh`;
 `ProxmoxSubstrateScopeTest` in `tests/test_workflow_references.py`
 walks the lane the same way `CanaryScopeTest` walks the smoke lane, and
 fails on anything it runs that the filter does not match. It also runs on
-`workflow_dispatch`, and weekly, Sunday 03:17 UTC -- offset from
-renovate's hourly cron and `codeql-analysis.yml`'s Tuesday run so the
-scheduled workflows in this repository do not all wake the fleet at
-once. The weekly run is where upstream Proxmox drift (a rotated
-keyring checksum, a moved package) is meant to surface, as an issue
-against this repository labelled `proxmox-substrate`, before it trips
-a downstream pull request that changed nothing Proxmox-related --
-mirroring `canary.yml`'s one-issue-per-outage pattern. It carries the
+`workflow_dispatch`, and weekly, Sunday 03:17 UTC -- offset from this
+repository's other scheduled workflows, `codeql-analysis.yml` on
+Tuesdays and `prune-reviews.yml` daily at 04:23 UTC, so they do not
+all wake the fleet at once. The weekly run is where upstream Proxmox
+drift (a rotated keyring checksum, a moved package) is meant to
+surface, as an issue against this repository labelled
+`proxmox-substrate`, before it trips a downstream pull request that
+changed nothing Proxmox-related -- mirroring `canary.yml`'s one-issue-per-outage pattern. It carries the
 same fork guard as `ci.yml`'s VM jobs, for the same reason: the job
 executes the pull request's own ansible and scripts on a runner
 holding `/srv/github/id_ci`.
@@ -484,37 +484,33 @@ drift. Widening the export is the obvious fix, but that workflow is
 consumed by the whole fleet at `@main`, so it is a change to make
 deliberately rather than in passing.
 
-### Dependency lane -- `renovate.yml`
+### Dependency lane
 
-Renovate runs hourly on a `static` runner, autodiscovering only
-`shakenfist/actions`, and opens pull requests for three managers:
-
-* **github-actions** -- the third-party action pins in
-  `.github/workflows/` and in the composite `action.yml` files. Those
-  had drifted apart before renovate arrived: `actions/checkout` was
-  pinned at `@v4` in some files and `@v6` in others. The two workflows
-  added alongside it use `@v7`, which is what the fleet template
-  specifies and what upstream currently ships, so the tree briefly
-  carries three majors. Renovate's first sweep converges them; pinning
-  the new files to a version already known to be stale, purely to make
-  the spread look smaller, would not.
-* **pre-commit** -- the hook revisions in `.pre-commit-config.yaml`.
-  This manager is opt-in and ships disabled, so `renovate.json` turns it
-  on explicitly. It matters more here than the version numbers suggest:
-  those hooks are the *only* automated gate this repository has over the
-  workflows and actions the whole fleet consumes, so an unwatched pin
-  means the thing judging everything else is itself unjudged. `instar`
-  found this the hard way, four months behind on `actionlint` while its
-  other dependencies stayed current.
-* **Renovate itself** -- `PINNED_RENOVATE_VERSION` in `renovate.yml`,
-  which the `customManagers:githubActionsVersions` preset that
-  `renovate.json` extends reads through its `# renovate:` comment.
-  Without the preset nothing would ever bump that pin.
+Renovate runs centrally from `shakenfist/development`'s fleet runner over
+this repository's `renovate.json`, which extends the fleet preset; see
+[the Renovate audit](https://github.com/shakenfist/development/blob/main/docs/audits/renovate.md)
+for the runner, the cadence and the preset's contents. It opens pull
+requests for the github-actions manager (the third-party action pins in
+`.github/workflows/` and in the composite `action.yml` files) and the
+pre-commit manager (the hook revisions in `.pre-commit-config.yaml`).
+The pre-commit hooks matter more here than the version numbers suggest:
+they are the *only* automated gate this repository has over the
+workflows and actions the whole fleet consumes, so an unwatched pin
+means the thing judging everything else is itself unjudged.
 
 Nothing is automerged. `minimumReleaseAge` is three days and every
 update type is left for a human, which is the right default here for the
 reason the top of this document gives -- a merge to `main` is a deploy
 to every consumer at once, with no staging step between.
+
+None of those settings is in this repository's `renovate.json`. The
+release age, the no-automerge rule, the pre-commit manager, the
+shellcheck-py versioning rule, the schedule, the assignee and the
+dependency dashboard all come from `renovate-fleet.json` in
+`shakenfist/development`, which Renovate reads unpinned from that
+repository's default branch on every run. Changing any of them is a
+fleet decision made there, and it reaches this repository with no diff
+here -- including the two settings the next section leans on.
 
 Renovate pushes its branches to this repository rather than to a fork,
 so its pull requests are *not* skipped by the fork guard on `ci.yml` and
@@ -530,37 +526,6 @@ the no-automerge default are what stand between a compromised hook
 release and that runner. Neither is a substitute for looking at the
 upstream diff: a hook rev bump is the one dependency update here that
 should not be rubber-stamped.
-
-**The hourly cron is a wake-up, not the schedule.** `renovate.json`
-sets `"schedule": ["after 9pm"]`, so most of the 24 hourly runs find
-themselves outside that window and do nothing; updates arrive in one
-batch rather than through the day. No `timezone` is set, so "after 9pm"
-means 21:00 **UTC**, which is early morning in Australian hours rather
-than the evening the phrasing suggests. Both the schedule and the
-missing timezone come from `templates/renovate/` in
-`shakenfist/development` and are the same in every repository running
-this lane, so changing either is a fleet decision rather than a local
-one. If a Renovate pull request seems slow to appear, this is why.
-
-The job takes a `renovate` concurrency group. `timeout-minutes` does not
-cover queue time, so an hourly cron can fire while the previous run is
-still waiting for a static runner; two instances autodiscovering the
-same repository race on branch creation. It does not cancel in progress
--- killing Renovate mid-push is worse than skipping an hour.
-
-Renovate runs from npm through `npx`, not through
-`renovatebot/github-action`, because the action runs it as a container
-and so needs a Docker daemon the runner may not have. Two things follow.
-Renovate refreshes lock files with whatever tools the runner has, which
-the container used to install for it; this repository has no lock files,
-so nothing extra is set up. And the pin covers Renovate but not its
-dependency tree: `npx` resolves those within their declared ranges on
-each fresh install, and their install scripts run in the step holding
-`RENOVATE_TOKEN`. A Renovate major can also raise `engines.node` past
-the `node-version` the workflow sets up, so `renovate.json` attaches a
-note to those pull requests telling the reviewer to check it. The
-workflow is copied verbatim from `templates/renovate/` in
-`shakenfist/development`, whose README covers both in more depth.
 
 One thing renovate cannot help with: the `shakenfist/actions/...@main`
 references, both the ones downstream and the ones this repository makes

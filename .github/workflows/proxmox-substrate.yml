@@ -37,13 +37,14 @@ on:
       - '.github/workflows/proxmox-substrate.yml'
   workflow_dispatch:
   schedule:
-    # 03:17 UTC every Sunday -- a quiet hour, offset from renovate's
-    # hourly cron and codeql-analysis.yml's Tuesday run so the three
-    # scheduled workflows in this repository do not all wake the fleet
-    # at once. This is where upstream Proxmox drift (a rotated keyring
-    # checksum, a moved pve-no-subscription package) is meant to
-    # surface: as an issue against this repository, before it trips a
-    # ryll or kerbside pull request that changed nothing Proxmox-related.
+    # 03:17 UTC every Sunday -- a quiet hour, offset from this
+    # repository's other scheduled workflows (codeql-analysis.yml on
+    # Tuesdays, prune-reviews.yml daily at 04:23) so they do not all
+    # wake the fleet at once. This is where
+    # upstream Proxmox drift (a rotated keyring checksum, a moved
+    # pve-no-subscription package) is meant to surface: as an issue
+    # against this repository, before it trips a ryll or kerbside pull
+    # request that changed nothing Proxmox-related.
     - cron: '17 3 * * 0'
 
 permissions:
