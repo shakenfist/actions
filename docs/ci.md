@@ -353,14 +353,14 @@ files those reach, such as `install-collection.sh`;
 `ProxmoxSubstrateScopeTest` in `tests/test_workflow_references.py`
 walks the lane the same way `CanaryScopeTest` walks the smoke lane, and
 fails on anything it runs that the filter does not match. It also runs on
-`workflow_dispatch`, and weekly, Sunday 03:17 UTC -- offset from
-`codeql-analysis.yml`'s Tuesday run so this repository's scheduled
-workflows do not all wake the fleet at once. The weekly run is where
-upstream Proxmox drift (a rotated keyring checksum, a moved package)
-is meant to surface, as an issue
-against this repository labelled `proxmox-substrate`, before it trips
-a downstream pull request that changed nothing Proxmox-related --
-mirroring `canary.yml`'s one-issue-per-outage pattern. It carries the
+`workflow_dispatch`, and weekly, Sunday 03:17 UTC -- offset from this
+repository's other scheduled workflows, `codeql-analysis.yml` on
+Tuesdays and `prune-reviews.yml` daily at 04:23 UTC, so they do not
+all wake the fleet at once. The weekly run is where upstream Proxmox
+drift (a rotated keyring checksum, a moved package) is meant to
+surface, as an issue against this repository labelled
+`proxmox-substrate`, before it trips a downstream pull request that
+changed nothing Proxmox-related -- mirroring `canary.yml`'s one-issue-per-outage pattern. It carries the
 same fork guard as `ci.yml`'s VM jobs, for the same reason: the job
 executes the pull request's own ansible and scripts on a runner
 holding `/srv/github/id_ci`.
@@ -502,6 +502,15 @@ Nothing is automerged. `minimumReleaseAge` is three days and every
 update type is left for a human, which is the right default here for the
 reason the top of this document gives -- a merge to `main` is a deploy
 to every consumer at once, with no staging step between.
+
+None of those settings is in this repository's `renovate.json`. The
+release age, the no-automerge rule, the pre-commit manager, the
+shellcheck-py versioning rule, the schedule, the assignee and the
+dependency dashboard all come from `renovate-fleet.json` in
+`shakenfist/development`, which Renovate reads unpinned from that
+repository's default branch on every run. Changing any of them is a
+fleet decision made there, and it reaches this repository with no diff
+here -- including the two settings the next section leans on.
 
 Renovate pushes its branches to this repository rather than to a fork,
 so its pull requests are *not* skipped by the fork guard on `ci.yml` and
