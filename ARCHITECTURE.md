@@ -77,10 +77,9 @@ runner. The caller grants the token scope: a reusable workflow's
 | `pr-retest.yml` | Re-runs `ci.yml` on a bot comment |
 | `pr-re-review.yml` | Re-runs the reviewer, with `force`, on a bot comment |
 | `prune-reviews.yml` | Drops review marks made stale by a push to main and commits the regenerated state back |
-| `renovate.yml` | Hourly dependency updater for this repository's own pins |
 | `codeql-analysis.yml` | CodeQL over the workflows and the Python helpers |
 
-The last eight are the exception to "nothing here runs for itself" --
+The last seven are the exception to "nothing here runs for itself" --
 they exist only for this repository and are not consumed downstream. The
 two bot-triggered ones are the shared templates from
 `shakenfist/development`, deployed here late: this repository ships the

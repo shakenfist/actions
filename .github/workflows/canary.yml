@@ -93,7 +93,6 @@ on:
       - '.github/workflows/pr-retest.yml'
       - '.github/workflows/proxmox-substrate.yml'
       - '.github/workflows/prune-reviews.yml'
-      - '.github/workflows/renovate.yml'
       - '.github/actionlint.yaml'
       - '.flake8'
       - '.gitleaks.toml'
