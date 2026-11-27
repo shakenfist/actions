@@ -352,6 +352,39 @@ jobs:
           fi
           bash "${script}" ${{ inputs.base_image_user }}
 
+      # The federated exchange tests above fake the provider, which is right
+      # for testing validation but cannot test a login flow: discovery, the
+      # token exchange and the device grant are a conversation with a
+      # provider the test does not control. This stands a real OpenID Connect
+      # provider (Keycloak, in one container) up on the primary, with a
+      # certificate issued from the authority the previous step installed --
+      # which is why it must run after that step -- and leaves a descriptor
+      # on the primary for the tests to read.
+      #
+      # slim-tier only. The primary is 4096 MiB in
+      # ansible/ci-topology-slim-primary.yml and 12288 MiB in
+      # ansible/ci-topology-slim-tier.yml, and a provider has to fit beside
+      # the suite on whichever primary runs it; only the larger one has the
+      # room. On this lane the tests fail rather than skip if this step did
+      # not run, so a silent skip cannot hide a missing provider. The script
+      # tolerates being absent from older component refs.
+      - name: Stand up an identity provider
+        if: >-
+          inputs.test_kind == 'functional'
+          && inputs.stestr_config == 'cluster-ci.conf'
+          && inputs.topology == 'slim-tier'
+        timeout-minutes: 15
+        run: |
+          set -e
+          . ${GITHUB_WORKSPACE}/ci-environment.sh
+          script="${GITHUB_WORKSPACE}/shakenfist/tools/ci-idp-keycloak.sh"
+          if [ ! -f "${script}" ]; then
+              echo "${script} is not in this checkout, skipping. A"
+              echo "checkout without it carries no provider tests either."
+              exit 0
+          fi
+          bash "${script}" ${{ inputs.base_image_user }}
+
       # Sample cluster headroom through the test step -- the functional suite
       # or the ansible-modules one, both of which are probed -- so that CI
       # cloud sizing is eventually decided from a distribution rather than from
